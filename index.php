@@ -316,6 +316,9 @@
       <h2>Admin Portal</h2>
       <p>Authorized personnel can login below to manage the system:</p>
       <a href="admin_login.php" class="btn-secondary" tabindex="8">Admin Login</a>
+      <a href="registrar_login.php" class="btn-secondary"tabindex="8">Registrar Login</a>
+      <a href="cashier_login.php" class="btn-secondary"tabindex="8">Cashier Login</a>
+
     </section>
 
   </main>
