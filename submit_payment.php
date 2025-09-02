@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            $stmt->bind_param(
                "isssdssss",   
                $student_id, 
-               $firstname,     
+               $firstname,      
                $lastname, 
                $payment_type, 
                $reference_number, 

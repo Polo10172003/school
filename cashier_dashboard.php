@@ -3,7 +3,7 @@ require 'vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-$conn = new mysqli("localhost", "root", "", "student_enrollmentform");
+include 'db_connection.php';
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
@@ -158,7 +158,6 @@ $total_amount = $total_row['total'] ?? 0;
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script src="scroll-position.js"></script>
 
   <meta charset="UTF-8">
   <title>CASHIER DASHBOARD</title>
@@ -325,39 +324,7 @@ $total_amount = $total_row['total'] ?? 0;
     <div class="success"><?= $message ?></div>
   <?php endif; ?>
 
-  <!-- Payment Form -->
-  <form method="POST">
-    <label>Student</label>
-    <select name="student_id" required>
-      <?php
-      $students->data_seek(0);
-      while ($s = $students->fetch_assoc()):
-          echo "<option value='{$s['id']}'>{$s['lastname']}, {$s['firstname']}</option>";
-      endwhile;
-      ?>
-    </select>
-
-    <label>Payment Type</label>
-    <select name="payment_type" required>
-      <option value="">Select Type</option>
-      <option value="Enrollment Fee">Enrollment Fee</option>
-      <option value="Miscellaneous Fee">Miscellaneous Fee</option>
-      <option value="Tuition Fee">Tuition Fee</option>
-      <option value="Monthly Payment">Monthly Payment</option>
-      <option value="Other">Other</option>
-    </select>
-
-    <label>Amount</label>
-    <input type="number" name="amount" step="0.01" required>
-
-    <label>Status</label>
-    <select name="payment_status" required>
-      <option value="paid">Paid</option>
-      <option value="pending">Pending</option>
-    </select>
-
-    <button type="submit">Add Payment</button>
-  </form>
+ 
 
   <!-- Filter Section --> 
   <h2>Filter Payments</h2>
@@ -414,76 +381,216 @@ $total_amount = $total_row['total'] ?? 0;
       </tr>
     </thead>
     <tbody>
-      <?php while ($row = $payments->fetch_assoc()): ?>
-        <tr>
-          <td><?= date("Y-m-d", strtotime($row['created_at'])) ?></td>
-          <td><?= $row['lastname'] ?>, <?= $row['firstname'] ?></td>
-          <td><?= $row['payment_type'] ?></td>
-          <td>₱ <?= number_format($row['amount'], 2) ?></td>
-          <td><?= ucfirst($row['payment_status']) ?></td>
-          <td><?= $row['created_at'] ?></td>
-          <td>
-            <button 
-                class="view-payment-btn" 
-                data-id="<?= $row['id'] ?>" 
-                data-student="<?= $row['lastname'] ?>, <?= $row['firstname'] ?>"
-                data-type="<?= $row['payment_type'] ?>"
-                data-amount="<?= $row['amount'] ?>"
-                data-status="<?= ucfirst($row['payment_status']) ?>"
-                data-reference="<?= $row['reference_number'] ?>"
-                data-screenshot="<?= $row['screenshot_path'] ?>"
-              >
-                View Payment
-            </button>
-          </td>
-          <!-- Payment Modal -->
-          <div id="paymentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-          background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
-            <div style="background:#fff; padding:20px; border-radius:10px; width:500px; position:relative;">
-              <span id="closeModal" style="position:absolute; top:10px; right:15px; cursor:pointer; font-weight:bold;">&times;</span>
+    <?php while ($row = $payments->fetch_assoc()): ?>
+      <tr id="payment-row-<?php echo $row['id']; ?>">
+        <td><?= date("Y-m-d", strtotime($row['created_at'])) ?></td>
+        <td><?= $row['lastname'] ?>, <?= $row['firstname'] ?></td>
+        <td><?= $row['payment_type'] ?></td>
+        <td>₱ <?= number_format($row['amount'], 2) ?></td>
+
+        <!-- Status Column -->
+        <td class="payment-status" id="status-<?php echo $row['id']; ?>">
+            <?php 
+              if (!empty($row['payment_status'])) {
+                  if ($row['payment_status'] === 'declined') {
+                      echo "<span style='color: red;'>Declined</span>";
+                  } elseif ($row['payment_status'] === 'paid') {
+                      echo "<span style='color: green;'>Paid</span>";
+                  } else {
+                      echo ucfirst(htmlspecialchars($row['payment_status']));
+                  }
+              } else {
+                  echo "Pending";
+              }
+            ?>
+        </td>
+
+        <td><?= $row['created_at'] ?></td>
+      
+        <td>
+          <button 
+            class="view-payment-btn" 
+            data-id="<?= $row['id'] ?>" 
+            data-student="<?= $row['lastname'] ?>, <?= $row['firstname'] ?>"
+            data-type="<?= $row['payment_type'] ?>"
+            data-amount="<?= $row['amount'] ?>"
+            data-status="<?= ucfirst($row['payment_status']) ?>"
+            data-reference="<?= $row['reference_number'] ?>"
+            data-screenshot="<?= $row['screenshot_path'] ?>"
+          >
+            View Payment
+          </button>
+
+          
+        </td>
+      </tr>
+    <?php endwhile; ?>
+</tbody>
+
+
+</table>
+          <!-- Payment Modal (outside the table loop, at the end of body) -->
+          <div id="paymentModal" style="
+              display:none; 
+              position:fixed; 
+              top:0; left:0; 
+              width:100%; height:100%;
+              background:rgba(0,0,0,0.7); 
+              z-index:9999; 
+              justify-content:center; 
+              align-items:center;
+              overflow:auto;  /* allow scrolling if modal is too tall */
+              padding: 20px;
+          ">
+
+            <div style="
+                background:#fff; 
+                padding:20px; 
+                border-radius:10px; 
+                width:500px; 
+                max-width:95%; 
+                box-sizing:border-box; 
+                position:relative;
+            ">
+              <!-- Close button -->
+              <span id="closeModal" style="
+                  position:absolute; 
+                  top:10px; right:15px; 
+                  cursor:pointer; 
+                  font-weight:bold; 
+                  font-size:20px;
+              ">&times;</span>
+              
               <h3>Payment Details</h3>
               <p><strong>Student:</strong> <span id="modalStudent"></span></p>
               <p><strong>Type:</strong> <span id="modalType"></span></p>
               <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
               <p><strong>Status:</strong> <span id="modalStatus"></span></p>
               <p><strong>Reference #:</strong> <span id="modalReference"></span></p>
+
               <p><strong>Screenshot:</strong></p>
-              <img id="modalScreenshot" src="" alt="Payment Screenshot" style="max-width:100%; border:1px solid #ccc; border-radius:6px;">
+              <div style="text-align:center; margin-bottom:20px;">
+                <img id="modalScreenshot" src="" alt="Payment Screenshot" 
+                    style="max-width:100%; height:auto; border:1px solid #ccc; border-radius:6px;">
+              </div>
+
+              <!-- Hidden input -->
+              <input type="hidden" id="modalPaymentId">
+
+              <!-- Accept / Decline Buttons -->
+              <div style="margin-top:20px; text-align:center;">
+                <button id="acceptPaymentBtn" style="
+                    background-color:green; 
+                    color:white; 
+                    padding:10px 20px; 
+                    border:none; 
+                    border-radius:8px; 
+                    cursor:pointer;
+                ">Accept</button>
+                <button id="declinePaymentBtn" style="
+                    background-color:red; 
+                    color:white; 
+                    padding:10px 20px; 
+                    border:none; 
+                    border-radius:8px; 
+                    cursor:pointer;
+                ">Decline</button>
+              </div>
             </div>
           </div>
 
 
-        </tr>
 
-      <?php endwhile; ?>
-    </tbody>
-    
-  </table>
+
+
+
+  
 </div>
-          <script>
-          document.querySelectorAll('.view-payment-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              document.getElementById('modalStudent').textContent = btn.dataset.student;
-              document.getElementById('modalType').textContent = btn.dataset.type;
-              document.getElementById('modalAmount').textContent = parseFloat(btn.dataset.amount).toFixed(2);
-              document.getElementById('modalStatus').textContent = btn.dataset.status;
-              document.getElementById('modalReference').textContent = btn.dataset.reference;
-              document.getElementById('modalScreenshot').src = btn.dataset.screenshot;
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    // Open Modal when "View Payment" is clicked
+    document.querySelectorAll('.view-payment-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.getElementById('modalStudent').textContent = btn.dataset.student;
+            document.getElementById('modalType').textContent = btn.dataset.type;
+            document.getElementById('modalAmount').textContent = parseFloat(btn.dataset.amount).toFixed(2);
+            document.getElementById('modalStatus').textContent = btn.dataset.status;
+            document.getElementById('modalReference').textContent = btn.dataset.reference;
+            document.getElementById('modalScreenshot').src = btn.dataset.screenshot;
+            document.getElementById('modalPaymentId').value = btn.dataset.id;
 
-              document.getElementById('paymentModal').style.display = 'flex';
-            });
-          });
+            document.getElementById('paymentModal').style.display = 'flex';
+        });
+    });
 
-          document.getElementById('closeModal').addEventListener('click', () => {
+    // Close modal
+    document.getElementById('closeModal').addEventListener('click', () => {
+        document.getElementById('paymentModal').style.display = 'none';
+    });
+
+    window.onclick = function(event) {
+        if (event.target == document.getElementById('paymentModal')) {
             document.getElementById('paymentModal').style.display = 'none';
-          });
+        }
+    };
 
-          window.onclick = function(event) {
-            if (event.target == document.getElementById('paymentModal')) {
-              document.getElementById('paymentModal').style.display = 'none';
+   // Accept Payment
+document.getElementById('acceptPaymentBtn').addEventListener('click', () => {
+    let id = document.getElementById('modalPaymentId').value;
+
+    fetch("update_payment_status.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "id=" + id + "&status=paid"
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            let statusCell = document.getElementById("status-" + id);
+            if (statusCell) {
+                statusCell.innerHTML = "<span style='color: green;'>Paid</span>";
             }
-          };
-          </script>
+            document.getElementById("modalStatus").textContent = "Paid";
+            alert("Payment has been accepted.");
+        } else {
+            alert("Error: " + data.error);
+        }
+        document.getElementById("paymentModal").style.display = "none";
+    })
+    .catch(err => console.error(err));
+});
+
+// Decline Payment
+document.getElementById("declinePaymentBtn").addEventListener("click", function() {
+    let id = document.getElementById("modalPaymentId").value;
+
+    fetch("update_payment_status.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "id=" + id + "&status=declined"
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            let statusCell = document.getElementById("status-" + id);
+            if (statusCell) {
+                statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
+            }
+            document.getElementById("modalStatus").textContent = "Declined";
+            alert("Payment has been declined.");
+        } else {
+            alert("Error: " + data.error);
+        }
+        document.getElementById("paymentModal").style.display = "none";
+    })
+    .catch(err => console.error(err));
+});
+});
+</script>
+
+          <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        
+
 
 </body>
 </html>
