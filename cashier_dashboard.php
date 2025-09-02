@@ -17,10 +17,32 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $amount = $_POST["amount"];
     $payment_status = $_POST["payment_status"];
 
-    $stmt = $conn->prepare("INSERT INTO student_payments (student_id, payment_type, amount, payment_status) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssds", $student_id, $payment_type, $amount, $payment_status);
+// update from pending to paid on the database
+$payment_date = date("Y-m-d");
+$status = "paid";
+
+// Update the existing record for that student & reference number
+$sql = "UPDATE student_payments 
+        SET payment_status = ?, payment_date = ? 
+        WHERE student_id = ? AND payment_status = 'pending'";
+
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ssi", $status, $payment_date, $student_id);
+
+if ($stmt->execute()) {
+    if ($stmt->affected_rows > 0) {
+        echo "Payment status updated to PAID.";
+    } else {
+        echo "No pending payment found for this student.";
+    }
+} else {
+    echo "Error: " . $stmt->error;
+}
+
 
     if ($stmt->execute()) {
+      // Removes the pending
+      if ($payment_status === 'paid') {
         // Update enrollment_status
         $update = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
         $update->bind_param("i", $student_id);
@@ -74,6 +96,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } else {
         $message = "Error: " . $stmt->error;
     }
+}
 }
 
 // Fetch students
@@ -387,6 +410,7 @@ $total_amount = $total_row['total'] ?? 0;
         <th>Amount</th>
         <th>Status</th>
         <th>Timestamp</th>
+        <th>Payments</th>
       </tr>
     </thead>
     <tbody>
@@ -398,12 +422,68 @@ $total_amount = $total_row['total'] ?? 0;
           <td>₱ <?= number_format($row['amount'], 2) ?></td>
           <td><?= ucfirst($row['payment_status']) ?></td>
           <td><?= $row['created_at'] ?></td>
+          <td>
+            <button 
+                class="view-payment-btn" 
+                data-id="<?= $row['id'] ?>" 
+                data-student="<?= $row['lastname'] ?>, <?= $row['firstname'] ?>"
+                data-type="<?= $row['payment_type'] ?>"
+                data-amount="<?= $row['amount'] ?>"
+                data-status="<?= ucfirst($row['payment_status']) ?>"
+                data-reference="<?= $row['reference_number'] ?>"
+                data-screenshot="<?= $row['screenshot_path'] ?>"
+              >
+                View Payment
+            </button>
+          </td>
+          <!-- Payment Modal -->
+          <div id="paymentModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
+          background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
+            <div style="background:#fff; padding:20px; border-radius:10px; width:500px; position:relative;">
+              <span id="closeModal" style="position:absolute; top:10px; right:15px; cursor:pointer; font-weight:bold;">&times;</span>
+              <h3>Payment Details</h3>
+              <p><strong>Student:</strong> <span id="modalStudent"></span></p>
+              <p><strong>Type:</strong> <span id="modalType"></span></p>
+              <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
+              <p><strong>Status:</strong> <span id="modalStatus"></span></p>
+              <p><strong>Reference #:</strong> <span id="modalReference"></span></p>
+              <p><strong>Screenshot:</strong></p>
+              <img id="modalScreenshot" src="" alt="Payment Screenshot" style="max-width:100%; border:1px solid #ccc; border-radius:6px;">
+            </div>
+          </div>
+
+
         </tr>
+
       <?php endwhile; ?>
     </tbody>
     
   </table>
 </div>
+          <script>
+          document.querySelectorAll('.view-payment-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              document.getElementById('modalStudent').textContent = btn.dataset.student;
+              document.getElementById('modalType').textContent = btn.dataset.type;
+              document.getElementById('modalAmount').textContent = parseFloat(btn.dataset.amount).toFixed(2);
+              document.getElementById('modalStatus').textContent = btn.dataset.status;
+              document.getElementById('modalReference').textContent = btn.dataset.reference;
+              document.getElementById('modalScreenshot').src = btn.dataset.screenshot;
+
+              document.getElementById('paymentModal').style.display = 'flex';
+            });
+          });
+
+          document.getElementById('closeModal').addEventListener('click', () => {
+            document.getElementById('paymentModal').style.display = 'none';
+          });
+
+          window.onclick = function(event) {
+            if (event.target == document.getElementById('paymentModal')) {
+              document.getElementById('paymentModal').style.display = 'none';
+            }
+          };
+          </script>
 
 </body>
 </html>

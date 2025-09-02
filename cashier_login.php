@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $stmt->get_result();
     $cashier = $result->fetch_assoc();
 
-    if ($cashier && md5($password) == $cashier['password']) { // or use password_verify() if hashed with password_hash
+    if ($cashier && ($password) == $cashier['password']) { // or use password_verify() if hashed with password_hash
         $_SESSION['cashier_username'] = $cashier['username'];
         header("Location: cashier_dashboard.php");
         exit;

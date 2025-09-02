@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $stmt->get_result();
     $registrar = $result->fetch_assoc();
 
-    if ($registrar && md5($password) == $registrar['password']) { // use password_verify() if hashed differently
+    if ($registrar && ($password) == $registrar['password']) { // use password_verify() if hashed differently
         $_SESSION['registrar_username'] = $registrar['username'];
         header("Location: registrar_dashboard.php");
         exit;
@@ -71,6 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             color: red;
             font-weight: bold;
         }
+        
     </style>
 </head>
 <body>

@@ -12,14 +12,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("LRN and Amount are required.");
     }
 
-    // 🔍 STEP 1: Get the student_id using LRN
-    $stmt = $conn->prepare("SELECT id FROM students_registration WHERE lrn = ?");
+    // 🔍 STEP 1: Get student_id and lastname using LRN
+    $stmt = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE lrn = ?");
     $stmt->bind_param("s", $lrn);
     $stmt->execute();
     $result = $stmt->get_result();
 
     if ($row = $result->fetch_assoc()) {
         $student_id = $row['id'];
+        $firstname = $row['firstname'];
+        $lastname = $row['lastname'];
     } else {
         die("Student with this LRN not found.");
     }
@@ -36,12 +38,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $targetFilePath = $targetDir . time() . "_" . $fileName;
 
         if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePath)) {
-            // 💾 STEP 3: Insert into student_payments table
-            $sql = "INSERT INTO student_payments (student_id, payment_type, reference_number, amount, screenshot_path, payment_status)
-                    VALUES (?, 'Online', ?, ?, ?, ?)";
+            // 💾 STEP 3: Insert into student_payments table (now with lastname)
+           // Add payment_date
+           $payment_date = date("Y-m-d");
 
-            $stmt = $conn->prepare($sql);
-            $stmt->bind_param("issds", $student_id, $reference_number, $amount, $targetFilePath, $status);
+           $sql = "INSERT INTO student_payments 
+                   (student_id, firstname, lastname, payment_type, reference_number, amount, screenshot_path, payment_status, payment_date) 
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+           
+           $payment_type = "Online";
+           
+           $stmt = $conn->prepare($sql);
+           $stmt->bind_param(
+               "isssdssss",   
+               $student_id, 
+               $firstname,     
+               $lastname, 
+               $payment_type, 
+               $reference_number, 
+               $amount, 
+               $targetFilePath, 
+               $status, 
+               $payment_date
+           );
+           
 
             if ($stmt->execute()) {
                 header("Location: payment_success.php");

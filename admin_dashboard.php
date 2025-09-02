@@ -207,6 +207,28 @@
       <input type="submit" value="Send Announcement">
   </form>
 </div>
+<div class="container form-section">
+  <h2>Add New User</h2>
+  <form action="admin_addusers.php" method="POST">
+      <label for="fullname">Full Name:</label>
+      <input type="text" name="fullname" required>
+
+      <label for="username">Username:</label>
+      <input type="text" name="username" required>
+
+      <label for="password">Password:</label>
+      <input type="password" name="password" required>
+
+      <label for="role">Role:</label>
+      <select name="role" required>
+          <option value="cashier">Cashier</option>
+          <option value="registrar">Registrar</option>
+      </select>
+
+      <input type="submit" value="Add User">
+  </form>
+</div>
+
 
 </body>
 </html>

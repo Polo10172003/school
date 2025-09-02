@@ -14,9 +14,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $total_upon_enrollment = $_POST['total_upon_enrollment'];
 
     // Insert the fee data into the tuition_fees table
-    $stmt = $conn->prepare("INSERT INTO tuition_fees (school_year, student_type, year, entrance_fee, miscellaneous_fee, tuition_fee, total_upon_enrollment) 
+    $stmt = $conn->prepare("INSERT INTO tuition_fees (school_year, student_type, grade_level, entrance_fee, miscellaneous_fee, tuition_fee, total_upon_enrollment) 
     VALUES (?, ?, ?, ?, ?, ?, ?)");
-    $stmt->bind_param("sssssss", $school_year, $student_type, $year, $entrance_fee, $miscellaneous_fee, $tuition_fee,  $total_upon_enrollment);
+    $stmt->bind_param("sssdddd", $school_year, $student_type, $year, $entrance_fee, $miscellaneous_fee, $tuition_fee,  $total_upon_enrollment);
 
     if ($stmt->execute()) {
         echo "<div class='alert alert-success'>Tuition fee data saved successfully.</div>";

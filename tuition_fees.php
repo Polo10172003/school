@@ -64,10 +64,19 @@ include 'db_connection.php';
             $student_type = $_GET['student_type'];
             $year = $_GET['year'];
 
-            $query = "SELECT * FROM tuition_fees WHERE school_year='$school_year' AND student_type='$student_type' AND year='$year' ORDER BY year ASC";
+            $query = "SELECT * FROM tuition_fees
+                     WHERE school_year='$school_year' 
+                     AND student_type='$student_type' 
+                     AND grade_level='$year' 
+                     ORDER BY grade_level ASC";
             $result = mysqli_query($conn, $query);
 
-            if (mysqli_num_rows($result) > 0) {
+            
+
+            if (!$result) {
+                die("Query failed: " . mysqli_error($conn));
+            }
+            if (mysqli_num_rows($result) > 0) {   
                 echo "<div class='table-responsive'><table class='table table-striped table-bordered'>
                     <thead class='table-dark'>
                         <tr>
@@ -94,8 +103,11 @@ include 'db_connection.php';
                     $monthly = $total_fee / 12;
                     $annual_fee = $total_fee;
 
+                    $grade_level = ucwords(strtolower($row['grade_level']));
+                    $grade_level = preg_replace('/([a-zA-Z])([0-9])/', '$1 $2', $grade_level);
+
                     echo "<tr>
-                        <td>{$row['year']}</td>
+                        <td>{$grade_level}</td>
                         <td>₱" . number_format($annual_fee, 2) . "</td>
                         <td>₱" . number_format($cash_payment, 2) . "</td>
                         <td>₱" . number_format($semi_annually, 2) . "</td>
