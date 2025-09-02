@@ -20,7 +20,6 @@
       position: relative;
     }
 
-    /* Logout button styling */
     .logout-btn {
       position: absolute;
       top: 20px;
@@ -175,6 +174,11 @@
   <a href="admin_login.php" class="logout-btn">Logout</a>
 </header>
 
+<!-- ✅ Statistics Section -->
+<div class="container">
+  <?php include 'statistics.php'; ?>
+</div>
+
 <div class="container form-section">
   <h2>Post Announcement</h2>
   <form action="submit_announcement.php" method="POST">
@@ -207,6 +211,7 @@
       <input type="submit" value="Send Announcement">
   </form>
 </div>
+
 <div class="container form-section">
   <h2>Add New User</h2>
   <form action="admin_addusers.php" method="POST">
@@ -228,7 +233,6 @@
       <input type="submit" value="Add User">
   </form>
 </div>
-
 
 </body>
 </html>
