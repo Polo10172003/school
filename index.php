@@ -1,331 +1,304 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Escuela De Sto. Rosario</title>
-  <base href="/Enrollment/">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Escuela de Sto. Rosario</title>
+  <base href="/school-main/Enrollment/">
+
+  <!-- Bootstrap CSS & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
 
   <style>
-    /* Reset some basics */
-    * {
-      box-sizing: border-box;
-    }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      background-color: #f0f4f3;
-      color: #333;
-      line-height: 1.6;
-    }
-    a {
-      text-decoration: none;
-      color: inherit;
+      font-family: Arial, sans-serif;
     }
 
-    /* HEADER & NAV */
-    header {
-      background-color: #004d00;
-      padding: 20px 0;
-      text-align: center;
-      color: white;
+    /* Navbar */
+    .navbar {
       position: sticky;
       top: 0;
-      z-index: 999;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    header h1 {
-      margin: 0;
-      font-size: 2.4rem;
-      font-weight: 700;
-    }
-    header p {
-      margin: 4px 0 0;
-      font-size: 1.1rem;
-      font-weight: 300;
-      letter-spacing: 1px;
+      z-index: 1020; 
+      background-color: transparent;
+      opacity: 0.95;
+      transition: opacity 0.5s ease, background-color 0.5s ease;
     }
 
-    nav {
-      background-color: #007f3f;
-      display: flex;
-      justify-content: center;
-      box-shadow: inset 0 -3px 0 #004d00;
+    /* Fade effect kapag nag-scroll */
+    .navbar.scrolled {
+      opacity: 1;
+      background-color: #145A32 !important; 
     }
-    nav ul {
-      display: flex;
-      margin: 0;
-      padding: 0;
-      list-style: none;
-    }
-    nav ul li {
-      margin: 0 20px;
-    }
-    nav ul li a {
-      display: block;
-      padding: 15px 10px;
+      
+    /* Jumbotron */
+    .jumbotron {
+      background: url('../esrBanner.jpg') center/cover no-repeat;
       color: white;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      transition: background-color 0.3s ease;
-    }
-    nav ul li a:hover,
-    nav ul li a:focus {
-      background-color: #004d00;
-      border-radius: 5px;
-    }
-
-    /* HERO / BANNER */
-    .banner {
-      position: relative;
-      background: url('Esrbanner.jpg') center/cover no-repeat;
-      height: 400px;
-      border-radius: 12px;
-      margin: 30px auto;
-      max-width: 1000px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    }
-    .banner::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: rgba(0, 77, 0, 0.5);
-      border-radius: 12px;
-    }
-    .banner-text {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: #fff;
-      font-size: 2.2rem;
-      font-weight: 700;
-      text-align: center;
-      z-index: 1;
-      padding: 0 20px;
-      text-shadow: 0 2px 6px rgba(0,0,0,0.7);
-    }
-
-    /* CENTER BUTTON */
-    .center-button {
-      text-align: center;
-      margin: 30px 0 50px;
-    }
-    .btn-primary {
-      background-color: #007f3f;
-      color: white;
-      padding: 14px 28px;
-      font-weight: 700;
-      font-size: 1.2rem;
-      border-radius: 8px;
-      box-shadow: 0 4px 8px rgba(0,127,63,0.4);
-      transition: background-color 0.3s ease, box-shadow 0.3s ease;
-      display: inline-block;
-      cursor: pointer;
-    }
-    .btn-primary:hover,
-    .btn-primary:focus {
-      background-color: #004d00;
-      box-shadow: 0 6px 14px rgba(0,77,0,0.7);
-      outline: none;
-    }
-
-    /* MAIN CONTENT */
-    .main-container {
-      max-width: 1100px;
-      margin: 0 auto 80px;
+      height: 700px;  /* full screen height */
       display: flex;
-      gap: 40px;
-      padding: 0 20px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .left, .right {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 0 16px rgba(0,0,0,0.08);
-      padding: 30px;
-      flex: 1 1 420px;
-      min-width: 320px;
-    }
-
-    /* Contact logo & details */
-    .contact-logo {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 30px;
       align-items: center;
-    }
-    .contact-logo img {
-      width: 90px;
+      justify-content: center;
       border-radius: 10px;
-      box-shadow: 0 0 8px rgba(0,127,63,0.3);
-    }
-    .contact-logo div p {
-      margin: 6px 0;
-      font-weight: 600;
-      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
     }
 
-    /* Section headings */
-    h2 {
-      color: #007f3f;
-      border-bottom: 3px solid #007f3f;
-      padding-bottom: 8px;
-      margin-bottom: 18px;
-      font-weight: 700;
-      font-size: 1.8rem;
+    .jumbotron {
+      width: 100vw;
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
     }
 
-    /* Paragraph text */
-    p {
-      font-size: 1rem;
-      color: #444;
-      margin-bottom: 20px;
+    .jumbotron:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
 
-    /* Lists */
-    ul {
-      padding-left: 1.3rem;
-      list-style: disc inside;
-      margin-bottom: 25px;
-    }
-    ul li {
-      margin-bottom: 12px;
-      font-weight: 600;
-      font-size: 1rem;
-    }
-    ul li a {
-      color: #007f3f;
-      font-weight: 700;
-      transition: color 0.2s ease;
-    }
-    ul li a:hover {
-      color: #004d00;
+    /* Add click effect */
+    .jumbotron:active {
+      transform: scale(0.98);
+      transition: transform 0.1s ease;
     }
 
-    /* Admin Login Button */
-    .btn-secondary {
-      background-color: #004d00;
-      color: white;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 1.1rem;
+    .jumbotron p {
+      background: rgba(0,0,0,0.6);
       display: inline-block;
-      margin-top: 15px;
-      transition: background-color 0.3s ease;
-    }
-    .btn-secondary:hover {
-      background-color: #003300;
+      padding: 15px 25px;
+      border-radius: 8px;
+      font-size: 1.5rem;
+      font-weight: 500;
     }
 
-    /* FOOTER */
-    footer {
-      background-color: #004d00;
+    /* Footer */
+    .footer {
+      background-color: #145A32; /* green theme */
+      color: #fff;
+      font-size: 14px;
+      margin-top: 3rem;
+    }
+
+    /* General footer links (Helpdesk + Navigation) */
+    .footer a {
+      color: #ffffff;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.3s ease;
+    }
+
+    .footer a:hover {
+      color: #f1c40f;
+      text-decoration: underline;
+    }
+    .footer p a {
+      display: inline;      /* gawin siyang inline, hindi block */
+      margin-left: 5px;     /* konting pagitan sa text */
+    }
+
+    /* Social Media specific hover (icon + text underline + color) */
+    .footer .list-unstyled li a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.3s ease;
+    }
+
+    .footer .list-unstyled li a:hover {
+      color: #f1c40f;
+      text-decoration: underline;
+    }
+
+    .footer h5, .footer h6 {
+      margin-bottom: 15px;
+    }
+
+    .footer-bottom {
+      font-size: 13px;
+      color: #ccc;
+    }
+
+    .footer-bottom .privacy-link {
+      color: #f1c40f;
+    }
+
+    .footer-bottom .privacy-link:hover {
+      text-decoration: underline;
+    }
+
+    /* About Us Tab Buttons - Match School Theme */
+    .nav-pills .nav-link {
+      color: #145A32;
+      background-color: transparent;
+      border: 2px solid #145A32;
+      margin: 0 5px;
+      transition: all 0.3s ease;
+    }
+
+    .nav-pills .nav-link:hover {
+      background-color: #145A32;
       color: white;
-      text-align: center;
-      padding: 20px 10px;
-      font-size: 0.9rem;
-      letter-spacing: 0.05em;
-      font-weight: 600;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(20, 90, 50, 0.3);
     }
 
-    /* Responsive */
-    @media (max-width: 768px) {
-      .main-container {
-        flex-direction: column;
-        padding: 0 15px;
-      }
-      nav ul {
-        flex-direction: column;
-      }
-      nav ul li {
-        margin: 8px 0;
-      }
+    .nav-pills .nav-link.active {
+      background-color: #145A32;
+      color: white;
+      border-color: #145A32;
+      box-shadow: 0 4px 8px rgba(20, 90, 50, 0.3);
     }
   </style>
 </head>
 <body>
 
-  <header>
-    <h1>Escuela De Sto. Rosario</h1>
-    <p>Official School Website</p>
-  </header>
-
-  <nav>
-    <ul>
-      <li><a href="#home" tabindex="1">Home</a></li>
-      <li><a href="#about" tabindex="2">About Us</a></li>
-      <li><a href="student_login.php" tabindex="3">Portal</a></li>
-      <li><a href="tuition_fees.php" tabindex="4">Tuition Fees</a></li>
-    </ul>
-  </nav>
-
-  <section class="banner" id="home" role="img" aria-label="School Banner Image">
-    <div class="banner-text">
-      Welcome to Escuela De Sto. Rosario<br />
-      <small style="font-weight:400; font-size:1.1rem;">Shaping the Future, One Student at a Time</small>
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #145A32;">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="#home">
+        <img src="../Esrlogo.png" width="40" height="40" class="me-2">
+        ESCUELA DE STO. ROSARIO
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link active" href="#home">Home</a></li>
+          <li class="nav-item"><a class="nav-link" href="#aboutus">About Us</a></li>
+          <li class="nav-item"><a class="nav-link" href="tuition_fees.php">Tuition Fees</a></li>
+          <li class="nav-item"><a class="nav-link" href="student_login.php">Portal</a></li>
+        </ul>
+      </div>
     </div>
-  </section>
-
-  <div class="center-button">
-    <a href="early_registration.php" class="btn-primary" tabindex="5">Early Registration</a>
-  </div>
-
-  <main class="main-container">
-
-    <section class="left" id="about" tabindex="6">
-      <div class="contact-logo">
-        <img src="Esrlogo.png" alt="Escuela De Sto. Rosario Logo" />
-        <div>
-          <h2>Contact Details</h2>
-          <p><strong>Escuela De Sto. Rosario</strong></p>
-          <p>97 Dr. Sixto Antonio Ave., Rosario, Pasig City</p>
-          <p>📞 Smart: (0969) 354-2870 / Globe: (0956) 351-2764</p>
-          <p>📧 Email: esradmission@gmail.com</p>
-          <p>🕒 Mon - Fri: 9:00 AM to 5:00 PM</p>
+  </nav>
+  <!-- Jumbotron -->
+  <div id="home">
+    <a href="early_registration.php" style="text-decoration: none; color: inherit;">
+      <div class="jumbotron">
+        <div class="text-center">
+          <h class="display-4">Welcome to Escuela de Sto. Rosario</h>
+          <h1 class="lead">Quality education rooted in values and excellence.</h1>
+          <p class="early">Early Registration | SY: 2026-2027</p>
         </div>
       </div>
+    </a>
+  </div>
 
-      <h2>Our Vision</h2>
-      <p>
-        To train and educate the children regardless of their religious affiliation in response to the needs of the times; hence, Sto. Rosarians education envision integrated moral and family values, social commitment, spiritual and physical growth, and in line with the development of Information Technology to become a better citizen of our nation.
-      </p>
+    <!-- Sample Content -->
+    <div class="container mt-5">
+      <div class="row">
+        <div class="col-md-4">
+          <img src="../esrBanner.jpg" alt="School Banner" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <h5>Programs</h5>
+          <p>Explore our wide range of academic programs designed to prepare students for the future.</p>
+        </div>
+        <div class="col-md-4">
+          <img src="../Esrlogo.png" alt="School Logo" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <h5>Admissions</h5>
+          <p>Join our community and take the first step towards a brighter future with us.</p>
+        </div>
+        <div class="col-md-4">
+          <img src="../Esr_banner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <h5>Campus Life</h5>
+          <p>Experience a vibrant and supportive campus life that nurtures learning and growth.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 
-      <h2>Our Mission</h2>
-      <p>
-        To realize this vision, we commit ourselves to:
-        <br /><br />
-        The pursuit of excellence and socially relevant early childhood education; the recognition of the uniqueness and the potential of each individual; the inculcation of social awareness and responsibility; the promotion of Christian spirits in the context of a global family and continuous spiritual and moral conversation.
-        <br /><br />
-        We continuously strive to create an environment sustained by quality curricular and co-curricular education programs with the student at the core, enlivened by dedicated administrators, faculties, and staff, supported by involved parents, and equipped with adequate facilities.
-      </p>
-    </section>
+  <!-- About Us Section -->
+  <div id="aboutus" class="container py-5">
+    <h2 class="text-center mb-4">About Us</h2>
 
-    <section class="right" tabindex="7" aria-label="Courses offered section">
-      <h2>Courses Offered</h2>
-      <ul>
-        <li>Senior High School (Grades 11 & 12)</li>
-        <li>Junior High School (Grades 7 to 10)</li>
-        <li>Grade School</li>
-        <li>Pre-school</li>
-      </ul>
+    <!-- Sub-nav (like pagination for Vision & Mission) -->
+    <ul class="nav nav-pills justify-content-center mb-4" id="aboutTabs" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="vision-tab" data-bs-toggle="tab" data-bs-target="#vision" type="button" role="tab">Our Vision</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="mission-tab" data-bs-toggle="tab" data-bs-target="#mission" type="button" role="tab">Our Mission</button>
+      </li>
+    </ul>
 
-      <h2>Admin Portal</h2>
-      <p>Authorized personnel can login below to manage the system:</p>
-      <a href="admin_login.php" class="btn-secondary" tabindex="8">Admin Login</a>
-      <a href="registrar_login.php" class="btn-secondary"tabindex="8">Registrar Login</a>
-      <a href="cashier_login.php" class="btn-secondary"tabindex="8">Cashier Login</a>
+    <!-- Content -->
+    <div class="tab-content mx-auto text-center" id="aboutTabsContent" style="max-width: 950px;">
+      <div class="tab-pane fade show active" id="vision" role="tabpanel">
+        <h3 class="text-success">Our Vision</h3>
+        <p>
+         To train and educate the children regardless of their religious affiliation in response to the needs of the times; hence, Sto. Rosarians education envision integrated moral and family values, social commitment, spiritual and physical growth, and in line with the development of Information Technology to become a better citizen of our nation.
+        </p>
+      </div>
+      <div class="tab-pane fade" id="mission" role="tabpanel">
+        <h3 class="text-success">Our Mission</h3>
+        <p>
+          To realize this vision, we commit ourselves to:
+          <br /><br />
+          The pursuit of excellence and socially relevant early childhood education; the recognition of the uniqueness and the potential of each individual; the inculcation of social awareness and responsibility; the promotion of Christian spirits in the context of a global family and continuous spiritual and moral conversation.
+          <br /><br />
+          We continuously strive to create an environment sustained by quality curricular and co-curricular education programs with the student at the core, enlivened by dedicated administrators, faculties, and staff, supported by involved parents, and equipped with adequate facilities.
+        </p>    
+      </div>
+    </div>
+  </div> 
+  <!-- Footer -->
+  <footer class="footer mt-5">
+    <div class="container py-4">
+      <div class="row">
+        <!-- School Info -->
+        <div class="col-md-4 mb-3">
+          <h5 class="fw-bold text-warning">Escuela de Sto. Rosario</h5>
+          <p><i class="bi bi-geo-alt"></i> Location: 97 Dr. Sixto Antonio Ave., Rosario, Pasig City</p>
+          <p><i class="bi bi-telephone"></i> Phone: Smart: (0969)354-2870 / Globe: (0956)351-2764</p>
+          <p><i class="bi bi-info-circle"></i> Helpdesk: <a href="#">Click here</a></p>
+        </div>
 
-    </section>
+        <!-- Navigation -->
+        <div class="col-md-4 mb-3">
+          <h6 class="fw-bold text-warning">Navigation</h6>
+          <ul class="list-unstyled">
+            <li><a href="#">Careers</a></li>
+            <li><a href="#">Company Disclosures</a></li>
+            <li><a href="#">Alternative Payment Service</a></li>
+            <li><a href="#">Campuses</a></li>
+          </ul>
+        </div>
 
-  </main>
+        <!-- Social Media -->
+        <div class="col-md-4 mb-3">
+          <h6 class="fw-bold text-warning">Get Regular Updates</h6>
+          <ul class="list-unstyled">
+            <li><a href="#"><i class="bi bi-facebook"></i> Facebook</a></li>
+            <li><a href="#"><i class="bi bi-youtube"></i> YouTube</a></li>
+            <li><a href="#"><i class="bi bi-instagram"></i> Instagram</a></li>
+            <li><a href="#"><i class="bi bi-twitter-x"></i> Twitter/X</a></li>
+            <li><a href="#"><i class="bi bi-tiktok"></i> TikTok</a></li>
+          </ul>
+        </div>
 
-  <footer>
-    &copy; <?php echo date('Y'); ?> Escuela De Sto. Rosario. All Rights Reserved.
+      <!-- Bottom Bar -->
+      <div class="footer-bottom d-flex justify-content-between pt-3 mt-3 border-top">
+        <span>© 2025 Escuela de Sto. Rosario. All rights reserved.</span>
+        <a href="privacy.php" class="privacy-link">Privacy Policy</a>
+      </div>
+    </div>
   </footer>
 
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+      window.addEventListener("scroll", function() {
+      const navbar = document.querySelector(".navbar");
+      if (window.scrollY > 50) {
+        navbar.classList.add("scrolled");
+      } else {
+        navbar.classList.remove("scrolled");
+      }
+    });
+  </script>
 </body>
 </html>
