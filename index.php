@@ -92,7 +92,7 @@
     }
 
     .footer a:hover {
-      color: #f1c40f;
+      color: #fbd80a;
       text-decoration: underline;
     }
     .footer p a {
@@ -109,7 +109,7 @@
     }
 
     .footer .list-unstyled li a:hover {
-      color: #f1c40f;
+      color: #fbd80a;
       text-decoration: underline;
     }
 
@@ -123,7 +123,7 @@
     }
 
     .footer-bottom .privacy-link {
-      color: #f1c40f;
+      color: #fbd80a;
     }
 
     .footer-bottom .privacy-link:hover {
@@ -152,6 +152,31 @@
       border-color: #145A32;
       box-shadow: 0 4px 8px rgba(20, 90, 50, 0.3);
     }
+
+    .portal-btn {
+        color: #145A32 !important;
+        background-color: #fbd80a;
+        border: 2px solid #fbd80a;
+        border-radius: 6px;
+        padding: 4px 16px;
+        margin: 0 5px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-block;
+        line-height: 1.2;
+        vertical-align: baseline;
+        position: relative;
+        top: 4px;
+    }
+
+    .portal-btn:hover {
+        background-color: #fbd80a;
+        color: #145A32 !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(251, 216, 10, 0.3);
+    }
+
   </style>
 </head>
 <body>
@@ -159,7 +184,7 @@
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #145A32;">
     <div class="container">
-      <a class="navbar-brand d-flex align-items-center" href="#home">
+      <a class="navbar-brand d-flex fw-bold align-items-center" href="#home">
         <img src="../Esrlogo.png" width="40" height="40" class="me-2">
         ESCUELA DE STO. ROSARIO
       </a>
@@ -168,10 +193,10 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link active" href="#home">Home</a></li>
-          <li class="nav-item"><a class="nav-link" href="#aboutus">About Us</a></li>
-          <li class="nav-item"><a class="nav-link" href="tuition_fees.php">Tuition Fees</a></li>
-          <li class="nav-item"><a class="nav-link" href="student_login.php">Portal</a></li>
+          <li class="nav-item"><a class="nav-link fw-bold active" href="#home">Home</a></li>
+          <li class="nav-item"><a class="nav-link fw-bold" href="#aboutus">About Us</a></li>
+          <li class="nav-item"><a class="nav-link fw-bold" href="tuition_fees.php">Tuition Fees</a></li>
+          <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="student_login.php">Portal</a></li>
         </ul>
       </div>
     </div>
@@ -181,8 +206,8 @@
     <a href="early_registration.php" style="text-decoration: none; color: inherit;">
       <div class="jumbotron">
         <div class="text-center">
-          <h class="display-4">Welcome to Escuela de Sto. Rosario</h>
-          <h1 class="lead">Quality education rooted in values and excellence.</h1>
+          <h class="display-4 fw-bold">Welcome to Escuela de Sto. Rosario</h>
+          <h1 class="lead fw-bold">Quality education rooted in values and excellence.</h1>
           <p class="early">Early Registration | SY: 2026-2027</p>
         </div>
       </div>
@@ -194,17 +219,17 @@
       <div class="row">
         <div class="col-md-4">
           <img src="../esrBanner.jpg" alt="School Banner" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5>Programs</h5>
+          <h5 class="fw-bold">Programs</h5>
           <p>Explore our wide range of academic programs designed to prepare students for the future.</p>
         </div>
         <div class="col-md-4">
           <img src="../Esrlogo.png" alt="School Logo" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5>Admissions</h5>
+          <h5 class="fw-bold">Admissions</h5>
           <p>Join our community and take the first step towards a brighter future with us.</p>
         </div>
         <div class="col-md-4">
           <img src="../Esr_banner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5>Campus Life</h5>
+          <h5 class="fw-bold">Campus Life</h5>
           <p>Experience a vibrant and supportive campus life that nurtures learning and growth.</p>
         </div>
       </div>
@@ -213,28 +238,28 @@
 
   <!-- About Us Section -->
   <div id="aboutus" class="container py-5">
-    <h2 class="text-center mb-4">About Us</h2>
+    <h2 class="text-center mb-4 fw-bold">About Us</h2>
 
     <!-- Sub-nav (like pagination for Vision & Mission) -->
     <ul class="nav nav-pills justify-content-center mb-4" id="aboutTabs" role="tablist">
       <li class="nav-item">
-        <button class="nav-link active" id="vision-tab" data-bs-toggle="tab" data-bs-target="#vision" type="button" role="tab">Our Vision</button>
+        <button class="nav-link fw-bold active" id="vision-tab" data-bs-toggle="tab" data-bs-target="#vision" type="button" role="tab">Our Vision</button>
       </li>
       <li class="nav-item">
-        <button class="nav-link" id="mission-tab" data-bs-toggle="tab" data-bs-target="#mission" type="button" role="tab">Our Mission</button>
+        <button class="nav-link fw-bold" id="mission-tab" data-bs-toggle="tab" data-bs-target="#mission" type="button" role="tab">Our Mission</button>
       </li>
     </ul>
 
     <!-- Content -->
     <div class="tab-content mx-auto text-center" id="aboutTabsContent" style="max-width: 950px;">
       <div class="tab-pane fade show active" id="vision" role="tabpanel">
-        <h3 class="text-success">Our Vision</h3>
+        <h3 class="text-success fw-bold">Our Vision</h3>
         <p>
          To train and educate the children regardless of their religious affiliation in response to the needs of the times; hence, Sto. Rosarians education envision integrated moral and family values, social commitment, spiritual and physical growth, and in line with the development of Information Technology to become a better citizen of our nation.
         </p>
       </div>
       <div class="tab-pane fade" id="mission" role="tabpanel">
-        <h3 class="text-success">Our Mission</h3>
+        <h3 class="text-success fw-bold">Our Mission</h3>
         <p>
           To realize this vision, we commit ourselves to:
           <br /><br />
@@ -251,7 +276,7 @@
       <div class="row">
         <!-- School Info -->
         <div class="col-md-4 mb-3">
-          <h5 class="fw-bold text-warning">Escuela de Sto. Rosario</h5>
+          <h5 class="fw-bold" style="color: #fbd80a;">Escuela De Sto. Rosario</h5>
           <p><i class="bi bi-geo-alt"></i> Location: 97 Dr. Sixto Antonio Ave., Rosario, Pasig City</p>
           <p><i class="bi bi-telephone"></i> Phone: Smart: (0969)354-2870 / Globe: (0956)351-2764</p>
           <p><i class="bi bi-info-circle"></i> Helpdesk: <a href="#">Click here</a></p>
@@ -259,7 +284,7 @@
 
         <!-- Navigation -->
         <div class="col-md-4 mb-3">
-          <h6 class="fw-bold text-warning">Navigation</h6>
+          <h6 class="fw-bold" style="color: #fbd80a;">Navigation</h6>
           <ul class="list-unstyled">
             <li><a href="#">Careers</a></li>
             <li><a href="#">Company Disclosures</a></li>
@@ -270,7 +295,7 @@
 
         <!-- Social Media -->
         <div class="col-md-4 mb-3">
-          <h6 class="fw-bold text-warning">Get Regular Updates</h6>
+          <h6 class="fw-bold" style="color: #fbd80a;">Get Regular Updates</h6>
           <ul class="list-unstyled">
             <li><a href="#"><i class="bi bi-facebook"></i> Facebook</a></li>
             <li><a href="#"><i class="bi bi-youtube"></i> YouTube</a></li>
