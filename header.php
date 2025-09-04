@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?php echo isset($page_title) ? $page_title : 'Escuela de Sto. Rosario'; ?></title>
-  <base href="/school/Enrollment/">
+  <base href="/Enrollment/">
 
   <!-- Bootstrap CSS & Icons -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -33,9 +33,9 @@
       
     /* Jumbotron */
     .jumbotron {
-      background: url('/school/esrBanner.jpg') center/cover no-repeat;
+      background: url('EsrBanner.jpg') center/cover no-repeat;
       color: white;
-      height: 700px; 
+      height: 700px;  /* full screen height */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -185,7 +185,7 @@
   <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #145A32;">
     <div class="container">
       <a class="navbar-brand d-flex fw-bold align-items-center" href="#home">
-        <img src="../Esrlogo.png" width="40" height="40" class="me-2">
+        <img src="Esrlogo.png" width="40" height="40" class="me-2">
         ESCUELA DE STO. ROSARIO
       </a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

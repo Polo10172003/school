@@ -1,6 +1,6 @@
 <?php
 // Include template helper
-require_once 'templates/template_helper.php';
+require_once 'template_helper.php';
 
 // Set page title
 $page_title = 'Escuela de Sto. Rosario - Home';
@@ -27,17 +27,17 @@ renderPage($page_title, function() {
     <div class="container mt-5">
       <div class="row">
         <div class="col-md-4">
-          <img src="../esrBanner.jpg" alt="School Banner" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <img src="EsrBanner.jpg" alt="School Banner" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
           <h5 class="fw-bold">Programs</h5>
           <p>Explore our wide range of academic programs designed to prepare students for the future.</p>
         </div>
         <div class="col-md-4">
-          <img src="../Esrlogo.png" alt="School Logo" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <img src="Esrlogo.png" alt="School Logo" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
           <h5 class="fw-bold">Admissions</h5>
           <p>Join our community and take the first step towards a brighter future with us.</p>
         </div>
         <div class="col-md-4">
-          <img src="../esrBanner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <img src="EsrBanner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
           <h5 class="fw-bold">Campus Life</h5>
           <p>Experience a vibrant and supportive campus life that nurtures learning and growth.</p>
         </div>
