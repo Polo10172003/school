@@ -508,6 +508,11 @@ $total_amount = $total_row['total'] ?? 0;
 </div>
 <script>
 document.addEventListener("DOMContentLoaded", function() {
+    const paymentModal = document.getElementById("paymentModal");
+    const closeModal = document.getElementById("closeModal");
+    const acceptBtn = document.getElementById("acceptPaymentBtn");
+    const declineBtn = document.getElementById("declinePaymentBtn");
+
     // Open Modal when "View Payment" is clicked
     document.querySelectorAll('.view-payment-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -519,74 +524,80 @@ document.addEventListener("DOMContentLoaded", function() {
             document.getElementById('modalScreenshot').src = btn.dataset.screenshot;
             document.getElementById('modalPaymentId').value = btn.dataset.id;
 
-            document.getElementById('paymentModal').style.display = 'flex';
+            paymentModal.style.display = 'flex';
         });
     });
 
-    // Close modal
-    document.getElementById('closeModal').addEventListener('click', () => {
-        document.getElementById('paymentModal').style.display = 'none';
-    });
+    // Close modal (X button)
+    if (closeModal) {
+        closeModal.addEventListener('click', () => {
+            paymentModal.style.display = 'none';
+        });
+    }
 
+    // Close modal (click outside)
     window.onclick = function(event) {
-        if (event.target == document.getElementById('paymentModal')) {
-            document.getElementById('paymentModal').style.display = 'none';
+        if (event.target === paymentModal) {
+            paymentModal.style.display = 'none';
         }
     };
 
-   // Accept Payment
-document.getElementById('acceptPaymentBtn').addEventListener('click', () => {
-    let id = document.getElementById('modalPaymentId').value;
+    // Accept Payment
+    if (acceptBtn) {
+        acceptBtn.addEventListener('click', () => {
+            let id = document.getElementById('modalPaymentId').value;
 
-    fetch("update_payment_status.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "id=" + id + "&status=paid"
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            let statusCell = document.getElementById("status-" + id);
-            if (statusCell) {
-                statusCell.innerHTML = "<span style='color: green;'>Paid</span>";
-            }
-            document.getElementById("modalStatus").textContent = "Paid";
-            alert("Payment has been accepted.");
-        } else {
-            alert("Error: " + data.error);
-        }
-        document.getElementById("paymentModal").style.display = "none";
-    })
-    .catch(err => console.error(err));
-});
+            fetch("update_payment_status.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "id=" + id + "&status=paid"
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    let statusCell = document.getElementById("status-" + id);
+                    if (statusCell) {
+                        statusCell.innerHTML = "<span style='color: green;'>Paid</span>";
+                    }
+                    alert("✅ Student’s payment has been accepted.");
+                } else {
+                    alert("Error: " + data.error);
+                }
+                paymentModal.style.display = "none";
+            })
+            .catch(err => console.error(err));
+        });
+    }
 
-// Decline Payment
-document.getElementById("declinePaymentBtn").addEventListener("click", function() {
-    let id = document.getElementById("modalPaymentId").value;
+    // Decline Payment
+    if (declineBtn) {
+        declineBtn.addEventListener("click", () => {
+            let id = document.getElementById("modalPaymentId").value;
 
-    fetch("update_payment_status.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: "id=" + id + "&status=declined"
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            let statusCell = document.getElementById("status-" + id);
-            if (statusCell) {
-                statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
-            }
-            document.getElementById("modalStatus").textContent = "Declined";
-            alert("Payment has been declined.");
-        } else {
-            alert("Error: " + data.error);
-        }
-        document.getElementById("paymentModal").style.display = "none";
-    })
-    .catch(err => console.error(err));
-});
+            fetch("update_payment_status.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "id=" + id + "&status=declined"
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    let statusCell = document.getElementById("status-" + id);
+                    if (statusCell) {
+                        statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
+                    }
+                    alert("❌ Student’s payment has been declined.");
+                } else {
+                    alert("Error: " + data.error);
+                }
+                paymentModal.style.display = "none";
+            })
+            .catch(err => console.error(err));
+        });
+    }
 });
 </script>
+
 
           <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         
