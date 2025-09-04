@@ -37,7 +37,7 @@ renderPage($page_title, function() {
           <p>Join our community and take the first step towards a brighter future with us.</p>
         </div>
         <div class="col-md-4">
-          <img src="../Esr_banner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
+          <img src="../esrBanner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
           <h5 class="fw-bold">Campus Life</h5>
           <p>Experience a vibrant and supportive campus life that nurtures learning and growth.</p>
         </div>

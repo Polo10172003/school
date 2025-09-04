@@ -8,7 +8,7 @@ session_start();
   <meta charset="UTF-8">
   <title>Payment Successful - Escuela De Sto. Rosario</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <base href="/Enrollment/">
+  <base href="/school/Enrollment/">
 
   <style>
     body {
@@ -136,7 +136,7 @@ session_start();
 </nav>
 
 <div class="banner">
-  <img src="Esrbanner.jpg" alt="ESR Banner">
+  <img src="../esrBanner.jpg" alt="ESR Banner">
 </div>
 
 <div class="success-box">
