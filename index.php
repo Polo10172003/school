@@ -24,8 +24,7 @@
       opacity: 0.95;
       transition: opacity 0.5s ease, background-color 0.5s ease;
     }
-
-    /* Fade effect kapag nag-scroll */
+    
     .navbar.scrolled {
       opacity: 1;
       background-color: #145A32 !important; 
@@ -35,7 +34,7 @@
     .jumbotron {
       background: url('../esrBanner.jpg') center/cover no-repeat;
       color: white;
-      height: 700px;  /* full screen height */
+      height: 700px;  
       display: flex;
       align-items: center;
       justify-content: center;
@@ -58,7 +57,6 @@
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
 
-    /* Add click effect */
     .jumbotron:active {
       transform: scale(0.98);
       transition: transform 0.1s ease;
@@ -72,10 +70,10 @@
       font-size: 1.5rem;
       font-weight: 500;
     }
-
+    
     /* Footer */
     .footer {
-      background-color: #145A32; /* green theme */
+      background-color: #145A32; 
       color: #fff;
       font-size: 14px;
       margin-top: 3rem;
@@ -96,8 +94,8 @@
       text-decoration: underline;
     }
     .footer p a {
-      display: inline;      /* gawin siyang inline, hindi block */
-      margin-left: 5px;     /* konting pagitan sa text */
+      display: inline;      
+      margin-left: 5px;    
     }
 
     /* Social Media specific hover (icon + text underline + color) */
@@ -327,3 +325,4 @@
   </script>
 </body>
 </html>
+
