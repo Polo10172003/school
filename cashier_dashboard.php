@@ -317,7 +317,6 @@ $total_amount = $total_row['total'] ?? 0;
 
 
 <div class="container">
-  <h2>Student Payments</h2>
   
 
   <?php if (isset($message)): ?>
