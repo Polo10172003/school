@@ -12,7 +12,7 @@ renderPage($page_title, function() {
     
     <!-- Jumbotron -->
     <div id="home">
-      <a href="early_registration.php" style="text-decoration: none; color: inherit;">
+      <a href="lrn.php" style="text-decoration: none; color: inherit;">
         <div class="jumbotron">
           <div class="text-center">
             <h class="display-4 fw-bold">Welcome to Escuela de Sto. Rosario</h>
@@ -58,12 +58,18 @@ renderPage($page_title, function() {
       <div class="tab-content mx-auto text-center" id="aboutTabsContent" style="max-width: 950px;">
         <div class="tab-pane fade show active" id="vision" role="tabpanel">
           <h3 class="text-success fw-bold">Our Vision</h3>
-          <p>To train and educate the children ...</p>
+          <p>To train and educate the children regardless of their religious affiliation in response to the needs of the times; hence, Sto. Rosarians education envision integrated moral and family values, social commitment, spiritual and physical growth, and in line with the development of Information Technology to become a better citizen of our nation.
+</p>
         </div>
         <div class="tab-pane fade" id="mission" role="tabpanel">
           <h3 class="text-success fw-bold">Our Mission</h3>
-          <p>To realize this vision, we commit ourselves to ...</p>    
-        </div>
+          <p>
+          To realize this vision, we commit ourselves to:
+          <br /><br />
+          The pursuit of excellence and socially relevant early childhood education; the recognition of the uniqueness and the potential of each individual; the inculcation of social awareness and responsibility; the promotion of Christian spirits in the context of a global family and continuous spiritual and moral conversation.
+          <br /><br />
+          We continuously strive to create an environment sustained by quality curricular and co-curricular education programs with the student at the core, enlivened by dedicated administrators, faculties, and staff, supported by involved parents, and equipped with adequate facilities.
+        </p>        </div>
       </div>
     </div>
 

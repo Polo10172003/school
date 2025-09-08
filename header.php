@@ -24,12 +24,6 @@
       opacity: 0.95;
       transition: opacity 0.5s ease, background-color 0.5s ease;
     }
-
-    /* Fade effect kapag nag-scroll */
-    .navbar.scrolled {
-      opacity: 1;
-      background-color: #145A32 !important; 
-    }
       
     /* Jumbotron */
     .jumbotron {

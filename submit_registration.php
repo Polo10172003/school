@@ -2,7 +2,7 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'vendor/autoload.php'; // Composer autoload for PHPMailer
+require 'vendor/autoload.php'; 
 include('db_connection.php');
 
 session_start();
@@ -17,9 +17,6 @@ if (empty($data['emailaddress']) || !filter_var($data['emailaddress'], FILTER_VA
     die("Invalid or missing email address.");
 }
 
-$student_type = $data['student_type'] ?? '';
-$year = $data['year'] ?? '';
-$course = $data['course'] ?? '';
 $lrn = $data['lrn'] ?? '';
 $lastname = $data['lastname'] ?? '';
 $firstname = $data['firstname'] ?? '';
@@ -37,8 +34,35 @@ $emailaddress = $data['emailaddress'] ?? '';
 $contactno = $data['contactno'] ?? '';
 $schooltype = $data['schooltype'] ?? '';
 $sname = $data['sname'] ?? '';
+$course = $data['course'] ?? ''; // still used for SHS
 
-// Prepare and bind
+// 🔹 Step 1: Check if LRN exists (Old student)
+$check = $conn->prepare("SELECT year, enrollment_status FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
+$check->bind_param("s", $lrn);
+$check->execute();
+$result = $check->get_result();
+
+if ($result->num_rows > 0) {
+    // 🔹 Old Student
+    $row = $result->fetch_assoc();
+    $lastYear = $row['year'];
+    $status   = $row['status'] ?? 'Passed'; // assume default Passed if missing
+
+    // Auto-assign year
+    if (strtolower($status) === 'passed') {
+        $year = getNextGrade($lastYear);
+    } else {
+        $year = $lastYear; // repeat same grade
+    }
+    $student_type = 'Old';
+
+} else {
+    // 🔹 New Student
+    $year = $data['year'] ?? ''; // only New students provide this in form
+    $student_type = 'New';
+}
+
+// 🔹 Step 2: Save Registration
 $stmt = $conn->prepare("INSERT INTO students_registration 
     (student_type, year, course, lrn, lastname, firstname, middlename, specaddress, brgy, city, mother, father, gname, sex, dob, religion, emailaddress, contactno, schooltype, sname) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -51,10 +75,12 @@ if ($stmt->execute()) {
     $stmt->close();
     unset($_SESSION['registration']);
 
-    if (strtolower($student_type) === 'old') {
+    if ($student_type === 'Old') {
+        // Old students → Payment page
         header("Location: choose_payment.php?lrn=" . urlencode($lrn));
         exit();
     } else {
+        // New students → Send email
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
@@ -100,3 +126,15 @@ if ($stmt->execute()) {
 }
 
 $conn->close();
+
+// 🔹 Helper function to determine next grade
+function getNextGrade($current) {
+    $levels = [
+        "Kinder 1", "Kinder 2",
+        "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6",
+        "Grade 7", "Grade 8", "Grade 9", "Grade 10",
+        "Grade 11", "Grade 12"
+    ];
+    $index = array_search($current, $levels);
+    return ($index !== false && isset($levels[$index + 1])) ? $levels[$index + 1] : $current;
+}

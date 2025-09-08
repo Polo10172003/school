@@ -344,16 +344,6 @@ $total_amount = $total_row['total'] ?? 0;
 
 
 
-    <label>Type</label>
-    <select name="filter_type">
-      <option value="">All</option>
-      <?php foreach ($types as $type): ?>
-        <option value="<?= $type ?>" <?= ($_GET['filter_type'] ?? '') == $type ? "selected" : "" ?>>
-          <?= ucfirst(str_replace("_", " ", $type)) ?>
-        </option>
-      <?php endforeach; ?>
-    </select>
-
     <label>Status</label>
     <select name="filter_status">
       <option value="">All</option>

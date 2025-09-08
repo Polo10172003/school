@@ -1,6 +1,11 @@
 <?php 
 session_start();
 
+// Capture LRN if passed from lrn.php
+if (isset($_GET['lrn'])) {
+    $_SESSION['registration']['lrn'] = $_GET['lrn'];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Save submitted data to session
     $_SESSION['registration'] = array_merge($_SESSION['registration'] ?? [], $_POST);
@@ -10,6 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 ?>
+
 <!DOCTYPE html> 
 <html lang="en">
 <head>
@@ -90,9 +96,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: 0.3s;
             display: block;
             margin-top: 20px;
+            border: none;
         }
         .btn-next:hover {
             background: #004d00;
+        }
+        /* Hidden by default */
+        #yearLevelGroup {
+            display: none;
         }
     </style>
 </head>
@@ -114,58 +125,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h1>Early Registration Form</h1>
     <form action="early_registration.php" method="POST" enctype="multipart/form-data">
 
-        <!-- Enrollment Section (Shown first) -->
-        <div id="enroll">
-
-            <div class="form-group">
-            <label for="student_type">Student Type</label>
-            <select id="student_type" name="student_type" required>
-                <option value="">Select Type</option>
-                <option value="Old">Old</option>
-                <option value="New">New</option>
-            </select>
-            </div>
-            <div class="form-group">
-                <label for="year">Year Level</label>
-                <select id="year" name="year" onchange="enableNextButton()">
-                    <option value="">Select Year</option>
-                    <option value="preschool">Pre-School</option>
-                    <option value="k1">Kinder-1</option>
-                    <option value="k2">Kinder-2</option>
-                    <option value="g1">Grade-1</option>
-                    <option value="g2">Grade-2</option>
-                    <option value="g3">Grade-3</option>
-                    <option value="g4">Grade-4</option>
-                    <option value="g5">Grade-5</option>
-                    <option value="g6">Grade-6</option>
-                    <option value="g7">Grade-7</option>
-                    <option value="g8">Grade-8</option>
-                    <option value="g9">Grade-9</option>
-                    <option value="g10">Grade-10</option>
-                    <option value="g11">Grade-11</option>
-                    <option value="g12">Grade-12</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="course">Course (for Grade 11 & 12 only)</label>
-                <select id="course" name="course" disabled>
-                    <option value="">Select Course</option>
-                    <option value="stem">STEM</option>
-                    <option value="abm">ABM</option>
-                    <option value="humss">HUMSS</option>
-                    <option value="tvl">TVL</option>
-                </select>
-            </div>
-        </div>
-
-        <!-- Personal Information Section (Initially hidden) -->
-        <fieldset id="personalInfoFieldset" class="hidden">
+        <!-- Personal Information Section -->
+        <fieldset>
             <legend>Personal Information</legend>
             <hr>
             <div class="form-group">
-                <label for="lrn">LRN</label>
-                <input type="text" id="lrn" name="lrn" required>
+            <label for="lrn">LRN</label>
+            <input type="text" 
+            id="lrn" name="lrn" 
+           value="<?php echo isset($_SESSION['registration']['lrn']) ? htmlspecialchars($_SESSION['registration']['lrn']) : ''; ?>" 
+           <?php echo isset($_SESSION['registration']['lrn']) ? 'readonly' : 'required'; ?>>
+</div>
+
+
+            <!-- Year Level Dropdown (shows only if new LRN) -->
+            <div class="form-group" id="yearLevelGroup">
+                <label for="yearlevel">Year Level</label>
+                <select id="yearlevel" name="yearlevel">
+                    <option value="">Select Year Level</option>
+                    <option value="Kinder 1">Kinder 1</option>
+                    <option value="Kinder 2">Kinder 2</option>
+                    <option value="Grade 1">Grade 1</option>
+                    <option value="Grade 2">Grade 2</option>
+                    <option value="Grade 3">Grade 3</option>
+                    <option value="Grade 4">Grade 4</option>
+                    <option value="Grade 5">Grade 5</option>
+                    <option value="Grade 6">Grade 6</option>
+                    <option value="Grade 7">Grade 7</option>
+                    <option value="Grade 8">Grade 8</option>
+                    <option value="Grade 9">Grade 9</option>
+                    <option value="Grade 10">Grade 10</option>
+                    <option value="Grade 11">Grade 11</option>
+                    <option value="Grade 12">Grade 12</option>
+                </select>
             </div>
+
             <div class="form-group">
                 <label for="lastname">Last Name</label>
                 <input type="text" id="lastname" name="lastname" required>
@@ -233,8 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="contactno">Contact No.</label>
                 <input type="text" id="contactno" name="contactno" required>
             </div>
-
-            
+        </fieldset>
 
         <button type="submit" class="btn-next">Next</button>
 
@@ -242,21 +235,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
-// Enable the Next button when a year is selected
-function enableNextButton() {
-    const yearSelect = document.getElementById('year');
-    const courseSelect = document.getElementById('course');
-    
-    
-    // Enable course selection for grade 11 & 12
-    if (yearSelect.value === "g11" || yearSelect.value === "g12") {
-        courseSelect.disabled = false;
+window.onload = function() {
+    const yearLevelGroup = document.getElementById("yearLevelGroup");
+    const lrnField = document.getElementById("lrn");
+
+    // If LRN is already set (from session/URL), show year level dropdown
+    if (lrnField.hasAttribute("readonly")) {
+        yearLevelGroup.style.display = "block";
+    }
+};
+
+function checkLRN() {
+    const lrn = document.getElementById("lrn").value.trim();
+    const yearLevelGroup = document.getElementById("yearLevelGroup");
+
+    // If user manually types "new" or blank, show dropdown
+    if (lrn === "" || lrn.toLowerCase() === "new") {
+        yearLevelGroup.style.display = "block";
     } else {
-        courseSelect.disabled = true;
+        yearLevelGroup.style.display = "none";
     }
 }
-
-
 </script>
 
 </body>
