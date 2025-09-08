@@ -95,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: 0.3s;
             display: block;
             margin-top: 20px;
+            border: none;
         }
         .btn-next:hover {
             background: #004d00;
@@ -119,29 +120,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <h1>Parent's Information</h1>
     <form action="early_registrationparent.php" method="POST" enctype="multipart/form-data">
 
-       
-        
-            <div class="form-group">
-                <label for="mother">Mother's Name</label>
-                <input type="text" id="mother" name="mother" required>
-            </div>
-            <div class="form-group">
-                <label for="father">Father's Name</label>
-                <input type="text" id="father" name="father" required>
-            </div>
-            <div class="form-group">
-                <label for="gname">Guardian's Name (Optional)</label>
-                <input type="text" id="gname" name="gname" placeholder="Enter Guardian's Name (Optional)">
-            </div>
-
-
+        <div class="form-group">
+            <label for="mother">Mother's Name</label>
+            <input type="text" id="mother" name="mother" required value="<?php echo htmlspecialchars($mother); ?>">
+        </div>
+        <div class="form-group">
+            <label for="father">Father's Name</label>
+            <input type="text" id="father" name="father" required value="<?php echo htmlspecialchars($father); ?>">
+        </div>
+        <div class="form-group">
+            <label for="gname">Guardian's Name (Optional)</label>
+            <input type="text" id="gname" name="gname" placeholder="Enter Guardian's Name (Optional)" value="<?php echo htmlspecialchars($gname); ?>">
+        </div>
 
         <button type="submit" class="btn-next">Next</button>
 
     </form>
 </div>
-
-
 
 </body>
 </html>

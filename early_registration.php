@@ -6,6 +6,22 @@ if (isset($_GET['lrn'])) {
     $_SESSION['registration']['lrn'] = $_GET['lrn'];
 }
 
+// Prefill variables from session
+$registration = $_SESSION['registration'] ?? [];
+$lrn = $registration['lrn'] ?? '';
+$firstname = $registration['firstname'] ?? '';
+$lastname = $registration['lastname'] ?? '';
+$middlename = $registration['middlename'] ?? '';
+$yearlevel = $registration['yearlevel'] ?? '';
+$sex = $registration['sex'] ?? '';
+$dob = $registration['dob'] ?? '';
+$religion = $registration['religion'] ?? '';
+$emailaddress = $registration['emailaddress'] ?? '';
+$contactno = $registration['contactno'] ?? '';
+$specaddress = $registration['specaddress'] ?? '';
+$brgy = $registration['brgy'] ?? '';
+$city = $registration['city'] ?? '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Save submitted data to session
     $_SESSION['registration'] = array_merge($_SESSION['registration'] ?? [], $_POST);
@@ -130,102 +146,103 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <legend>Personal Information</legend>
             <hr>
             <div class="form-group">
-            <label for="lrn">LRN</label>
-            <input type="text" 
-            id="lrn" name="lrn" 
-           value="<?php echo isset($_SESSION['registration']['lrn']) ? htmlspecialchars($_SESSION['registration']['lrn']) : ''; ?>" 
-           <?php echo isset($_SESSION['registration']['lrn']) ? 'readonly' : 'required'; ?>>
-</div>
-
+                <label for="lrn">LRN</label>
+                <input type="text" 
+                       id="lrn" 
+                       name="lrn" 
+                       value="<?php echo htmlspecialchars($lrn); ?>" 
+                       <?php echo !empty($lrn) ? 'readonly' : 'required'; ?>
+                       oninput="checkLRN()">
+            </div>
 
             <!-- Year Level Dropdown (shows only if new LRN) -->
             <div class="form-group" id="yearLevelGroup">
                 <label for="yearlevel">Year Level</label>
                 <select id="yearlevel" name="yearlevel">
                     <option value="">Select Year Level</option>
-                    <option value="Kinder 1">Kinder 1</option>
-                    <option value="Kinder 2">Kinder 2</option>
-                    <option value="Grade 1">Grade 1</option>
-                    <option value="Grade 2">Grade 2</option>
-                    <option value="Grade 3">Grade 3</option>
-                    <option value="Grade 4">Grade 4</option>
-                    <option value="Grade 5">Grade 5</option>
-                    <option value="Grade 6">Grade 6</option>
-                    <option value="Grade 7">Grade 7</option>
-                    <option value="Grade 8">Grade 8</option>
-                    <option value="Grade 9">Grade 9</option>
-                    <option value="Grade 10">Grade 10</option>
-                    <option value="Grade 11">Grade 11</option>
-                    <option value="Grade 12">Grade 12</option>
+                    <option value="Kinder 1" <?php echo ($yearlevel=='Kinder 1')?'selected':''; ?>>Kinder 1</option>
+                    <option value="Kinder 2" <?php echo ($yearlevel=='Kinder 2')?'selected':''; ?>>Kinder 2</option>
+                    <option value="Grade 1" <?php echo ($yearlevel=='Grade 1')?'selected':''; ?>>Grade 1</option>
+                    <option value="Grade 2" <?php echo ($yearlevel=='Grade 2')?'selected':''; ?>>Grade 2</option>
+                    <option value="Grade 3" <?php echo ($yearlevel=='Grade 3')?'selected':''; ?>>Grade 3</option>
+                    <option value="Grade 4" <?php echo ($yearlevel=='Grade 4')?'selected':''; ?>>Grade 4</option>
+                    <option value="Grade 5" <?php echo ($yearlevel=='Grade 5')?'selected':''; ?>>Grade 5</option>
+                    <option value="Grade 6" <?php echo ($yearlevel=='Grade 6')?'selected':''; ?>>Grade 6</option>
+                    <option value="Grade 7" <?php echo ($yearlevel=='Grade 7')?'selected':''; ?>>Grade 7</option>
+                    <option value="Grade 8" <?php echo ($yearlevel=='Grade 8')?'selected':''; ?>>Grade 8</option>
+                    <option value="Grade 9" <?php echo ($yearlevel=='Grade 9')?'selected':''; ?>>Grade 9</option>
+                    <option value="Grade 10" <?php echo ($yearlevel=='Grade 10')?'selected':''; ?>>Grade 10</option>
+                    <option value="Grade 11" <?php echo ($yearlevel=='Grade 11')?'selected':''; ?>>Grade 11</option>
+                    <option value="Grade 12" <?php echo ($yearlevel=='Grade 12')?'selected':''; ?>>Grade 12</option>
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="lastname">Last Name</label>
-                <input type="text" id="lastname" name="lastname" required>
+                <input type="text" id="lastname" name="lastname" required value="<?php echo htmlspecialchars($lastname); ?>">
             </div>
             <div class="form-group">
                 <label for="firstname">First Name</label>
-                <input type="text" id="firstname" name="firstname" required>
+                <input type="text" id="firstname" name="firstname" required value="<?php echo htmlspecialchars($firstname); ?>">
             </div>
             <div class="form-group">
                 <label for="middlename">Middle Name</label>
-                <input type="text" id="middlename" name="middlename" required>
+                <input type="text" id="middlename" name="middlename" required value="<?php echo htmlspecialchars($middlename); ?>">
             </div>
 
             <div class="form-group">
                 <label for="specaddress">House No./Street/Compound/Village/Phase</label>
-                <input type="text" id="specaddress" name="specaddress" required>
+                <input type="text" id="specaddress" name="specaddress" required value="<?php echo htmlspecialchars($specaddress); ?>">
             </div>
             <div class="form-group">
                 <label for="brgy">Barangay</label>
-                <input type="text" id="brgy" name="brgy" required>
+                <input type="text" id="brgy" name="brgy" required value="<?php echo htmlspecialchars($brgy); ?>">
             </div>
             <div class="form-group">
                 <label for="city">City/Municipality</label>
-                <input type="text" id="city" name="city" required>
+                <input type="text" id="city" name="city" required value="<?php echo htmlspecialchars($city); ?>">
             </div>
 
             <div class="form-group">
                 <label for="sex">Sex</label>
                 <select id="sex" name="sex">
                     <option value="">Select Sex</option>
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
+                    <option value="Female" <?php echo ($sex=='Female')?'selected':''; ?>>Female</option>
+                    <option value="Male" <?php echo ($sex=='Male')?'selected':''; ?>>Male</option>
                 </select>
             </div>
             <div class="form-group">
                 <label for="dob">Date of Birth</label>
-                <input type="date" id="dob" name="dob" required>
+                <input type="date" id="dob" name="dob" required value="<?php echo htmlspecialchars($dob); ?>">
             </div>
 
             <div class="form-group">
                 <label for="religion">Religion</label>
                 <select id="religion" name="religion">
                     <option value="">Select Religion</option>
-                    <option value="romCat">Roman Catholic</option>
-                    <option value="aglipay">Aglipay</option>
-                    <option value="baptist">Baptist</option>
-                    <option value="bornagain">Born Again Christian</option>
-                    <option value="buddhism">Buddhism</option>
-                    <option value="christianfellowship">Christian Fellowship</option>
-                    <option value="coc">Church of Christ</option>
-                    <option value="datingdaan">Dating Daan</option>
-                    <option value="Iglesia">Iglesia</option>
-                    <option value="islammuslim">Islam (Muslim)</option>
-                    <option value="jw">Jehovah's Witness</option>
-                    <option value="mormons">Mormons</option>
-                    <option value="svd">Seven Day Adventist</option>
+                    <option value="romCat" <?php echo ($religion=='romCat')?'selected':''; ?>>Roman Catholic</option>
+                    <option value="aglipay" <?php echo ($religion=='aglipay')?'selected':''; ?>>Aglipay</option>
+                    <option value="baptist" <?php echo ($religion=='baptist')?'selected':''; ?>>Baptist</option>
+                    <option value="bornagain" <?php echo ($religion=='bornagain')?'selected':''; ?>>Born Again Christian</option>
+                    <option value="buddhism" <?php echo ($religion=='buddhism')?'selected':''; ?>>Buddhism</option>
+                    <option value="christianfellowship" <?php echo ($religion=='christianfellowship')?'selected':''; ?>>Christian Fellowship</option>
+                    <option value="coc" <?php echo ($religion=='coc')?'selected':''; ?>>Church of Christ</option>
+                    <option value="datingdaan" <?php echo ($religion=='datingdaan')?'selected':''; ?>>Dating Daan</option>
+                    <option value="Iglesia" <?php echo ($religion=='Iglesia')?'selected':''; ?>>Iglesia</option>
+                    <option value="islammuslim" <?php echo ($religion=='islammuslim')?'selected':''; ?>>Islam (Muslim)</option>
+                    <option value="jw" <?php echo ($religion=='jw')?'selected':''; ?>>Jehovah's Witness</option>
+                    <option value="mormons" <?php echo ($religion=='mormons')?'selected':''; ?>>Mormons</option>
+                    <option value="svd" <?php echo ($religion=='svd')?'selected':''; ?>>Seven Day Adventist</option>
                 </select>
             </div>
 
             <div class="form-group">
                 <label for="emailaddress">Email Address</label>
-                <input type="email" id="emailaddress" name="emailaddress" required>
+                <input type="email" id="emailaddress" name="emailaddress" required value="<?php echo htmlspecialchars($emailaddress); ?>">
             </div>
             <div class="form-group">
                 <label for="contactno">Contact No.</label>
-                <input type="text" id="contactno" name="contactno" required>
+                <input type="text" id="contactno" name="contactno" required value="<?php echo htmlspecialchars($contactno); ?>">
             </div>
         </fieldset>
 

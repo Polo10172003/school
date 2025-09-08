@@ -1,4 +1,4 @@
-<<?php
+<?php
 session_start();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -118,21 +118,19 @@ $sname = $data['sname'] ?? '';
     <h1>Early Registration Form</h1>
     <form action="early_registrationschool.php" method="POST" enctype="multipart/form-data">
 
-       
-
-            <fieldset id="educationalAttainmentFieldset">
-                <legend>Educational Attainment</legend>
-                <div class="form-group">
-                    <label for="schooltype">Type of School</label>
-                    <select id="schooltype" name="schooltype">
-                        <option value="">Select Type</option>
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
+        <fieldset id="educationalAttainmentFieldset">
+            <legend>Educational Attainment</legend>
+            <div class="form-group">
+                <label for="schooltype">Type of School</label>
+                <select id="schooltype" name="schooltype" required>
+                    <option value="">Select Type</option>
+                    <option value="public" <?= $schooltype === 'public' ? 'selected' : '' ?>>Public</option>
+                    <option value="private" <?= $schooltype === 'private' ? 'selected' : '' ?>>Private</option>
                 </select>
             </div>
             <div class="form-group">
                 <label for="sname">School Name</label>
-                <input type="text" id="sname" name="sname" required>
+                <input type="text" id="sname" name="sname" value="<?= htmlspecialchars($sname) ?>" required>
             </div>
         </fieldset>
 
@@ -140,8 +138,6 @@ $sname = $data['sname'] ?? '';
 
     </form>
 </div>
-
-
 
 </body>
 </html>

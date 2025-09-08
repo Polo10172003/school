@@ -146,95 +146,130 @@ include('db_connection.php');
 </header>
 
 
-  <?php
-  $grade_filter = isset($_GET['grade_filter']) ? $_GET['grade_filter'] : '';
+<?php
+$grade_filter = isset($_GET['grade_filter']) ? $_GET['grade_filter'] : '';
 
-  if ($grade_filter) {
-      $stmt = $conn->prepare("
-          SELECT sr.*, sa.email AS emailaddress
-          FROM students_registration sr
-          LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-          WHERE sr.enrollment_status = 'enrolled' AND sr.year = ?
-      ");
-      $stmt->bind_param("s", $grade_filter);
-      $stmt->execute();
-      $result = $stmt->get_result();
-  } else {
-      $sql = "
-          SELECT sr.*, sa.email AS emailaddress
-          FROM students_registration sr
-          LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-          WHERE sr.enrollment_status = 'enrolled'
-      ";
-      $result = $conn->query($sql);
-  }
-  ?>
-  
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-  <meta charset="UTF-8">
-  <title>Registrar Dashboard - Escuela De Sto. Rosario</title>
-  <style>
-  /* Your CSS here */
-  </style>
-  </head>
-  <body>
-  <div class="container">
-  <h2>Registered Students</h2>
-  
-  <?php if ($result && $result->num_rows > 0): ?>
-  <table>
-  <tr>
-      <th>ID</th>
-      <th>Name</th>
-      <th>Grade Level</th>
-      <th>Academic Status</th>
-      <th>Actions</th>
-  </tr>
-  <?php while ($row = $result->fetch_assoc()): ?>
-  <tr>
-      <td><?= $row['id'] ?></td>
-      <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
-      <td><?= htmlspecialchars($row['year']) ?></td>
-      <td>
-          <?php 
-          // If Grade 12 and Passed → show Graduated
-          if ($row['year'] === 'Grade 12' && $row['academic_status'] === 'Passed') {
-              echo '<span class="badge bg-success">Graduated</span>';
-          } else {
-              echo !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Pending';
-          }
-          ?>
-      </td>
-      <td>
-    <!-- Edit / Delete -->
-    <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
-    <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
+if ($grade_filter) {
+    $stmt = $conn->prepare("
+        SELECT sr.*, sa.email AS emailaddress
+        FROM students_registration sr
+        LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
+        WHERE sr.enrollment_status = 'enrolled' AND sr.year = ?
+    ");
+    $stmt->bind_param("s", $grade_filter);
+    $stmt->execute();
+    $result = $stmt->get_result();
+} else {
+    $sql = "
+        SELECT sr.*, sa.email AS emailaddress
+        FROM students_registration sr
+        LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
+        WHERE sr.enrollment_status = 'enrolled'
+    ";
+    $result = $conn->query($sql);
+}
+?>
 
-    <!-- Activation Status -->
-    <?php if (!empty($row['emailaddress'])): ?>
-        | <span style="color:gray;">Activated</span>
-    <?php else: ?>
-        | <a href="activate_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Activate student account?')">Activate</a>
-    <?php endif; ?>
+<div class="container form-section">
+  <h2>Onsite Enrollment</h2>
+  <form action="onsite_enrollment.php" method="GET">
+      <label for="student_type">Student Type:</label>
+      <select id="student_type" name="student_type" required>
+          <option value="">Select Type</option>
+          <option value="new">New Student</option>
+          <option value="old">Old Student</option>
+      </select>
 
-    <!-- Academic Status / Update Link -->
-    <?php if ($row['academic_status'] === 'Graduated'): ?>
-        | <span class="badge bg-success">Graduated</span>
-    <?php else: ?>
-        | <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
-    <?php endif; ?>
-</td>
+      <div id="lrnField" style="display:none; margin-top:10px;">
+          <label for="lrn">Enter LRN (for old students):</label>
+          <input type="text" id="lrn" name="lrn" placeholder="Enter LRN">
+      </div>
 
-  </tr>
-  <?php endwhile; ?>
-  </table>
-  <?php else: ?>
-  <p>No enrolled students found.</p>
-  <?php endif; ?>
-  
-  <?php $conn->close(); ?>
-  </div>
-  </body>
-  </html>
+      <div id="paymentTypeField" style="display:none; margin-top:10px;">
+          <label for="payment_type">Payment Type:</label>
+          <select id="payment_type" name="payment_type">
+              <option value="onsite">Onsite Payment</option>
+              <option value="online">Online Payment</option>
+          </select>
+      </div>
+
+      <input type="submit" value="Proceed">
+  </form>
+</div>
+
+<script>
+    const studentType = document.getElementById('student_type');
+    const lrnField = document.getElementById('lrnField');
+    const paymentTypeField = document.getElementById('paymentTypeField');
+
+    studentType.addEventListener('change', function() {
+        if (this.value === 'old') {
+            lrnField.style.display = 'block';
+            paymentTypeField.style.display = 'block';
+            document.getElementById('lrn').required = true;
+        } else {
+            lrnField.style.display = 'none';
+            paymentTypeField.style.display = 'none';
+            document.getElementById('lrn').required = false;
+        }
+    });
+</script>
+
+<div class="container">
+<h2>Registered Students</h2>
+
+<?php if ($result && $result->num_rows > 0): ?>
+<table>
+<tr>
+    <th>ID</th>
+    <th>Name</th>
+    <th>Grade Level</th>
+    <th>Academic Status</th>
+    <th>Actions</th>
+</tr>
+<?php while ($row = $result->fetch_assoc()): ?>
+<tr>
+    <td><?= $row['id'] ?></td>
+    <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
+    <td><?= htmlspecialchars($row['year']) ?></td>
+    <td>
+        <?php 
+        if ($row['year'] === 'Grade 12' && $row['academic_status'] === 'Passed') {
+            echo '<span class="badge bg-success">Graduated</span>';
+        } else {
+            echo !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Pending';
+        }
+        ?>
+    </td>
+    <td>
+        <!-- Edit / Delete -->
+        <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
+        <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
+
+        <!-- Activation Status -->
+        <?php if (!empty($row['emailaddress'])): ?>
+            | <span style="color:gray;">Activated</span>
+        <?php else: ?>
+            | <a href="activate_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Activate student account?')">Activate</a>
+        <?php endif; ?>
+
+        <!-- Academic Status / Update Link -->
+        <?php if ($row['academic_status'] === 'Graduated'): ?>
+            | <span class="badge bg-success">Graduated</span>
+        <?php else: ?>
+            | <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
+        <?php endif; ?>
+
+        
+    </td>
+</tr>
+<?php endwhile; ?>
+</table>
+<?php else: ?>
+<p>No enrolled students found.</p>
+<?php endif; ?>
+
+<?php $conn->close(); ?>
+</div>
+</body>
+</html>
