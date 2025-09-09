@@ -419,173 +419,192 @@ $total_amount = $total_row['total'] ?? 0;
 
 </table>
           <!-- Payment Modal (outside the table loop, at the end of body) -->
-          <div id="paymentModal" style="
-              display:none; 
-              position:fixed; 
-              top:0; left:0; 
-              width:100%; height:100%;
-              background:rgba(0,0,0,0.7); 
-              z-index:9999; 
-              justify-content:center; 
-              align-items:center;
-              overflow:auto;  /* allow scrolling if modal is too tall */
-              padding: 20px;
-          ">
+        <!-- Payment Modal -->
+<div id="paymentModal" style="
+    display:none; 
+    position:fixed; 
+    top:0; left:0; 
+    width:100%; height:100%;
+    background:rgba(0,0,0,0.7); 
+    z-index:9999; 
+    justify-content:center; 
+    align-items:center;
+    overflow:auto;  
+    padding: 20px;
+">
+  <div style="
+      background:#fff; 
+      padding:20px; 
+      border-radius:10px; 
+      width:500px; 
+      max-width:95%; 
+      box-sizing:border-box; 
+      position:relative;
+  ">
+    <!-- Close button -->
+    <span id="closeModal" style="
+        position:absolute; 
+        top:10px; right:15px; 
+        cursor:pointer; 
+        font-weight:bold; 
+        font-size:20px;
+    ">&times;</span>
+    
+    <h3>Payment Details</h3>
+    <p><strong>Student:</strong> <span id="modalStudent"></span></p>
+    <p><strong>Type:</strong> <span id="modalType"></span></p>
+    <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
+    <p><strong>Status:</strong> <span id="modalStatus"></span></p>
+    <p><strong>Reference #:</strong> <span id="modalReference"></span></p>
 
-            <div style="
-                background:#fff; 
-                padding:20px; 
-                border-radius:10px; 
-                width:500px; 
-                max-width:95%; 
-                box-sizing:border-box; 
-                position:relative;
-            ">
-              <!-- Close button -->
-              <span id="closeModal" style="
-                  position:absolute; 
-                  top:10px; right:15px; 
-                  cursor:pointer; 
-                  font-weight:bold; 
-                  font-size:20px;
-              ">&times;</span>
-              
-              <h3>Payment Details</h3>
-              <p><strong>Student:</strong> <span id="modalStudent"></span></p>
-              <p><strong>Type:</strong> <span id="modalType"></span></p>
-              <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
-              <p><strong>Status:</strong> <span id="modalStatus"></span></p>
-              <p><strong>Reference #:</strong> <span id="modalReference"></span></p>
+    <!-- Screenshot (online only) -->
+    <div id="screenshotSection" style="text-align:center; margin-bottom:20px;">
+      <img id="modalScreenshot" src="" alt="Payment Screenshot" 
+          style="max-width:100%; height:auto; border:1px solid #ccc; border-radius:6px;">
+    </div>
 
-              <p><strong>Screenshot:</strong></p>
-              <div style="text-align:center; margin-bottom:20px;">
-                <img id="modalScreenshot" src="" alt="Payment Screenshot" 
-                    style="max-width:100%; height:auto; border:1px solid #ccc; border-radius:6px;">
-              </div>
+    <!-- Hidden input -->
+    <input type="hidden" id="modalPaymentId">
 
-              <!-- Hidden input -->
-              <input type="hidden" id="modalPaymentId">
+    <!-- OR Number field for Cash payments -->
+    <div id="cashPaymentForm" style="display:none; margin-top:15px;">
+      <label for="orNumber"><strong>Official Receipt #:</strong></label>
+      <input type="text" id="orNumber" placeholder="Enter OR Number">
+    </div>
 
-              <!-- Accept / Decline Buttons -->
-              <div style="margin-top:20px; text-align:center;">
-                <button id="acceptPaymentBtn" style="
-                    background-color:green; 
-                    color:white; 
-                    padding:10px 20px; 
-                    border:none; 
-                    border-radius:8px; 
-                    cursor:pointer;
-                ">Accept</button>
-                <button id="declinePaymentBtn" style="
-                    background-color:red; 
-                    color:white; 
-                    padding:10px 20px; 
-                    border:none; 
-                    border-radius:8px; 
-                    cursor:pointer;
-                ">Decline</button>
-              </div>
-            </div>
-          </div>
-
-
-
-
-
-
-  
+    <!-- Accept / Decline Buttons -->
+    <div style="margin-top:20px; text-align:center;">
+      <button id="acceptPaymentBtn" style="
+          background-color:green; 
+          color:white; 
+          padding:10px 20px; 
+          border:none; 
+          border-radius:8px; 
+          cursor:pointer;
+      ">Accept</button>
+      <button id="declinePaymentBtn" style="
+          background-color:red; 
+          color:white; 
+          padding:10px 20px; 
+          border:none; 
+          border-radius:8px; 
+          cursor:pointer;
+      ">Decline</button>
+    </div>
+  </div>
 </div>
+
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    const paymentModal = document.getElementById("paymentModal");
-    const closeModal = document.getElementById("closeModal");
-    const acceptBtn = document.getElementById("acceptPaymentBtn");
-    const declineBtn = document.getElementById("declinePaymentBtn");
+document.addEventListener("DOMContentLoaded", function () {
+  const modal = document.getElementById("paymentModal");
+  const closeModal = document.getElementById("closeModal");
+  const acceptBtn = document.getElementById("acceptPaymentBtn");
+  const declineBtn = document.getElementById("declinePaymentBtn");
+  const cashForm = document.getElementById("cashPaymentForm");
+  const screenshotSection = document.getElementById("screenshotSection");
+  const modalScreenshot = document.getElementById("modalScreenshot");
+  let currentType = "";
 
-    // Open Modal when "View Payment" is clicked
-    document.querySelectorAll('.view-payment-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            document.getElementById('modalStudent').textContent = btn.dataset.student;
-            document.getElementById('modalType').textContent = btn.dataset.type;
-            document.getElementById('modalAmount').textContent = parseFloat(btn.dataset.amount).toFixed(2);
-            document.getElementById('modalStatus').textContent = btn.dataset.status;
-            document.getElementById('modalReference').textContent = btn.dataset.reference;
-            document.getElementById('modalScreenshot').src = btn.dataset.screenshot;
-            document.getElementById('modalPaymentId').value = btn.dataset.id;
+  // Open Modal when "View Payment" is clicked
+  document.querySelectorAll(".view-payment-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("modalStudent").textContent = btn.dataset.student || "";
+      document.getElementById("modalType").textContent = btn.dataset.type || "";
+      document.getElementById("modalAmount").textContent = (parseFloat(btn.dataset.amount) || 0).toFixed(2);
+      document.getElementById("modalStatus").textContent = btn.dataset.status || "";
+      document.getElementById("modalReference").textContent = btn.dataset.reference || "";
+      document.getElementById("modalPaymentId").value = btn.dataset.id || "";
 
-            paymentModal.style.display = 'flex';
-        });
+      // Set screenshot (if any)
+      const shot = (btn.dataset.screenshot || "").trim();
+      if (shot) {
+        modalScreenshot.src = shot;
+        screenshotSection.style.display = "block";
+      } else {
+        screenshotSection.style.display = "none";
+      }
+
+      // Determine type & toggle OR (Cash only)
+      currentType = (btn.dataset.type || "").toLowerCase();
+      cashForm.style.display = currentType === "cash" ? "block" : "none";
+
+      modal.style.display = "flex";
     });
+  });
 
-    // Close modal (X button)
-    if (closeModal) {
-        closeModal.addEventListener('click', () => {
-            paymentModal.style.display = 'none';
-        });
+  // Close modal
+  if (closeModal) {
+    closeModal.addEventListener("click", () => (modal.style.display = "none"));
+  }
+  window.addEventListener("click", (e) => {
+    if (e.target === modal) modal.style.display = "none";
+  });
+
+  // Helpers for safe fetch + JSON
+  async function postForm(url, obj) {
+    const body = new URLSearchParams(obj).toString();
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    const text = await res.text(); // guard against non-JSON (warnings/notices)
+    try {
+      return JSON.parse(text);
+    } catch {
+      // Surface raw server text so you can see any PHP warnings
+      alert("Server returned a non-JSON response:\n\n" + text);
+      return { success: false, error: "Non-JSON response" };
     }
+  }
 
-    // Close modal (click outside)
-    window.onclick = function(event) {
-        if (event.target === paymentModal) {
-            paymentModal.style.display = 'none';
+  // Accept Payment
+  if (acceptBtn) {
+    acceptBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("modalPaymentId").value;
+      const orNumberInput = document.getElementById("orNumber");
+      const orNumber = currentType === "cash" && orNumberInput ? orNumberInput.value.trim() : "";
+
+      const payload = { id, status: "paid" };
+      if (currentType === "cash") payload.or_number = orNumber;
+
+      const data = await postForm("update_payment_status.php", payload);
+      if (data && data.success) {
+        const statusCell = document.getElementById("status-" + id);
+        if (statusCell) {
+          statusCell.innerHTML =
+            "<span style='color: green;'>Paid" + (currentType === "cash" ? " (Cash)" : "") + "</span>";
         }
-    };
+        alert("✅ Student’s payment has been accepted.");
+        modal.style.display = "none";
+      } else if (data) {
+        alert("Error: " + (data.error || "Unknown error"));
+      }
+    });
+  }
 
-    // Accept Payment
-    if (acceptBtn) {
-        acceptBtn.addEventListener('click', () => {
-            let id = document.getElementById('modalPaymentId').value;
+  // Decline Payment
+  if (declineBtn) {
+    declineBtn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const id = document.getElementById("modalPaymentId").value;
 
-            fetch("update_payment_status.php", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: "id=" + id + "&status=paid"
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    let statusCell = document.getElementById("status-" + id);
-                    if (statusCell) {
-                        statusCell.innerHTML = "<span style='color: green;'>Paid</span>";
-                    }
-                    alert("✅ Student’s payment has been accepted.");
-                } else {
-                    alert("Error: " + data.error);
-                }
-                paymentModal.style.display = "none";
-            })
-            .catch(err => console.error(err));
-        });
-    }
-
-    // Decline Payment
-    if (declineBtn) {
-        declineBtn.addEventListener("click", () => {
-            let id = document.getElementById("modalPaymentId").value;
-
-            fetch("update_payment_status.php", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: "id=" + id + "&status=declined"
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    let statusCell = document.getElementById("status-" + id);
-                    if (statusCell) {
-                        statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
-                    }
-                    alert("❌ Student’s payment has been declined.");
-                } else {
-                    alert("Error: " + data.error);
-                }
-                paymentModal.style.display = "none";
-            })
-            .catch(err => console.error(err));
-        });
-    }
+      const data = await postForm("update_payment_status.php", { id, status: "declined" });
+      if (data && data.success) {
+        const statusCell = document.getElementById("status-" + id);
+        if (statusCell) statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
+        alert("❌ Student’s payment has been declined.");
+        modal.style.display = "none";
+      } else if (data) {
+        alert("Error: " + (data.error || "Unknown error"));
+      }
+    });
+  }
 });
 </script>
+
+
 
 
           <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>

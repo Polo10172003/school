@@ -2,19 +2,27 @@
 session_start();
 include('db_connection.php');
 
-$student_type = $_GET['student_type'] ?? '';
-$lrn = $_GET['lrn'] ?? '';
-$payment_type = $_GET['payment_type'] ?? '';
+$student_type  = $_GET['student_type']  ?? '';
+$lrn           = $_GET['lrn']           ?? '';
+$payment_type  = $_GET['payment_type']  ?? '';
 
+// ---------------- NEW STUDENT ----------------
 if ($student_type === 'new') {
     // Clear any old registration session data for new student
     unset($_SESSION['registration']);
-    
-    // Redirect to registration form
-    header('Location: early_registration.php');
+
+    // ✅ Preserve the registrar's payment choice for submit_registration.php
+    if (!empty($payment_type)) {
+        $_SESSION['onsite_payment_type'] = $payment_type; // 'onsite' or 'online'
+    }
+
+    // Optional: pass along in query too (nice to have)
+    $q = !empty($payment_type) ? ('?payment_type=' . urlencode($payment_type)) : '';
+    header('Location: early_registration.php' . $q);
     exit();
 }
 
+// ---------------- OLD STUDENT ----------------
 if ($student_type === 'old') {
     if (!$lrn) {
         echo "LRN is required for old students.";
@@ -22,11 +30,12 @@ if ($student_type === 'old') {
     }
 
     // Fetch old student data
-    $stmt = $conn->prepare("SELECT * FROM students_registration WHERE lrn = ?");
+    $stmt = $conn->prepare("SELECT * FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
     $stmt->bind_param("s", $lrn);
     $stmt->execute();
-    $result = $stmt->get_result();
+    $result  = $stmt->get_result();
     $student = $result->fetch_assoc();
+    $stmt->close();
 
     if (!$student) {
         echo "Student with LRN {$lrn} not found.";
@@ -34,8 +43,8 @@ if ($student_type === 'old') {
     }
 
     // Determine next grade
-    $currentYear = $student['year'];
-    $academic_status = $student['academic_status'];
+    $currentYear     = $student['year'];
+    $academic_status = $student['academic_status'] ?? 'Passed';
 
     function nextGrade($grade) {
         $map = [
@@ -47,44 +56,74 @@ if ($student_type === 'old') {
         return $map[$grade] ?? $grade;
     }
 
-    $suggestedGrade = ($academic_status === 'Passed') ? nextGrade($currentYear) : $currentYear;
+    $suggestedGrade = (strtolower($academic_status) === 'passed') ? nextGrade($currentYear) : $currentYear;
 
     // Store in session for prefill in registration form
     $_SESSION['registration'] = $student;
     $_SESSION['registration']['yearlevel'] = $suggestedGrade;
 
-    // ----------------- ONSITE PAYMENT HANDLING -----------------
-    if ($payment_type === 'onsite') {
+    // ----------------- ONSITE PAYMENT HANDLING (OLD) -----------------
+    // ----------------- ONSITE PAYMENT HANDLING (OLD) -----------------
+if ($payment_type === 'onsite') {
+    // Re-fetch by LRN to be extra sure we have the latest names
+    $q = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
+    $q->bind_param("s", $lrn);
+    $q->execute();
+    $q->bind_result($student_id_db, $firstname_db, $lastname_db);
+    $q->fetch();
+    $q->close();
 
-        // Calculate total amount due (replace with actual calculation from tuition/fees table)
-        $total_amount_due = 5000; // Example placeholder, change as needed
-
-        $student_id = $student['id'];
-        $payment_date = date("Y-m-d");
-
-        // Insert cash payment as paid
-        $stmt_cash = $conn->prepare("
-            INSERT INTO student_payments (student_id, payment_type, amount, payment_status, payment_date) 
-            VALUES (?, 'cash', ?, 'paid', ?)
-        ");
-        $stmt_cash->bind_param("ids", $student_id, $total_amount_due, $payment_date);
-        $stmt_cash->execute();
-
-        // Update enrollment status to enrolled
-        $update = $conn->prepare("UPDATE students_registration SET enrollment_status='enrolled' WHERE id=?");
-        $update->bind_param("i", $student_id);
-        $update->execute();
-
-        // Store student ID in session for cashier dashboard if needed
-        $_SESSION['cashier_student_id'] = $student_id;
-
-        // Redirect to cashier dashboard
-        header('Location: cashier_dashboard.php');
-        exit();
+    if (!$student_id_db) {
+        die("Could not resolve student by LRN for onsite payment.");
     }
-    // ----------------- ONLINE PAYMENT HANDLING -----------------
+
+    $student_id = (string)$student_id_db;       // student_payments.student_id is VARCHAR(20)
+    $firstname  = $firstname_db ?? '';
+    $lastname   = $lastname_db  ?? '';
+
+    // TODO: compute correct fee for the grade level
+    $total_amount_due = 5000.00;
+
+    // 1) Insert pending CASH payment
+    // 1) Insert pending CASH payment
+$ins = $conn->prepare("
+INSERT INTO student_payments
+    (student_id, firstname, lastname, payment_type, amount, payment_status, created_at)
+VALUES (?, ?, ?, 'Cash', ?, 'pending', NOW())
+");
+$ins->bind_param("sssd", $student_id, $firstname, $lastname, $total_amount_due);
+if (!$ins->execute()) {
+die('Insert error (student_payments): ' . $ins->error);
+}
+$payment_row_id = $conn->insert_id; // <-- new row's primary key
+$ins->close();
+
+/* 🔧 Force-fill names in case they came out NULL for any reason.
+No JOIN, we just write the values we already fetched from students_registration. */
+$fix = $conn->prepare("
+UPDATE student_payments
+   SET firstname = ?, lastname = ?
+ WHERE id = ?
+");
+$fix->bind_param("ssi", $firstname, $lastname, $payment_row_id);
+$fix->execute();
+$fix->close();
+
+
+    // 3) Keep enrollment pending until cashier confirms
+    $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'pending' WHERE id = ?");
+    $upd->bind_param("i", $student_id_db);
+    $upd->execute();
+    $upd->close();
+
+    header('Location: registrar_dashboard.php?msg=student_added_pending_cash');
+    exit();
+}
+
+
+    // ----------------- ONLINE PAYMENT HANDLING (OLD) -----------------
     elseif ($payment_type === 'online') {
-        header("Location: choose_payment.php?lrn={$lrn}");
+        header("Location: choose_payment.php?lrn=" . urlencode($lrn));
         exit();
     } 
     // ----------------- DEFAULT / NO PAYMENT TYPE -----------------

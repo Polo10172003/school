@@ -185,7 +185,8 @@ if ($grade_filter) {
           <input type="text" id="lrn" name="lrn" placeholder="Enter LRN">
       </div>
 
-      <div id="paymentTypeField" style="display:none; margin-top:10px;">
+      <!-- ✅ Always show payment type so choice is preserved and used downstream -->
+      <div id="paymentTypeField" style="display:block; margin-top:10px;">
           <label for="payment_type">Payment Type:</label>
           <select id="payment_type" name="payment_type">
               <option value="onsite">Onsite Payment</option>
@@ -198,21 +199,25 @@ if ($grade_filter) {
 </div>
 
 <script>
-    const studentType = document.getElementById('student_type');
-    const lrnField = document.getElementById('lrnField');
-    const paymentTypeField = document.getElementById('paymentTypeField');
+  const studentType = document.getElementById('student_type');
+  const lrnField = document.getElementById('lrnField');
+  const paymentTypeField = document.getElementById('paymentTypeField');
 
-    studentType.addEventListener('change', function() {
-        if (this.value === 'old') {
-            lrnField.style.display = 'block';
-            paymentTypeField.style.display = 'block';
-            document.getElementById('lrn').required = true;
-        } else {
-            lrnField.style.display = 'none';
-            paymentTypeField.style.display = 'none';
-            document.getElementById('lrn').required = false;
-        }
-    });
+  function updateVisibility() {
+    if (studentType.value === 'old') {
+      lrnField.style.display = 'block';
+      document.getElementById('lrn').required = true;
+    } else {
+      lrnField.style.display = 'none';
+      document.getElementById('lrn').required = false;
+    }
+    // ✅ keep payment type visible for both new/old
+    paymentTypeField.style.display = 'block';
+  }
+
+  studentType.addEventListener('change', updateVisibility);
+  // initialize on load
+  updateVisibility();
 </script>
 
 <div class="container">
@@ -259,8 +264,6 @@ if ($grade_filter) {
         <?php else: ?>
             | <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
         <?php endif; ?>
-
-        
     </td>
 </tr>
 <?php endwhile; ?>
