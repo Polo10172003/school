@@ -273,6 +273,16 @@ function checkLRN() {
         yearLevelGroup.style.display = "none";
     }
 }
+window.onload = function() {
+    const yearLevelGroup = document.getElementById("yearLevelGroup");
+    const lrnField = document.getElementById("lrn");
+
+    // If it's a NEW student (not readonly), show year level dropdown
+    if (!lrnField.hasAttribute("readonly")) {
+        yearLevelGroup.style.display = "block";
+    }
+};
+
 </script>
 
 </body>

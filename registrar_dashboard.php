@@ -223,9 +223,30 @@ if ($grade_filter) {
 <div class="container">
 <h2>Registered Students</h2>
 
+<!-- Filter by Grade -->
+<form method="GET" style="margin-bottom:20px;">
+    <label for="grade_filter"><b>Filter by Grade:</b></label>
+    <select name="grade_filter" id="grade_filter" onchange="this.form.submit()">
+        <option value="">All Grades</option>
+        <?php 
+        $grades = ["Preschool","Kinder 1","Kinder 2",
+                   "Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
+                   "Grade 7","Grade 8","Grade 9","Grade 10",
+                   "Grade 11","Grade 12"];
+        foreach ($grades as $g) {
+            $sel = ($grade_filter === $g) ? 'selected' : '';
+            echo "<option value=\"$g\" $sel>$g</option>";
+        }
+        ?>
+    </select>
+</form>
+
+<!-- Bulk promotion form -->
+<form method="POST" action="bulk_promote.php">
 <?php if ($result && $result->num_rows > 0): ?>
 <table>
 <tr>
+    <th><input type="checkbox" id="checkAll"></th>
     <th>ID</th>
     <th>Name</th>
     <th>Grade Level</th>
@@ -234,6 +255,9 @@ if ($grade_filter) {
 </tr>
 <?php while ($row = $result->fetch_assoc()): ?>
 <tr>
+    <td>
+        <input type="checkbox" name="student_ids[]" value="<?= $row['id'] ?>">
+    </td>
     <td><?= $row['id'] ?></td>
     <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
     <td><?= htmlspecialchars($row['year']) ?></td>
@@ -268,6 +292,19 @@ if ($grade_filter) {
 </tr>
 <?php endwhile; ?>
 </table>
+
+<!-- Button to promote selected students -->
+<input type="submit" value="Promote Selected" style="margin-top:15px;">
+</form>
+
+<script>
+// Check/uncheck all checkboxes
+document.getElementById('checkAll').addEventListener('change', function() {
+    const boxes = document.querySelectorAll('input[name="student_ids[]"]');
+    boxes.forEach(b => b.checked = this.checked);
+});
+</script>
+
 <?php else: ?>
 <p>No enrolled students found.</p>
 <?php endif; ?>

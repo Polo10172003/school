@@ -3,85 +3,106 @@ require_once 'template_helper.php';
 include 'db_connection.php';
 
 $page_title = 'Escuela de Sto. Rosario - LRN Check';
-
 $message = "";
 
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $lrn = trim($_POST['lrn']);
-
-    // Check if LRN exists in DB
-    $sql = "SELECT id, year, result, student_type FROM students_registration WHERE lrn = ?";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("s", $lrn);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows > 0) {
-        // ✅ Old student
-        $student = $result->fetch_assoc();
-        $year = $student['year'];        
-        $result_status = $student['result'] ?? "passed"; // default passed if null
-        $studentType = strtolower($student['student_type']);
-
-        // Promotion logic
-        if ($result_status === "passed") {
-            $newYear = promoteYear($year); 
-        } else {
-            $newYear = $year;
-        }
-
-        // Update year + mark as old student
-        $update = "UPDATE students_registration SET year = ?, student_type = 'old' WHERE lrn = ?";
-        $stmt2 = $conn->prepare($update);
-        $stmt2->bind_param("ss", $newYear, $lrn);
-        $stmt2->execute();
-
-        $message = "<div class='alert alert-success'>
-                        ✅ LRN found. You are now in <b>$newYear</b>. 
-                        <br><br>
-                        Please proceed to the student portal
-                        for payment/update of accounts or go onsite.
-                    </div>";
-    } else {
-        // ❌ New student → redirect to registration form
-        header("Location: early_registration.php?new=1&lrn=" . urlencode($lrn));
-        exit;
-
+/**
+ * Normalize grade level.
+ */
+function normalizeYear($year) {
+    $map = [
+        "preschool" => "Preschool",
+        "k1" => "Kinder 1", "kinder 1" => "Kinder 1",
+        "k2" => "Kinder 2", "kinder 2" => "Kinder 2",
+    ];
+    $y = strtolower(trim((string)$year));
+    if (isset($map[$y])) return $map[$y];
+    if (preg_match('/^grade\s*([1-9]|1[0-2])$/i', $year, $m)) {
+        return "Grade " . $m[1];
     }
+    return ucwords($year);
 }
 
-// Function to promote year
-function promoteYear($year, $status) {
+/**
+ * Compute display grade based on current grade + academic status.
+ */
+function displayYear($year, $status) {
     $grades = [
-        "Kinder 1","Kinder 2",
+        "Preschool","Kinder 1","Kinder 2",
         "Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
         "Grade 7","Grade 8","Grade 9","Grade 10",
         "Grade 11","Grade 12"
     ];
 
-    // If Grade 12 and passed → Graduated
-    if ($year === "Grade 12" && $status === "Passed") {
+    $yearCanon  = normalizeYear($year);
+    $statusNorm = strtolower(trim((string)$status));
+
+    if ($statusNorm === "pending") {
+        // Registrar hasn’t decided yet
+        return $yearCanon;
+    }
+    if ($statusNorm === "failed") {
+        // Stay in same grade
+        return $yearCanon;
+    }
+    if ($statusNorm === "passed") {
+        if ($yearCanon === "Grade 12") {
+            return "Graduated";
+        }
+        $idx = array_search($yearCanon, $grades, true);
+        if ($idx !== false && $idx < count($grades) - 1) {
+            return $grades[$idx + 1];
+        }
+        return $yearCanon;
+    }
+    if ($statusNorm === "graduated") {
         return "Graduated";
     }
 
-    // If Failed → stay in same grade
-    if ($status === "Failed") {
-        return $year;
-    }
+    // Fallback → still show their current grade
+    return $yearCanon;
+}
+    
 
-    // Otherwise, promote to next grade
-    $index = array_search($year, $grades);
-    if ($index !== false && $index < count($grades)-1) {
-        return $grades[$index+1];
-    }
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    $lrn = trim($_POST['lrn'] ?? '');
+    if ($lrn === '') {
+        $message = "<div class='alert alert-danger'>LRN is required.</div>";
+    } else {
+        $sql = "SELECT id, year, academic_status FROM students_registration 
+                WHERE lrn = ? ORDER BY id DESC LIMIT 1";
+        $stmt = $conn->prepare($sql);
+        if ($stmt) {
+            $stmt->bind_param("s", $lrn);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result && $result->num_rows > 0) {
+                $student = $result->fetch_assoc();
+                $stmt->close();
 
-    return $year;
+                $year   = $student['year'];
+                $status = $student['academic_status'];
+
+                $display = displayYear($year, $status);
+
+                $message = "<div class='alert alert-success'>
+                                ✅ LRN found. You are now in <b>" . htmlspecialchars($display) . "</b>.
+                                <br><br>
+                                Please proceed to the student portal for payment/update of accounts or go onsite.
+                            </div>";
+            } else {
+                // New student → redirect
+                header("Location: early_registration.php?new=1&lrn=" . urlencode($lrn));
+                exit;
+            }
+        } else {
+            $message = "<div class='alert alert-danger'>DB error: " . htmlspecialchars($conn->error) . "</div>";
+        }
+    }
 }
 
-// Render page inside template
+// Render page
 renderPage($page_title, function() use ($message) {
     ob_start(); ?>
-    
     <div class="container mt-5">
         <h2 class="text-center mb-4 fw-bold">LRN Verification</h2>
         <form method="POST" class="p-4 bg-light rounded shadow-sm mx-auto" style="max-width: 500px;">
@@ -91,12 +112,10 @@ renderPage($page_title, function() use ($message) {
             </div>
             <button type="submit" class="btn btn-success w-100">Check</button>
         </form>
-
         <?php if ($message): ?>
             <div class="mt-4"><?= $message ?></div>
         <?php endif; ?>
     </div>
-
     <?php
     return ob_get_clean();
 });

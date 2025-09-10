@@ -1,6 +1,28 @@
 <?php
 include 'db_connection.php';
 
+// Promotion map
+function nextYear($year) {
+    $map = [
+        "Preschool" => "Kinder 1",
+        "Kinder 1"  => "Kinder 2",
+        "Kinder 2"  => "Grade 1",
+        "Grade 1"   => "Grade 2",
+        "Grade 2"   => "Grade 3",
+        "Grade 3"   => "Grade 4",
+        "Grade 4"   => "Grade 5",
+        "Grade 5"   => "Grade 6",
+        "Grade 6"   => "Grade 7",
+        "Grade 7"   => "Grade 8",
+        "Grade 8"   => "Grade 9",
+        "Grade 9"   => "Grade 10",
+        "Grade 10"  => "Grade 11",
+        "Grade 11"  => "Grade 12",
+        "Grade 12"  => "Graduated"
+    ];
+    return $map[$year] ?? $year;
+}
+
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
@@ -18,47 +40,30 @@ if (isset($_GET['id'])) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $id = intval($_POST['id']);
+    $id     = intval($_POST['id']);
     $status = $_POST['status'];
 
-    // Fetch current year
+    // Fetch current year again (safety)
     $stmt = $conn->prepare("SELECT `year` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $current_year = $stmt->get_result()->fetch_assoc()['year'];
     $stmt->close();
 
-    // Determine academic status
+    // --- PROMOTION / FAIL LOGIC ---
     if ($status === "Passed") {
-        if (strcasecmp(trim($current_year), "g12") === 0) {
+        if ($current_year === "Grade 12") {
+            $next_year = "Graduated";
             $academic_status = "Graduated";
-            $next_year = $current_year; // keep year as Grade 12
         } else {
-            // Promotion map
-            $map = [
-                "Preschool" => "Kinder 1",
-                "Kinder 1"  => "Kinder 2",
-                "Kinder 2"  => "Grade 1",
-                "Grade 1"   => "Grade 2",
-                "Grade 2"   => "Grade 3",
-                "Grade 3"   => "Grade 4",
-                "Grade 4"   => "Grade 5",
-                "Grade 5"   => "Grade 6",
-                "Grade 6"   => "Grade 7",
-                "Grade 7"   => "Grade 8",
-                "Grade 8"   => "Grade 9",
-                "Grade 9"   => "Grade 10",
-                "Grade 10"  => "Grade 11",
-                "Grade 11"  => "Grade 12"
-            ];
-            $next_year = $map[$current_year] ?? $current_year;
-            $academic_status = "Passed";
+            $next_year = nextYear($current_year);
+            $academic_status = "Ongoing"; // always reset to Ongoing after promotion
         }
     } elseif ($status === "Failed") {
-        $academic_status = "Failed";
-        $next_year = $current_year;
+        $next_year = $current_year;     // stay same grade
+        $academic_status = "Failed";    // mark Failed
     }
-    
+
     // Update DB
     $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ? WHERE id = ?");
     $stmt->bind_param("ssi", $next_year, $academic_status, $id);
@@ -73,7 +78,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 }
 ?>
-
 
 <!DOCTYPE html>
 <html>
@@ -94,7 +98,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 <div class="mb-3">
                     <label for="status" class="form-label">Select Status</label>
                     <select name="status" id="status" class="form-select" required>
-                        <option value="Passed" <?= ($current_status === 'Passed') ? 'selected' : '' ?>>Passed</option>
+                        <option value="Passed" <?= ($current_status === 'Ongoing' || $current_status === 'Passed') ? 'selected' : '' ?>>Passed</option>
                         <option value="Failed" <?= ($current_status === 'Failed') ? 'selected' : '' ?>>Failed</option>
                     </select>
                 </div>
