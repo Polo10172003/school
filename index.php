@@ -12,7 +12,7 @@ renderPage($page_title, function() {
     
     <!-- Jumbotron -->
     <div id="home">
-      <a href="lrn.php" style="text-decoration: none; color: inherit;">
+      <a href="student_number.php" style="text-decoration: none; color: inherit;">
         <div class="jumbotron">
           <div class="text-center">
             <h class="display-4 fw-bold">Welcome to Escuela de Sto. Rosario</h>

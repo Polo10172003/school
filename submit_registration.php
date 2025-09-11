@@ -21,6 +21,7 @@ $lrn         = $data['lrn'] ?? '';
 $lastname    = $data['lastname'] ?? '';
 $firstname   = $data['firstname'] ?? '';
 $middlename  = $data['middlename'] ?? '';
+$yearlevel   = $data['yearlevel'] ??'';
 $specaddress = $data['specaddress'] ?? '';
 $brgy        = $data['brgy'] ?? '';
 $city        = $data['city'] ?? '';
@@ -63,13 +64,30 @@ if ($result->num_rows > 0) {
 }
 $check->close();
 
-// 🔹 Step 2: Save Registration
-$stmt = $conn->prepare("INSERT INTO students_registration 
-    (student_type, year, course, lrn, lastname, firstname, middlename, specaddress, brgy, city, mother, father, gname, sex, dob, religion, emailaddress, contactno, schooltype, sname) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+// 🔹 Step 2: Generate Student Number for new students
+$student_number = null;
+if ($student_type === 'New') {
+    do {
+        // Example format: ESR-YYYY-XXXXX
+        $student_number = "ESR-" . date("Y") . "-" . str_pad(rand(1, 99999), 5, "0", STR_PAD_LEFT);
 
-$stmt->bind_param("ssssssssssssssssssss",
-    $student_type, $year, $course, $lrn, $lastname, $firstname, $middlename, $specaddress, $brgy, $city, 
+        // Check if already exists
+        $checkNum = $conn->prepare("SELECT id FROM students_registration WHERE student_number = ? LIMIT 1");
+        $checkNum->bind_param("s", $student_number);
+        $checkNum->execute();
+        $checkNum->store_result();
+        $exists = $checkNum->num_rows > 0;
+        $checkNum->close();
+    } while ($exists);
+}
+
+// 🔹 Step 3: Save Registration with Student Number
+$stmt = $conn->prepare("INSERT INTO students_registration 
+    (student_number, student_type, year, course, lrn, lastname, firstname, middlename, specaddress, brgy, city, mother, father, gname, sex, dob, religion, emailaddress, contactno, schooltype, sname, portal_status) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+
+$stmt->bind_param("sssssssssssssssssssss",
+    $student_number, $student_type, $yearlevel, $course, $lrn, $lastname, $firstname, $middlename, $specaddress, $brgy, $city, 
     $mother, $father, $gname, $sex, $dob, $religion, $emailaddress, $contactno, $schooltype, $sname);
 
 if ($stmt->execute()) {
@@ -86,18 +104,7 @@ if ($stmt->execute()) {
 
     // If New + Onsite cash → create pending payment for cashier
     if ($student_type === 'New' && $reg_payment_type === 'onsite') {
-        // TODO: Dynamically compute fee from tuition_fees by $year
         $amount_due = 5000.00; // placeholder; replace with real fee lookup
-
-        // Example dynamic fee (uncomment and adjust if you have tuition_fees table):
-        // $amount_due = 0.00;
-        // $feeStmt = $conn->prepare("SELECT amount FROM tuition_fees WHERE year = ? LIMIT 1");
-        // $feeStmt->bind_param("s", $year);
-        // $feeStmt->execute();
-        // $feeStmt->bind_result($amount_found);
-        // if ($feeStmt->fetch()) $amount_due = (float)$amount_found;
-        // $feeStmt->close();
-        // if ($amount_due <= 0) { $amount_due = 5000.00; }
 
         $ins = $conn->prepare("
             INSERT INTO student_payments
@@ -108,13 +115,11 @@ if ($stmt->execute()) {
         $ins->execute();
         $ins->close();
 
-        // Keep enrollment pending until cashier marks payment as PAID
         $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'pending' WHERE id = ?");
         $upd->bind_param("i", $student_id);
         $upd->execute();
         $upd->close();
 
-        // Send the registrar back with a friendly message for cashier handoff
         echo "<script>
             alert('Registration saved. A pending CASH payment was created. Please proceed to the Cashier for payment.');
             window.location.href = 'registrar_dashboard.php?msg=pending_cash_created';
@@ -124,7 +129,6 @@ if ($stmt->execute()) {
 
     // Else: existing behavior
     if ($student_type === 'Old') {
-        // Old students → Payment page (online flow)
         header("Location: choose_payment.php?lrn=" . urlencode($lrn));
         exit();
     } else {
@@ -147,6 +151,7 @@ if ($stmt->execute()) {
             $mail->Body = "
                 <p>Dear " . htmlspecialchars($firstname) . " " . htmlspecialchars($lastname) . ",</p>
                 <p>Thank you for registering as a <strong>NEW student</strong> at Escuela De Sto. Rosario.</p>
+                <p>Your Student Number is: <strong>$student_number</strong>. Please keep this safe as it will be used for future logins and verification.</p>
                 <p>Please submit the following requirements:</p>
                 <ul>
                     <li>Good Moral Certificate</li>
@@ -160,7 +165,7 @@ if ($stmt->execute()) {
             $mail->send();
 
             echo "<script>
-                alert('Registration received. Please submit your documents onsite or via Viber.');
+                alert('Registration received. Your Student Number is $student_number. Please submit your documents onsite or via Viber.');
                 window.location.href = 'index.php';
             </script>";
             exit();

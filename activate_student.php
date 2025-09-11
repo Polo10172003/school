@@ -30,6 +30,12 @@ if (isset($_GET['id'])) {
             $insert = $conn->prepare("INSERT INTO student_accounts (email, is_first_login) VALUES (?, 1)");
             $insert->bind_param("s", $email);
             if ($insert->execute()) {
+
+                 // 🔹 Mark student as activated in registration table
+                 $upd = $conn->prepare("UPDATE students_registration SET portal_status = 'activated' WHERE id = ?");
+                 $upd->bind_param("i", $student_id);
+                 $upd->execute();
+                 $upd->close();
                 // Send email notification
                 $mail = new PHPMailer(true);
 

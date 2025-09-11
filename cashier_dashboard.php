@@ -10,106 +10,137 @@ if ($conn->connect_error) {
 
 $message = "";
 
-// Insert new payment
+// ✅ Handle payments
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $student_id = $_POST["student_id"];
-    $payment_type = $_POST["payment_type"];
-    $amount = $_POST["amount"];
-    $payment_status = $_POST["payment_status"];
+    $student_id = intval($_POST["student_id"]);
+    $amount = floatval($_POST["amount"] ?? 0);
+    $payment_type = $_POST["payment_type"] ?? "Cash";
+    $payment_status = $_POST["payment_status"] ?? "paid";
+    $payment_date = date("Y-m-d");
 
-// update from pending to paid on the database
-$payment_date = date("Y-m-d");
-$status = "paid";
+    // CASE 1: Onsite cash payment with OR number
+    if (isset($_POST["or_number"])) {
+        $or_number = $_POST["or_number"];
 
-// Update the existing record for that student & reference number
-$sql = "UPDATE student_payments 
-        SET payment_status = ?, payment_date = ? 
-        WHERE student_id = ? AND payment_status = 'pending'";
+        
+        // Fetch firstname and lastname
+        $stud = $conn->prepare("SELECT firstname, lastname FROM students_registration WHERE id = ?");
+        $stud->bind_param("i", $student_id);
+        $stud->execute();
+        $stud->bind_result($firstname, $lastname);
+        $stud->fetch();
+        $stud->close();
 
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ssi", $status, $payment_date, $student_id);
+        $ins = $conn->prepare("
+            INSERT INTO student_payments
+                (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, created_at)
+            VALUES (?,?,?, 'Cash', ?, 'paid', ?, ?, NOW())
+        ");
+        $ins->bind_param("issdss", $student_id, $firstname, $lastname, $amount, $payment_date, $or_number);
 
-if ($stmt->execute()) {
-    if ($stmt->affected_rows > 0) {
-        echo "Payment status updated to PAID.";
-    } else {
-        echo "No pending payment found for this student.";
-    }
-} else {
-    echo "Error: " . $stmt->error;
-}
+        if ($ins->execute()) {
+            // Mark student as enrolled
+            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+            $upd->bind_param("i", $student_id);
+            $upd->execute();
+            $upd->close();
 
-
-    if ($stmt->execute()) {
-      // Removes the pending
-      if ($payment_status === 'paid') {
-        // Update enrollment_status
-        $update = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
-        $update->bind_param("i", $student_id);
-        $update->execute();
-        $update->close();
-
-        // Fetch student info for email
-        $email_stmt = $conn->prepare("SELECT emailaddress, firstname, lastname FROM students_registration WHERE id = ?");
-        $email_stmt->bind_param("i", $student_id);
-        $email_stmt->execute();
-        $email_stmt->bind_result($email, $firstname, $lastname);
-        $email_stmt->fetch();
-        $email_stmt->close();
-
-        // Now send the email
-        $mail = new PHPMailer(true);
-        try {
-            $mail->isSMTP();
-            $mail->Host = 'smtp.gmail.com';
-            $mail->SMTPAuth = true;
-            $mail->Username = 'deadpoolvictorio@gmail.com';
-            $mail->Password = 'ldcmeapjfuonxypu';
-            $mail->SMTPSecure = 'tls';
-            $mail->Port = 587;
-
-            $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
-            $mail->addAddress($email, "$firstname $lastname");
-
-            $mail->isHTML(true);
-            $mail->Subject = 'Payment Receipt and Portal Access';
-            $mail->Body = "
-                <h2>Payment Receipt Confirmation</h2>
-                <p>Dear <strong>$firstname $lastname</strong>,</p>
-                <p>We have received your payment for the following:</p>
-                <ul>
-                    <li><strong>Payment Type:</strong> $payment_type</li>
-                    <li><strong>Amount:</strong> ₱" . number_format($amount, 2) . "</li>
-                    <li><strong>Status:</strong> $payment_status</li>
-                </ul>
-                <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
-                <hr>
-                <p><strong>IMPORTANT:</strong> Please wait for the activation of your student portal with your email address: <strong>$email</strong>.</p>
-                <br>
-                <p>Best regards,<br>Escuela De Sto. Rosario</p>
-            ";
-            $mail->send();
-            $message = "Payment recorded, enrollment updated, and email sent successfully.";
-        } catch (Exception $e) {
-            $message = "Payment recorded, but email failed: {$mail->ErrorInfo}";
+            // Send email receipt
+            sendPaymentEmail($conn, $student_id, $payment_type, $amount, "paid");
+            $message = "Cash payment recorded successfully. Student enrolled.";
+        } else {
+            $message = "Error: " . $conn->error;
         }
+        $ins->close();
+
+    // CASE 2: Update an existing pending payment
     } else {
-        $message = "Error: " . $stmt->error;
+        $sql = "UPDATE student_payments 
+                SET payment_status = ?, payment_date = ? 
+                WHERE student_id = ? AND payment_status = 'pending'";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssi", $payment_status, $payment_date, $student_id);
+
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
+            // Mark student as enrolled
+            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+            $upd->bind_param("i", $student_id);
+            $upd->execute();
+            $upd->close();
+
+            // Send email receipt
+            sendPaymentEmail($conn, $student_id, $payment_type, $amount, $payment_status);
+            $message = "Pending payment marked as PAID, student enrolled.";
+        } else {
+            $message = "No pending payment found for this student.";
+        }
+        $stmt->close();
     }
 }
+
+// 🔹 Email function
+function sendPaymentEmail($conn, $student_id, $payment_type, $amount, $status) {
+    $email_stmt = $conn->prepare("SELECT emailaddress, firstname, lastname FROM students_registration WHERE id = ?");
+    $email_stmt->bind_param("i", $student_id);
+    $email_stmt->execute();
+    $email_stmt->bind_result($email, $firstname, $lastname);
+    $email_stmt->fetch();
+    $email_stmt->close();
+
+    if (!$email) return;
+
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'deadpoolvictorio@gmail.com';
+        $mail->Password = 'ldcmeapjfuonxypu';
+        $mail->SMTPSecure = 'tls';
+        $mail->Port = 587;
+
+        $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+        $mail->addAddress($email, "$firstname $lastname");
+
+        $mail->isHTML(true);
+        $mail->Subject = 'Payment Receipt and Portal Access';
+        $mail->Body = "
+            <h2>Payment Receipt Confirmation</h2>
+            <p>Dear <strong>$firstname $lastname</strong>,</p>
+            <p>We have received your payment for the following:</p>
+            <ul>
+                <li><strong>Payment Type:</strong> $payment_type</li>
+                <li><strong>Amount:</strong> ₱" . number_format($amount, 2) . "</li>
+                <li><strong>Status:</strong> $status</li>
+            </ul>
+            <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
+            <hr>
+            <p><strong>IMPORTANT:</strong> Please wait for the activation of your student portal with your email address: <strong>$email</strong>.</p>
+            <br>
+            <p>Best regards,<br>Escuela De Sto. Rosario</p>
+        ";
+        $mail->send();
+    } catch (Exception $e) {
+        error_log("Email failed: {$mail->ErrorInfo}");
+    }
 }
 
-// Fetch students
-$students = $conn->query("SELECT id, firstname, lastname FROM students_registration");
-
-// Fetch payment types
-$types_result = $conn->query("SELECT DISTINCT payment_type FROM student_payments");
-$types = [];
-while ($row = $types_result->fetch_assoc()) {
-    $types[] = $row['payment_type'];
+// 📌 Search functionality (instead of dropdown)
+$search_results = [];
+if (!empty($_GET['search_name'])) {
+    $search_name = "%" . $conn->real_escape_string($_GET['search_name']) . "%";
+    $stmt = $conn->prepare("SELECT id, student_number, firstname, lastname, year FROM students_registration WHERE lastname LIKE ? ORDER BY lastname");
+    $stmt->bind_param("s", $search_name);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    while ($row = $result->fetch_assoc()) {
+        $search_results[] = $row;
+    }
+    $stmt->close();
 }
 
-// Handle filters
+
+// 📌 Payment filters
 $filter_sql = "WHERE 1=1";
 
 if (!empty($_GET['filter_student_id'])) {
@@ -128,9 +159,8 @@ if (!empty($_GET['filter_status'])) {
 }
 
 if (!empty($_GET['filter_grade_level'])) {
-  $filter_grade_level = $conn->real_escape_string($_GET['filter_grade_level']);
-  // Change from grade_level to year
-  $filter_sql .= " AND sr.year = '$filter_grade_level'";
+    $filter_grade_level = $conn->real_escape_string($_GET['filter_grade_level']);
+    $filter_sql .= " AND sr.year = '$filter_grade_level'";
 }
 
 
@@ -317,13 +347,43 @@ $total_amount = $total_row['total'] ?? 0;
 
 
 <div class="container">
+  <h2>Record Onsite Payment</h2>
   
+  <!-- Search Form -->
+  <form method="GET" action="cashier_dashboard.php">
+      <label for="search_name">Search Student by Last Name</label>
+      <input type="text" name="search_name" placeholder="Enter surname..." required>
+      <button type="submit">🔍 Search</button>
+  </form>
 
-  <?php if (isset($message)): ?>
-    <div class="success"><?= $message ?></div>
+  <?php if (!empty($search_results)): ?>
+      <h3>Search Results</h3>
+      <ul>
+          <?php foreach ($search_results as $s): ?>
+              <li>
+                  [<?= $s['student_number'] ?>] <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
+                  <!-- Select button reveals payment form -->
+                  <form method="POST" action="cashier_dashboard.php" style="display:inline;">
+                      <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                      
+                      <label for="amount">Amount (₱)</label>
+                      <input type="number" name="amount" step="0.01" required>
+
+                      <label for="or_number">Official Receipt #</label>
+                      <input type="text" name="or_number" required>
+
+                      <input type="hidden" name="payment_type" value="Cash">
+                      <input type="hidden" name="payment_status" value="paid">
+
+                      <button type="submit">💵 Record Cash Payment</button>
+                  </form>
+              </li>
+          <?php endforeach; ?>
+      </ul>
   <?php endif; ?>
 
- 
+
+
 
   <!-- Filter Section --> 
   <h2>Filter Payments</h2>
@@ -405,6 +465,7 @@ $total_amount = $total_row['total'] ?? 0;
             data-amount="<?= $row['amount'] ?>"
             data-status="<?= ucfirst($row['payment_status']) ?>"
             data-reference="<?= $row['reference_number'] ?>"
+            data-or="<?= $row['or_number'] ?>"
             data-screenshot="<?= $row['screenshot_path'] ?>"
           >
             View Payment
@@ -455,7 +516,7 @@ $total_amount = $total_row['total'] ?? 0;
     <p><strong>Type:</strong> <span id="modalType"></span></p>
     <p><strong>Amount:</strong> ₱<span id="modalAmount"></span></p>
     <p><strong>Status:</strong> <span id="modalStatus"></span></p>
-    <p><strong>Reference #:</strong> <span id="modalReference"></span></p>
+    <p><strong id="modalLabel">Reference #:</strong> <span id="modalRefOr"></span></p>
 
     <!-- Screenshot (online only) -->
     <div id="screenshotSection" style="text-align:center; margin-bottom:20px;">
@@ -465,12 +526,6 @@ $total_amount = $total_row['total'] ?? 0;
 
     <!-- Hidden input -->
     <input type="hidden" id="modalPaymentId">
-
-    <!-- OR Number field for Cash payments -->
-    <div id="cashPaymentForm" style="display:none; margin-top:15px;">
-      <label for="orNumber"><strong>Official Receipt #:</strong></label>
-      <input type="text" id="orNumber" placeholder="Enter OR Number">
-    </div>
 
     <!-- Accept / Decline Buttons -->
     <div style="margin-top:20px; text-align:center;">
@@ -512,7 +567,6 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("modalType").textContent = btn.dataset.type || "";
       document.getElementById("modalAmount").textContent = (parseFloat(btn.dataset.amount) || 0).toFixed(2);
       document.getElementById("modalStatus").textContent = btn.dataset.status || "";
-      document.getElementById("modalReference").textContent = btn.dataset.reference || "";
       document.getElementById("modalPaymentId").value = btn.dataset.id || "";
 
       // Set screenshot (if any)
@@ -524,14 +578,25 @@ document.addEventListener("DOMContentLoaded", function () {
         screenshotSection.style.display = "none";
       }
 
-      // Determine type & toggle OR (Cash only)
-      currentType = (btn.dataset.type || "").toLowerCase();
-      cashForm.style.display = currentType === "cash" ? "block" : "none";
+  // ✅ Conditional Reference / OR display
+    currentType = (btn.dataset.type || "").toLowerCase();
+      if (currentType === "cash") {
+        document.getElementById("modalLabel").textContent = "Official Receipt #:";
+        document.getElementById("modalRefOr").textContent = btn.dataset.or || "N/A";
+
+        acceptBtn.style.display = "none";
+        declineBtn.style.display = "none";
+      } else {
+        document.getElementById("modalLabel").textContent = "Reference #:";
+        document.getElementById("modalRefOr").textContent = btn.dataset.reference || "N/A";
+
+        acceptBtn.style.display = "inline-block";
+        declineBtn.style.display = "inline-block";
+      }
 
       modal.style.display = "flex";
-    });
   });
-
+});
   // Close modal
   if (closeModal) {
     closeModal.addEventListener("click", () => (modal.style.display = "none"));
@@ -563,11 +628,10 @@ document.addEventListener("DOMContentLoaded", function () {
     acceptBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       const id = document.getElementById("modalPaymentId").value;
-      const orNumberInput = document.getElementById("orNumber");
-      const orNumber = currentType === "cash" && orNumberInput ? orNumberInput.value.trim() : "";
+      
 
       const payload = { id, status: "paid" };
-      if (currentType === "cash") payload.or_number = orNumber;
+      if (currentType === "cash") payload.or_number = document.getElementById("modalRefOr").textContent;
 
       const data = await postForm("update_payment_status.php", payload);
       if (data && data.success) {

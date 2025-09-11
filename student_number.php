@@ -2,7 +2,7 @@
 require_once 'template_helper.php';
 include 'db_connection.php';
 
-$page_title = 'Escuela de Sto. Rosario - LRN Check';
+$page_title = 'Escuela de Sto. Rosario - Student Number Check';
 $message = "";
 
 /**
@@ -36,12 +36,10 @@ function displayYear($year, $status) {
     $yearCanon  = normalizeYear($year);
     $statusNorm = strtolower(trim((string)$status));
 
-    if ($statusNorm === "pending") {
-        // Registrar hasn’t decided yet
+    if ($statusNorm === "ongoing" || $statusNorm === "pending") {
         return $yearCanon;
     }
     if ($statusNorm === "failed") {
-        // Stay in same grade
         return $yearCanon;
     }
     if ($statusNorm === "passed") {
@@ -52,27 +50,27 @@ function displayYear($year, $status) {
         if ($idx !== false && $idx < count($grades) - 1) {
             return $grades[$idx + 1];
         }
-        return $yearCanon;
     }
     if ($statusNorm === "graduated") {
         return "Graduated";
     }
 
-    // Fallback → still show their current grade
-    return $yearCanon;
+    return $yearCanon; // fallback
 }
-    
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $lrn = trim($_POST['lrn'] ?? '');
-    if ($lrn === '') {
-        $message = "<div class='alert alert-danger'>LRN is required.</div>";
+    $student_number = trim($_POST['student_number'] ?? '');
+    if ($student_number === '') {
+        $message = "<div class='alert alert-danger'>Student Number is required.</div>";
     } else {
-        $sql = "SELECT id, year, academic_status FROM students_registration 
-                WHERE lrn = ? ORDER BY id DESC LIMIT 1";
+        $sql = "SELECT id, year, academic_status 
+                  FROM students_registration 
+                 WHERE student_number = ? 
+              ORDER BY id DESC 
+                 LIMIT 1";
         $stmt = $conn->prepare($sql);
         if ($stmt) {
-            $stmt->bind_param("s", $lrn);
+            $stmt->bind_param("s", $student_number);
             $stmt->execute();
             $result = $stmt->get_result();
             if ($result && $result->num_rows > 0) {
@@ -85,14 +83,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $display = displayYear($year, $status);
 
                 $message = "<div class='alert alert-success'>
-                                ✅ LRN found. You are now in <b>" . htmlspecialchars($display) . "</b>.
+                                ✅ Student Number found. You are now in <b>" . htmlspecialchars($display) . "</b>.
                                 <br><br>
                                 Please proceed to the student portal for payment/update of accounts or go onsite.
                             </div>";
             } else {
-                // New student → redirect
-                header("Location: early_registration.php?new=1&lrn=" . urlencode($lrn));
-                exit;
+                // Student number not found → Suggest early registration
+                $message = "<div class='alert alert-warning'>
+                                ❌ Student Number not found.</div>";
             }
         } else {
             $message = "<div class='alert alert-danger'>DB error: " . htmlspecialchars($conn->error) . "</div>";
@@ -104,17 +102,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 renderPage($page_title, function() use ($message) {
     ob_start(); ?>
     <div class="container mt-5">
-        <h2 class="text-center mb-4 fw-bold">LRN Verification</h2>
+        <h2 class="text-center mb-4 fw-bold">Student Number Verification</h2>
         <form method="POST" class="p-4 bg-light rounded shadow-sm mx-auto" style="max-width: 500px;">
             <div class="mb-3">
-                <label for="lrn" class="form-label fw-bold">Enter Your LRN</label>
-                <input type="text" id="lrn" name="lrn" class="form-control" required>
+                <label for="student_number" class="form-label fw-bold">Enter Your Student Number</label>
+                <input type="text" id="student_number" name="student_number" class="form-control" required>
             </div>
             <button type="submit" class="btn btn-success w-100">Check</button>
         </form>
+
         <?php if ($message): ?>
             <div class="mt-4"><?= $message ?></div>
         <?php endif; ?>
+
+        <p class="mt-3 text-center">
+            No student number yet? 
+            <a href="early_registration.php">Click here to register</a>
+        </p>
     </div>
     <?php
     return ob_get_clean();

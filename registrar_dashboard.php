@@ -276,10 +276,10 @@ if ($grade_filter) {
         <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
 
         <!-- Activation Status -->
-        <?php if (!empty($row['emailaddress'])): ?>
+        <?php if ($row['portal_status'] === 'activated'): ?>
             | <span style="color:gray;">Activated</span>
         <?php else: ?>
-            | <a href="activate_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Activate student account?')">Activate</a>
+          | <a href="activate_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Activate student portal account?')">Activate</a>
         <?php endif; ?>
 
         <!-- Academic Status / Update Link -->

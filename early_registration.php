@@ -1,10 +1,7 @@
 <?php 
 session_start();
 
-// Capture LRN if passed from lrn.php
-if (isset($_GET['lrn'])) {
-    $_SESSION['registration']['lrn'] = $_GET['lrn'];
-}
+
 
 // Prefill variables from session
 $registration = $_SESSION['registration'] ?? [];
@@ -150,9 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <input type="text" 
                        id="lrn" 
                        name="lrn" 
-                       value="<?php echo htmlspecialchars($lrn); ?>" 
-                       <?php echo !empty($lrn) ? 'readonly' : 'required'; ?>
-                       oninput="checkLRN()">
+                       >
             </div>
 
             <!-- Year Level Dropdown (shows only if new LRN) -->
