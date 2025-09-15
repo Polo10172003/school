@@ -1,11 +1,12 @@
 <?php
 session_start();
-include('db_connection.php');
+
+include '../db_connection.php';
 
 // Make sure student is logged in
 if (!isset($_SESSION['student_email'])) {
-    header("Location: login.php");
-    exit();
+        header ("Location: student_login.php");
+        exit();
 }
 
 $student_email = $_SESSION['student_email'];

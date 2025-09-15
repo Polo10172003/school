@@ -1,6 +1,6 @@
 <?php
-require 'vendor/autoload.php';
-require 'db_connection.php';
+require '../vendor/autoload.php';
+require '../db_connection.php';
 date_default_timezone_set('Asia/Manila'); // Or your actual timezone
 
 

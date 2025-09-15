@@ -1,6 +1,6 @@
 <?php
-require_once 'template_helper.php';
-include 'db_connection.php';
+
+include '../db_connection.php';
 
 $page_title = 'Escuela de Sto. Rosario - Student Number Check';
 $message = "";
@@ -97,18 +97,49 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
 }
+    include '../includes/header.php';
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Student Login</title>
+    <style>
+        .btn {
+            background:  #145A32;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            display: block;
+            margin-top: 20px;
+            border: none;
+        }
 
-// Render page
-renderPage($page_title, function() use ($message) {
-    ob_start(); ?>
-    <div class="container mt-5">
+        .btn:hover {
+            background-color: #0f723aff;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 6px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc; 
+        }
+    </style>
+<main>
+    <div class="container mt-5" style="padding-top:90px;">
         <h2 class="text-center mb-4 fw-bold">Student Number Verification</h2>
         <form method="POST" class="p-4 bg-light rounded shadow-sm mx-auto" style="max-width: 500px;">
             <div class="mb-3">
                 <label for="student_number" class="form-label fw-bold">Enter Your Student Number</label>
                 <input type="text" id="student_number" name="student_number" class="form-control" required>
             </div>
-            <button type="submit" class="btn btn-success w-100">Check</button>
+            <button type="submit" class="btn w-100">Check</button>
         </form>
 
         <?php if ($message): ?>
@@ -117,9 +148,9 @@ renderPage($page_title, function() use ($message) {
 
         <p class="mt-3 text-center">
             No student number yet? 
-            <a href="early_registration.php">Click here to register</a>
+            <a href="StudentNoVerification/early_registration.php">Click here to register</a>
         </p>
     </div>
-    <?php
-    return ob_get_clean();
-});
+    </div>
+</main>
+<?php include '../includes/footer.php'; ?>

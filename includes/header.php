@@ -7,29 +7,17 @@
   <base href="/Enrollment/">
 
   <!-- Bootstrap CSS & Icons -->
+  <link href="assets/css/global.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-    }
-
-    /* Navbar */
-    .navbar {
-      position: sticky;
-      top: 0;
-      z-index: 1020; 
-      background-color: transparent;
-      opacity: 0.95;
-      transition: opacity 0.5s ease, background-color 0.5s ease;
-    }
-      
     /* Jumbotron */
     .jumbotron {
       background: url('EsrBanner.jpg') center/cover no-repeat;
       color: white;
-      height: 700px;  /* full screen height */
+      height: 800px;  /* full screen height */
       display: flex;
       align-items: center;
       justify-content: center;
@@ -67,61 +55,8 @@
       font-weight: 500;
     }
 
-    /* Footer */
-    .footer {
-      background-color: #145A32; /* green theme */
-      color: #fff;
-      font-size: 14px;
-      margin-top: 3rem;
-    }
-
-    /* General footer links (Helpdesk + Navigation) */
-    .footer a {
-      color: #ffffff;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: color 0.3s ease;
-    }
-
-    .footer a:hover {
-      color: #fbd80a;
-      text-decoration: underline;
-    }
-    .footer p a {
-      display: inline;      /* gawin siyang inline, hindi block */
-      margin-left: 5px;     /* konting pagitan sa text */
-    }
-
-    /* Social Media specific hover (icon + text underline + color) */
-    .footer .list-unstyled li a {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: color 0.3s ease;
-    }
-
-    .footer .list-unstyled li a:hover {
-      color: #fbd80a;
-      text-decoration: underline;
-    }
-
-    .footer h5, .footer h6 {
-      margin-bottom: 15px;
-    }
-
-    .footer-bottom {
-      font-size: 13px;
-      color: #ccc;
-    }
-
-    .footer-bottom .privacy-link {
-      color: #fbd80a;
-    }
-
-    .footer-bottom .privacy-link:hover {
-      text-decoration: underline;
+    .carousel-caption {
+      bottom: 20px;  /* para laging may space sa baba */
     }
 
     /* About Us Tab Buttons - Match School Theme */
@@ -146,38 +81,13 @@
       border-color: #145A32;
       box-shadow: 0 4px 8px rgba(20, 90, 50, 0.3);
     }
-
-    .portal-btn {
-        color: #145A32 !important;
-        background-color: #fbd80a;
-        border: 2px solid #fbd80a;
-        border-radius: 6px;
-        padding: 4px 16px;
-        margin: 0 5px;
-        font-weight: 500;
-        transition: all 0.3s ease;
-        text-decoration: none;
-        display: inline-block;
-        line-height: 1.2;
-        vertical-align: baseline;
-        position: relative;
-        top: 4px;
-    }
-
-    .portal-btn:hover {
-        background-color: #fbd80a;
-        color: #145A32 !important;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(251, 216, 10, 0.3);
-    }
-
   </style>
 </head>
-<body>
 
+<body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #145A32;">
-    <div class="container">
+    <div class="container-fluid">
       <a class="navbar-brand d-flex fw-bold align-items-center" href="#home">
         <img src="Esrlogo.png" width="40" height="40" class="me-2">
         ESCUELA DE STO. ROSARIO
@@ -190,8 +100,40 @@
           <li class="nav-item"><a class="nav-link fw-bold active" href="#home">Home</a></li>
           <li class="nav-item"><a class="nav-link fw-bold" href="#aboutus">About Us</a></li>
           <li class="nav-item"><a class="nav-link fw-bold" href="tuition_fees.php">Tuition Fees</a></li>
-          <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="student_login.php">Portal</a></li>
+          <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
         </ul>
       </div>
     </div>
   </nav>
+
+  <script>
+    const navbar = document.querySelector('.navbar');
+    let lastScroll = 0;
+    const middlePoint = document.body.scrollHeight / 1; 
+
+    window.addEventListener('scroll', () => {
+      const currentScroll = window.scrollY;
+
+      if (currentScroll > middlePoint) {
+        // pag lagpas kalahati ng page, ipakita ulit
+        navbar.classList.remove('hide');
+        navbar.classList.add('animate__animated', 'animate__fadeInDown');
+      } else {
+        if (currentScroll > lastScroll) {
+          // scroll pababa → hide (smooth fade)
+          navbar.classList.add('hide');
+          navbar.classList.remove('animate__fadeInDown');
+        } else {
+          // scroll paakyat → show with animation
+          navbar.classList.remove('hide');
+          navbar.classList.add('animate__animated', 'animate__fadeInDown');
+        }
+      }
+
+      lastScroll = currentScroll;
+    });
+
+    // default visible pag load
+    navbar.classList.remove('hide');
+  </script>
+</body>
