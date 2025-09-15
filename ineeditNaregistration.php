@@ -21,10 +21,13 @@ $religion = $registration['religion'] ?? '';
 $telnumber = $registration['telnumber'] ?? '';
 $mobnumber = $registration['mobnumber'] ?? '';
 $emailaddress = $registration['emailaddress'] ?? '';
-$contactno = $registration['contactno'] ?? '';
-$specaddress = $registration['specaddress'] ?? '';
+$streetno = $registration['streetno'] ?? '';
+$street = $registration['street'] ?? '';
+$subd = $registration['subd'] ?? '';
 $brgy = $registration['brgy'] ?? '';
 $city = $registration['city'] ?? '';
+$province = $registration['province'] ?? '';
+$zipcode = $registration['zipcode'] ?? '';
 $mother = $registration['mother'] ?? '';
 $father = $registration['father'] ?? '';
 $gname = $registration['gname'] ?? '';
@@ -36,6 +39,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header("Location: early_registrationparent.php");
     exit();
 }
+
+if (isset($_POST['sameAddress'])) {
+    $_POST['p_streetno'] = $_POST['streetno'];
+    $_POST['p_street']   = $_POST['street'];
+    $_POST['p_subd']     = $_POST['subd'];
+    $_POST['p_brgy']     = $_POST['brgy'];
+    $_POST['p_city']     = $_POST['city'];
+    $_POST['p_province'] = $_POST['province'];
+    $_POST['p_zipcode']  = $_POST['zipcode'];
+}
+
 include 'includes/header.php';
 ?>
 
@@ -60,29 +74,20 @@ include 'includes/header.php';
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             border-radius: 10px;
         }   
-        
-
         .form-group {
             display: flex;
-            align-items: center;
-            justify-content: space-between;
+            flex-direction: column;
+            margin-bottom: 10px;
         }
-
         .form-group label {
-            flex: 0 0 150px;
-            font-weight: 500;
+            font-weight: bold;
         }
-
         .form-group input,
         .form-group select {
-            flex: 1;
-            padding: 8px 10px;
+            width: 100%;
+            padding: 8px;
             border: 1px solid #ccc;
-            border-radius: 4px;
-        }
-
-        .required {
-            color: red;
+            border-radius: 5px;
         }
 
         .btn {
@@ -103,6 +108,9 @@ include 'includes/header.php';
             color: #ffffff !important;
             transform: translateY(-1px);
         }
+        .required {
+            color: red;
+        }
     </style>
 </head>
 <body>
@@ -117,38 +125,39 @@ include 'includes/header.php';
                 <p>We extend our welcome to primary and secondary students, junior high school completers, and prospective senior high school students who wish to join our academic community.</p>
                 <p>To ensure an efficient admissions process, applicants are advised to complete the early registration form.</p>
             </div>
-    <!-- Admission Information -->
-    <div class="form-admission">
-        <h3 class="section-title">Admission Information</h3>
-            <div class="form-row">
-                <!-- LRN -->
-                <div class="form-group">
-                <label for="lrn">LRN <span class="required">*</span></label>
-                <input type="text" id="lrn" name="lrn" value="<?php echo htmlspecialchars($lrn); ?>" placeholder="Enter LRN">
-                </div>
-
-                <!-- Year Level -->
-                <div class="form-group">
-                    <label for="yearlevel">Year Level <span class="required">*</span></label>
-                    <select id="yearlevel" name="yearlevel" required>
-                        <option value="">Please select year level</option>
-                        <?php
-                        $yearLevels = [
-                        "Kinder 1", "Kinder 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4",
-                        "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10",
-                        "Grade 11", "Grade 12"
-                        ];
-                        foreach ($yearLevels as $level) {
-                        $selected = ($yearlevel === $level) ? 'selected' : '';
-                        echo "<option value=\"$level\" $selected>$level</option>";
-                        }
-                        ?>
-                    </select>
-                </div>
-            </div>
-    </div>
             <div class="form-content">
                 <form action="early_registration.php" method="POST">
+
+                    <!-- Admission Information -->
+                    <div class="form-admission">
+                        <h3 class="section-title">Admission Information</h3>
+                            <div class="form-row">
+                                <!-- LRN -->
+                                <div class="form-group">
+                                <label for="lrn">LRN <span class="required">*</span></label>
+                                <input type="text" id="lrn" name="lrn" value="<?php echo htmlspecialchars($lrn); ?>" placeholder="Enter LRN">
+                                </div>
+
+                                <!-- Year Level -->
+                                <div class="form-group">
+                                    <label for="yearlevel">Year Level <span class="required">*</span></label>
+                                    <select id="yearlevel" name="yearlevel" required>
+                                        <option value="">Please select year level</option>
+                                        <?php
+                                        $yearLevels = [
+                                        "Kinder 1", "Kinder 2", "Grade 1", "Grade 2", "Grade 3", "Grade 4",
+                                        "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10",
+                                        "Grade 11", "Grade 12"
+                                        ];
+                                        foreach ($yearLevels as $level) {
+                                        $selected = ($yearlevel === $level) ? 'selected' : '';
+                                        echo "<option value=\"$level\" $selected>$level</option>";
+                                        }
+                                        ?>
+                                    </select>
+                                </div>
+                            </div>
+                    </div>
 
                     <!-- Student Information -->
                     <div class="form-information">
@@ -175,6 +184,8 @@ include 'includes/header.php';
                                 <input type="text" id="suffixname" name="suffixname" required value="<?php echo htmlspecialchars($suffixname); ?>"
                                 placeholder ="(e.g. JR.)">
                              </div>
+                        </div>     
+                        <div class="form-row four-cols">     
                              <div class="form-group">
                                 <label for="gender">Gender <span class="required">*</span></label>
                                 <select id="gender" name="gender" required>
@@ -196,14 +207,18 @@ include 'includes/header.php';
                                 <input type="text" id="citizenship" name="citizenship" required value="<?php echo htmlspecialchars($citizenship); ?>"
                                 placeholder ="e.g. Filipino">
                              </div>
+                            
+                             <div class="form-group">
+                                <label for="dob">Date of Birth <span class="required">*</span></label>
+                                <input type="date" id="dob" name="dob" required value="<?php echo htmlspecialchars($dob); ?>">
+                             </div>
+                        </div>
+
+                        <div class="form-row two-cols" >
                              <div class="form-group">
                                 <label for="birthplace">Birthplace <span class="required">*</span></label>
                                 <input type="text" id="birthplace" name="birthplace" required value="<?php echo htmlspecialchars($birthplace); ?>"
                                 placeholder="Birthplace">
-                             </div>
-                             <div class="form-group">
-                                <label for="dob">Date of Birth <span class="required">*</span></label>
-                                <input type="date" id="dob" name="dob" required value="<?php echo htmlspecialchars($dob); ?>">
                              </div>
                              <div class="form-group">
                                 <label for="religion">Religion <span class="required">*</span></label>
@@ -222,7 +237,6 @@ include 'includes/header.php';
                                     <option value="jw" <?php echo ($religion=='jw')?'selected':''; ?>>Jehovah's Witness</option>
                                     <option value="mormons" <?php echo ($religion=='mormons')?'selected':''; ?>>Mormons</option>
                                     <option value="svd" <?php echo ($religion=='svd')?'selected':''; ?>>Seven Day Adventist</option>
-                                    <input type="text" id="religion" name="religion" placeholder="Others" value="<?php echo htmlspecialchars($religion); ?>" aria-placeholder="Others">
                                 </select>
                             </div>
                         </div>
@@ -231,29 +245,78 @@ include 'includes/header.php';
                     <!-- Current Address -->
                     <div class="form-currentaddress">
                         <h3 class="section-title">Current Address</h3>
-                        
-                        <div class="form-row">
+                    
+                        <div class="form-row four-cols">
                             <div class="form-group">
-                                <label for="contactno">Contact No. <span class="required">*</span></label>
-                                <input type="text" id="contactno" name="contactno" required value="<?php echo htmlspecialchars($contactno); ?>">
-                            </div>
-                        </div>
-                        
-                        <div class="form-row two-cols">
-                            <div class="form-group">
-                                <label for="specaddress">House No./Street/Compound/Village <span class="required">*</span></label>
-                                <input type="text" id="specaddress" name="specaddress" required value="<?php echo htmlspecialchars($specaddress); ?>">
+                                <label for="streetno">Street # / Unit #:. <span class="required">*</span></label>
+                                <input type="text" id="streetno" name="streetno" required value="<?php echo htmlspecialchars($streetno); ?>">
                             </div>
                             <div class="form-group">
-                                <label for="brgy">Barangay <span class="required">*</span></label>
+                                <label for="street">Street <span class="required">*</span></label>
+                                <input type="text" id="street" name="street" required value="<?php echo htmlspecialchars($street); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label for="subd">Subdivision / Village / Bldg.: <span class="required">*</span></label>
+                                <input type="text" id="subd" name="subd" required value="<?php echo htmlspecialchars($subd); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label for="brgy">Barangay: <span class="required">*</span></label>
                                 <input type="text" id="brgy" name="brgy" required value="<?php echo htmlspecialchars($brgy); ?>">
                             </div>
                         </div>
-                        
-                        <div class="form-row">
+                        <div class="form-row three-cols">
                             <div class="form-group">
-                                <label for="city">City/Municipality <span class="required">*</span></label>
+                                <label for="city">City / Municipality: <span class="required">*</span></label>
                                 <input type="text" id="city" name="city" required value="<?php echo htmlspecialchars($city); ?>">
+                            </div>
+                            <div class="form-group">
+                                <label for="province">Province: <span class="required">*</span></label>
+                                <input type="text" id="province" name="province" required value="<?php echo htmlspecialchars($province); ?>">  
+                            </div>
+                            <div class="form-group">
+                                <label for="zipcode">Zip Code: <span class="required">*</span></label>
+                                <input type="text" id="zipcode" name="zipcode" required value="<?php echo htmlspecialchars($zipcode); ?>">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Permanent Address -->
+                    <div class="form-permanentaddress">
+                        <h3 class="section-title">Permanent Address</h3>
+                        <label>
+                            <input type="checkbox" id="sameAddress"> Same as Current Address
+                        </label>
+
+                        <div class="form-row four-cols">
+                            <div class="form-group">
+                                <label for="p_streetno">Street # / Unit #:</label>
+                                <input type="text" id="p_streetno" name="p_streetno">
+                            </div>
+                            <div class="form-group">
+                                <label for="p_street">Street:</label>
+                                <input type="text" id="p_street" name="p_street">
+                            </div>
+                            <div class="form-group">
+                                <label for="p_subd">Subdivision / Village / Bldg.:</label>
+                                <input type="text" id="p_subd" name="p_subd">
+                            </div>
+                            <div class="form-group">
+                                <label for="p_brgy">Barangay:</label>
+                                <input type="text" id="p_brgy" name="p_brgy">
+                            </div>
+                        </div>
+                        <div class="form-row three-cols">
+                            <div class="form-group">
+                                <label for="p_city">City / Municipality:</label>
+                                <input type="text" id="p_city" name="p_city">
+                            </div>
+                            <div class="form-group">
+                                <label for="p_province">Province:</label>
+                                <input type="text" id="p_province" name="p_province">
+                            </div>
+                            <div class="form-group">
+                                <label for="p_zipcode">Zip Code:</label>
+                                <input type="text" id="p_zipcode" name="p_zipcode">
                             </div>
                         </div>
                     </div>
@@ -262,6 +325,7 @@ include 'includes/header.php';
                      <div class="form-contactdetails">
                         <h3 class="section-title">Contact Details</h3>
 
+                        <div class="form-row three-cols">
                             <div class="form-group">
                                 <label for="telnumber">Telephone No.</label>
                                 <input type="email" id="telnumber" name="telnumber" required value="<?php echo htmlspecialchars($telnumber); ?>">
@@ -277,6 +341,7 @@ include 'includes/header.php';
                                 placeholder="example@domain.com">
                             </div>
                      </div>
+
                     <!-- Parents Information -->
                     <div class="form-section">
                         <h3 class="section-title">Parents/Guardian Information</h3>
@@ -323,6 +388,27 @@ include 'includes/header.php';
                 yearLevelGroup.style.display = "none";
             }
         }
+
+        document.getElementById("sameAddress").addEventListener("change", function() {
+            if (this.checked) {
+                document.getElementById("p_streetno").value = document.getElementById("streetno").value;
+                document.getElementById("p_street").value   = document.getElementById("street").value;
+                document.getElementById("p_subd").value     = document.getElementById("subd").value;
+                document.getElementById("p_brgy").value     = document.getElementById("brgy").value;
+                document.getElementById("p_city").value     = document.getElementById("city").value;
+                document.getElementById("p_province").value = document.getElementById("province").value;
+                document.getElementById("p_zipcode").value  = document.getElementById("zipcode").value;
+            } else {
+                // Clear permanent address if unchecked
+                document.getElementById("p_streetno").value = "";
+                document.getElementById("p_street").value   = "";
+                document.getElementById("p_subd").value     = "";
+                document.getElementById("p_brgy").value     = "";
+                document.getElementById("p_city").value     = "";
+                document.getElementById("p_province").value = "";
+                document.getElementById("p_zipcode").value  = "";
+            }
+        });
     </script>
 </body>
 </html>
