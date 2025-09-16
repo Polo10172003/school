@@ -5,7 +5,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['registration'] = array_merge($_SESSION['registration'] ?? [], $_POST);
 
     // Redirect to final submission page after saving all data
-    header('Location: StudentNoVerification/submit_registration.php');
+    header('Location: submit_registration.php');
     exit();
 }
 

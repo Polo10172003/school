@@ -10,20 +10,17 @@ if ($conn->connect_error) {
 
 $message = "";
 
-// ✅ Handle payments
-if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $student_id = intval($_POST["student_id"]);
+// ✅ Handle payments (keep original PHP for fallback / non-JS browsers)
+if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
+    $student_id =  intval($_POST["student_id"]);
     $amount = floatval($_POST["amount"] ?? 0);
     $payment_type = $_POST["payment_type"] ?? "Cash";
     $payment_status = $_POST["payment_status"] ?? "paid";
     $payment_date = date("Y-m-d");
 
-    // CASE 1: Onsite cash payment with OR number
     if (isset($_POST["or_number"])) {
         $or_number = $_POST["or_number"];
 
-        
-        // Fetch firstname and lastname
         $stud = $conn->prepare("SELECT firstname, lastname FROM students_registration WHERE id = ?");
         $stud->bind_param("i", $student_id);
         $stud->execute();
@@ -39,93 +36,25 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $ins->bind_param("issdss", $student_id, $firstname, $lastname, $amount, $payment_date, $or_number);
 
         if ($ins->execute()) {
-            // Mark student as enrolled
             $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
             $upd->bind_param("i", $student_id);
             $upd->execute();
             $upd->close();
 
-            // Send email receipt
-            sendPaymentEmail($conn, $student_id, $payment_type, $amount, "paid");
-            $message = "Cash payment recorded successfully. Student enrolled.";
+            // 🔹 Email via background worker
+            $php_path = "/Applications/XAMPP/bin/php";
+            $worker   = __DIR__ . "/email_worker.php"; // absolute path to THIS folder’s worker
+            
+            exec("$php_path $worker $student_id $payment_type $amount paid > /dev/null 2>&1 &");
+                        $message = "Cash payment recorded successfully. Student enrolled.";
         } else {
             $message = "Error: " . $conn->error;
         }
         $ins->close();
-
-    // CASE 2: Update an existing pending payment
-    } else {
-        $sql = "UPDATE student_payments 
-                SET payment_status = ?, payment_date = ? 
-                WHERE student_id = ? AND payment_status = 'pending'";
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ssi", $payment_status, $payment_date, $student_id);
-
-        if ($stmt->execute() && $stmt->affected_rows > 0) {
-            // Mark student as enrolled
-            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
-            $upd->bind_param("i", $student_id);
-            $upd->execute();
-            $upd->close();
-
-            // Send email receipt
-            sendPaymentEmail($conn, $student_id, $payment_type, $amount, $payment_status);
-            $message = "Pending payment marked as PAID, student enrolled.";
-        } else {
-            $message = "No pending payment found for this student.";
-        }
-        $stmt->close();
     }
 }
 
-// 🔹 Email function
-function sendPaymentEmail($conn, $student_id, $payment_type, $amount, $status) {
-    $email_stmt = $conn->prepare("SELECT emailaddress, firstname, lastname FROM students_registration WHERE id = ?");
-    $email_stmt->bind_param("i", $student_id);
-    $email_stmt->execute();
-    $email_stmt->bind_result($email, $firstname, $lastname);
-    $email_stmt->fetch();
-    $email_stmt->close();
-
-    if (!$email) return;
-
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'deadpoolvictorio@gmail.com';
-        $mail->Password = 'ldcmeapjfuonxypu';
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
-
-        $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
-        $mail->addAddress($email, "$firstname $lastname");
-
-        $mail->isHTML(true);
-        $mail->Subject = 'Payment Receipt and Portal Access';
-        $mail->Body = "
-            <h2>Payment Receipt Confirmation</h2>
-            <p>Dear <strong>$firstname $lastname</strong>,</p>
-            <p>We have received your payment for the following:</p>
-            <ul>
-                <li><strong>Payment Type:</strong> $payment_type</li>
-                <li><strong>Amount:</strong> ₱" . number_format($amount, 2) . "</li>
-                <li><strong>Status:</strong> $status</li>
-            </ul>
-            <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
-            <hr>
-            <p><strong>IMPORTANT:</strong> Please wait for the activation of your student portal with your email address: <strong>$email</strong>.</p>
-            <br>
-            <p>Best regards,<br>Escuela De Sto. Rosario</p>
-        ";
-        $mail->send();
-    } catch (Exception $e) {
-        error_log("Email failed: {$mail->ErrorInfo}");
-    }
-}
-
-// 📌 Search functionality (instead of dropdown)
+// 📌 Search functionality
 $search_results = [];
 if (!empty($_GET['search_name'])) {
     $search_name = "%" . $conn->real_escape_string($_GET['search_name']) . "%";
@@ -139,32 +68,13 @@ if (!empty($_GET['search_name'])) {
     $stmt->close();
 }
 
-
-// 📌 Payment filters
+// 📌 Filters
 $filter_sql = "WHERE 1=1";
-
-if (!empty($_GET['filter_student_id'])) {
-    $filter_student_id = intval($_GET['filter_student_id']);
-    $filter_sql .= " AND sp.student_id = $filter_student_id";
-}
-
-if (!empty($_GET['filter_type'])) {
-    $filter_type = $conn->real_escape_string($_GET['filter_type']);
-    $filter_sql .= " AND sp.payment_type = '$filter_type'";
-}
-
 if (!empty($_GET['filter_status'])) {
     $filter_status = $conn->real_escape_string($_GET['filter_status']);
     $filter_sql .= " AND sp.payment_status = '$filter_status'";
 }
 
-if (!empty($_GET['filter_grade_level'])) {
-    $filter_grade_level = $conn->real_escape_string($_GET['filter_grade_level']);
-    $filter_sql .= " AND sr.year = '$filter_grade_level'";
-}
-
-
-// Fetch payment records
 $payments = $conn->query("
     SELECT sp.*, sr.firstname, sr.lastname
     FROM student_payments sp
@@ -172,16 +82,6 @@ $payments = $conn->query("
     $filter_sql
     ORDER BY sp.created_at DESC
 ");
-
-// Calculate total amount
-$total_query = $conn->query("
-    SELECT SUM(sp.amount) AS total
-    FROM student_payments sp
-    JOIN students_registration sr ON sr.id = sp.student_id
-    $filter_sql
-");
-$total_row = $total_query->fetch_assoc();
-$total_amount = $total_row['total'] ?? 0;
 ?>
 
 
@@ -362,10 +262,11 @@ $total_amount = $total_row['total'] ?? 0;
           <?php foreach ($search_results as $s): ?>
               <li>
                   [<?= $s['student_number'] ?>] <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
-                  <!-- Select button reveals payment form -->
-                  <form method="POST" action="cashier_dashboard.php" style="display:inline;">
+                  <form class="cash-payment-form" method="POST" action="cashier_dashboard.php" style="display:inline;">
                       <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                      
+                      <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
+                      <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
+
                       <label for="amount">Amount (₱)</label>
                       <input type="number" name="amount" step="0.01" required>
 
@@ -381,7 +282,6 @@ $total_amount = $total_row['total'] ?? 0;
           <?php endforeach; ?>
       </ul>
   <?php endif; ?>
-
 
 
 
@@ -665,6 +565,44 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
   }
+});
+</script>
+<script>
+// 🔹 AJAX handler for cash payments
+document.querySelectorAll(".cash-payment-form").forEach(form => {
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const formData = new FormData(form);
+
+    const res = await fetch("cashier_dashboard.php", { method: "POST", body: formData });
+    const text = await res.text();
+
+    // Try parse JSON, fallback to reload
+    try {
+      const data = JSON.parse(text);
+      if (data.success) {
+        alert("✅ Payment recorded successfully.");
+
+        // Append new row in Payment Records instantly
+        const table = document.querySelector("#paymentTable tbody");
+        table.insertAdjacentHTML("afterbegin", `
+          <tr>
+            <td>${new Date().toISOString().split('T')[0]}</td>
+            <td>${formData.get("lastname")}, ${formData.get("firstname")}</td>
+            <td>Cash</td>
+            <td>₱ ${parseFloat(formData.get("amount")).toFixed(2)}</td>
+            <td><span style="color:green;">Paid</span></td>
+            <td>Just Now</td>
+          </tr>
+        `);
+
+        form.reset();
+      }
+    } catch {
+      // fallback reload if response is not JSON
+      location.reload();
+    }
+  });
 });
 </script>
 

@@ -74,10 +74,7 @@ include '../includes/header.php';
             color: #ffffff !important;
             transform: translateY(-1px);
         }
-        /* Hidden by default */
-        #yearLevelGroup {
-            display: none;
-        }
+       
     </style>
 <body>
 <main>
@@ -97,7 +94,7 @@ include '../includes/header.php';
             <!-- Year Level Dropdown (shows only if new LRN) -->
             <div class="form-group" id="yearLevelGroup">
                 <label for="yearlevel">Year Level</label>
-                <select id="yearlevel" name="yearlevel">
+                <select id="yearlevel" name="yearlevel"required>
                     <option value="">Select Year Level</option>
                     <option value="Kinder 1" <?php echo ($yearlevel=='Kinder 1')?'selected':''; ?>>Kinder 1</option>
                     <option value="Kinder 2" <?php echo ($yearlevel=='Kinder 2')?'selected':''; ?>>Kinder 2</option>
@@ -197,23 +194,9 @@ window.onload = function() {
     const yearLevelGroup = document.getElementById("yearLevelGroup");
     const lrnField = document.getElementById("lrn");
 
-    // If LRN is already set (from session/URL), show year level dropdown
-    if (lrnField.hasAttribute("readonly")) {
-        yearLevelGroup.style.display = "block";
-    }
+   
 };
 
-function checkLRN() {
-    const lrn = document.getElementById("lrn").value.trim();
-    const yearLevelGroup = document.getElementById("yearLevelGroup");
-
-    // If user manually types "new" or blank, show dropdown
-    if (lrn === "" || lrn.toLowerCase() === "new") {
-        yearLevelGroup.style.display = "block";
-    } else {
-        yearLevelGroup.style.display = "none";
-    }
-}
 
 </script>
 </html>

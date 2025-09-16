@@ -36,6 +36,89 @@ if (isset($_GET['id'])) {
                  $upd->bind_param("i", $student_id);
                  $upd->execute();
                  $upd->close();
+
+
+                 // Sectioning logic
+                $year = $student['year']; // Grade level from students_registration
+                $section = null;
+                $adviser = null;
+
+                // Kinder 1–2: first 20 Hershey, 21+ Kisses
+                if (in_array($year, ['Kinder 1','Kinder 2'])) {
+                    $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Hershey'");
+                    $countQuery->bind_param("s", $year);
+                    $countQuery->execute();
+                    $countQuery->bind_result($hersheyCount);
+                    $countQuery->fetch();
+                    $countQuery->close();
+
+                    if ($hersheyCount < 20) {
+                        $section = "Hershey";
+                        $adviser = "Ms. Cruz";
+                    } else {
+                        $section = "Kisses";
+                        $adviser = "Mr. Reyes";
+                    }
+                }
+
+                // Grade 1–6: first 30 per section
+                elseif (in_array($year, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'])) {
+                    $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Section A'");
+                    $countQuery->bind_param("s", $year);
+                    $countQuery->execute();
+                    $countQuery->bind_result($secACount);
+                    $countQuery->fetch();
+                    $countQuery->close();
+
+                    if ($secACount < 30) {
+                        $section = "Section A";
+                        $adviser = "Ms. Santos";
+                    } else {
+                        $section = "Section B";
+                        $adviser = "Mr. Dela Cruz";
+                    }
+                }
+
+                // Grade 7–10: first 40 per section
+                elseif (in_array($year, ['Grade 7','Grade 8','Grade 9','Grade 10'])) {
+                    $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Section A'");
+                    $countQuery->bind_param("s", $year);
+                    $countQuery->execute();
+                    $countQuery->bind_result($secACount);
+                    $countQuery->fetch();
+                    $countQuery->close();
+
+                    if ($secACount < 40) {
+                        $section = "Section A";
+                        $adviser = "Ms. Gonzales";
+                    } else {
+                        $section = "Section B";
+                        $adviser = "Mr. Lopez";
+                    }
+                }
+
+                // SHS (Grade 11–12): assign 1 section per strand
+                elseif (in_array($year, ['Grade 11','Grade 12'])) {
+                    $strand = $student['course']; // e.g. ABM, GAS, HUMMS, ICT, TVL
+                    $section = $strand . " - Section 1";
+                    switch($strand) {
+                        case "ABM": $adviser = "Sir Mendoza"; break;
+                        case "GAS": $adviser = "Ma’am Ramirez"; break;
+                        case "HUMMS": $adviser = "Sir Villanueva"; break;
+                        case "ICT": $adviser = "Ma’am Bautista"; break;
+                        case "TVL": $adviser = "Ma’am Ortega"; break;
+                        default: $adviser = "To be assigned";
+                    }
+                }
+
+                // ✅ Save assigned section
+                if ($section) {
+                    $updateSec = $conn->prepare("UPDATE students_registration SET section = ?, adviser = ? WHERE id = ?");
+                    $updateSec->bind_param("ssi", $section, $adviser, $student_id);
+                    $updateSec->execute();
+                    $updateSec->close();
+                }
+
                 // Send email notification
                 $mail = new PHPMailer(true);
 

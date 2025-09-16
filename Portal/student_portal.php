@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-include '../db_connection.php';
+include __DIR__ . '/../db_connection.php';
 
 // Make sure student is logged in
 if (!isset($_SESSION['student_email'])) {
@@ -11,19 +11,16 @@ if (!isset($_SESSION['student_email'])) {
 
 $student_email = $_SESSION['student_email'];
 
-// 🔹 Fetch the student’s info (id, firstname, lastname) based on emailaddress in students_registration
-$sql = "SELECT id, firstname, lastname FROM students_registration WHERE emailaddress = ?";
+$sql = "SELECT id, firstname, lastname, year, section, adviser 
+        FROM students_registration 
+        WHERE emailaddress = ?";
 $stmt = $conn->prepare($sql);
-
-if (!$stmt) {
-    die("SQL Error: " . $conn->error);
-}
-
 $stmt->bind_param("s", $student_email);
 $stmt->execute();
-$stmt->bind_result($student_id, $firstname, $lastname);
+$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser);
 $stmt->fetch();
 $stmt->close();
+
 
 if (!$student_id) {
     die("Student account not found in students_registration.");
@@ -70,7 +67,10 @@ $stmt->close();
 </head>
 <body>
 
-    <h2>Welcome, <?php echo htmlspecialchars($firstname . " " . $lastname); ?></h2>
+<h2>Welcome, <?php echo htmlspecialchars($firstname . " " . $lastname); ?></h2>
+<p>Grade: <?php echo htmlspecialchars($year); ?></p>
+<p>Section: <?php echo htmlspecialchars($section ?: 'Not Assigned'); ?></p>
+<p>Adviser: <?php echo htmlspecialchars($adviser ?: 'TBA'); ?></p>
 
     <h3>📌 Upcoming Payment Dues</h3>
     <?php if (count($pending) > 0): ?>
