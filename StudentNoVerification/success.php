@@ -1,6 +1,5 @@
 <?php
 session_start();
-$student_number = $_GET['sn'] ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -50,13 +49,26 @@ $student_number = $_GET['sn'] ?? '';
     .hidden {
       display: none;
     }
+    .btn-home {
+      display: inline-block;
+      margin-top: 20px;
+      padding: 10px 20px;
+      background-color: #3498db;
+      color: white;
+      text-decoration: none;
+      border-radius: 5px;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .btn-home:hover {
+      background-color: #217dbb;
+    }
+
   </style>
 </head>
 <body>
   <div class="card">
     <h2>✅ Registration Successful!</h2>
-    <p>Your Student Number is:</p>
-    <h3><strong><?= htmlspecialchars($student_number) ?></strong></h3>
 
     <!-- Step 1: Loader -->
     <div id="loading-section">
@@ -68,6 +80,8 @@ $student_number = $_GET['sn'] ?? '';
     <div id="done-section" class="hidden">
       <h3 style="color: #27ae60;">📧 Email Sent!</h3>
       <p class="small">You may now check your inbox for confirmation details.</p>
+      <a href="/Enrollment/index.php" class="btn-home">🏠 Go to Home</a>
+
     </div>
   </div>
 
@@ -84,8 +98,11 @@ $student_number = $_GET['sn'] ?? '';
 <?php
 // 🔹 Trigger background worker for email
 if (!empty($_SESSION['email_job'])) {
-    $payload = http_build_query($_SESSION['email_job']);
-    exec("php " . __DIR__ . "/email_worker.php '$payload' > /dev/null 2>&1 &");
-    unset($_SESSION['email_job']);
+  $payload = http_build_query($_SESSION['email_job']);
+  $php_path = "/Applications/XAMPP/bin/php"; // Mac PHP path
+  $worker   = __DIR__ . "/email_worker.php";
+  exec("$php_path $worker '$payload' > /dev/null 2>&1 &");
+  unset($_SESSION['email_job']);
 }
+
 ?>

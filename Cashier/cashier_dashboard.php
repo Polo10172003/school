@@ -1,58 +1,89 @@
 <?php
-require 'vendor/autoload.php';
+require __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-include 'db_connection.php';
+include __DIR__ . '/../db_connection.php';
 if ($conn->connect_error) {
     die("Connection failed: " . $conn->connect_error);
 }
 
 $message = "";
 
-// ✅ Handle payments (keep original PHP for fallback / non-JS browsers)
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
-    $student_id =  intval($_POST["student_id"]);
-    $amount = floatval($_POST["amount"] ?? 0);
-    $payment_type = $_POST["payment_type"] ?? "Cash";
-    $payment_status = $_POST["payment_status"] ?? "paid";
-    $payment_date = date("Y-m-d");
+  $student_id = intval($_POST["student_id"]);
+  $amount = floatval($_POST["amount"] ?? 0);
+  $payment_type = $_POST["payment_type"] ?? "Cash";
+  $payment_status = $_POST["payment_status"] ?? "paid";
+  $payment_date = date("Y-m-d");
 
-    if (isset($_POST["or_number"])) {
-        $or_number = $_POST["or_number"];
+  if (isset($_POST["or_number"])) {
+      $or_number = $_POST["or_number"];
 
-        $stud = $conn->prepare("SELECT firstname, lastname FROM students_registration WHERE id = ?");
-        $stud->bind_param("i", $student_id);
-        $stud->execute();
-        $stud->bind_result($firstname, $lastname);
-        $stud->fetch();
-        $stud->close();
+      // 🔹 Fetch student details
+      $stud = $conn->prepare("SELECT firstname, lastname, student_number, emailaddress FROM students_registration WHERE id = ?");
+      $stud->bind_param("i", $student_id);
+      $stud->execute();
+      $stud->bind_result($firstname, $lastname, $student_number, $email);
+      $stud->fetch();
+      $stud->close();
 
-        $ins = $conn->prepare("
-            INSERT INTO student_payments
-                (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, created_at)
-            VALUES (?,?,?, 'Cash', ?, 'paid', ?, ?, NOW())
-        ");
-        $ins->bind_param("issdss", $student_id, $firstname, $lastname, $amount, $payment_date, $or_number);
+      // 🔹 Generate student number if this is their first payment
+      $new_number = null;
+      if (empty($student_number)) {
+          do {
+              $new_number = "ESR-"  . str_pad(rand(1, 99999), 5, "0", STR_PAD_LEFT);
+              $checkNum = $conn->prepare("SELECT id FROM students_registration WHERE student_number = ? LIMIT 1");
+              $checkNum->bind_param("s", $new_number);
+              $checkNum->execute();
+              $checkNum->store_result();
+              $exists = $checkNum->num_rows > 0;
+              $checkNum->close();
+          } while ($exists);
 
-        if ($ins->execute()) {
-            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
-            $upd->bind_param("i", $student_id);
-            $upd->execute();
-            $upd->close();
+          // Save it
+          $updNum = $conn->prepare("UPDATE students_registration SET student_number = ? WHERE id = ?");
+          $updNum->bind_param("si", $new_number, $student_id);
+          $updNum->execute();
+          $updNum->close();
 
-            // 🔹 Email via background worker
-            $php_path = "/Applications/XAMPP/bin/php";
-            $worker   = __DIR__ . "/email_worker.php"; // absolute path to THIS folder’s worker
-            
-            exec("$php_path $worker $student_id $payment_type $amount paid > /dev/null 2>&1 &");
-                        $message = "Cash payment recorded successfully. Student enrolled.";
-        } else {
-            $message = "Error: " . $conn->error;
-        }
-        $ins->close();
-    }
+          $student_number = $new_number;
+      }
+
+      // 🔹 Insert payment
+      $ins = $conn->prepare("
+          INSERT INTO student_payments
+              (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, created_at)
+          VALUES (?,?,?, 'Cash', ?, 'paid', ?, ?, NOW())
+      ");
+      $ins->bind_param("issdss", $student_id, $firstname, $lastname, $amount, $payment_date, $or_number);
+
+      if ($ins->execute()) {
+          // Enroll student
+          $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+          $upd->bind_param("i", $student_id);
+          $upd->execute();
+          $upd->close();
+
+          // 🔹 Email via background worker
+          $php_path = "/Applications/XAMPP/bin/php";
+          $worker   = __DIR__ . "/email_worker.php";
+
+          // pass student number only if it was newly generated
+          $cmd = "$php_path $worker $student_id $payment_type $amount paid";
+          if ($new_number) {
+              $cmd .= " $new_number";
+          }
+          exec("$cmd > /dev/null 2>&1 &");
+
+          $message = "Cash payment recorded successfully. Student enrolled.";
+      } else {
+          $message = "Error: " . $conn->error;
+      }
+      $ins->close();
+  }
 }
+
 
 // 📌 Search functionality
 $search_results = [];

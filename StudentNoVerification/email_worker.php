@@ -30,13 +30,18 @@ try {
     $mail->isHTML(true);
     $mail->Subject = "Registration Acknowledgment - ESR";
     $mail->Body = "
-        <p>Dear $name,</p>
-        <p>Thank you for registering as a <strong>$student_type student</strong>.</p>
-        <p>Your Student Number is: <strong>$student_number</strong></p>
-        <p>Please keep this safe. Requirements must be submitted onsite or via Viber.</p>
-        <br>
-        <p>Thank you,<br>Escuela De Sto. Rosario</p>
-    ";
+    <p>Dear $name,</p>
+    <p>Thank you for registering as a <strong>$student_type student</strong>.</p>
+    <p>Please submit the following requirements:</p>
+    <ul>
+        <li>Good Moral Certificate</li>
+        <li>PSA Birth Certificate</li>
+    </ul>
+    <p>You may submit these onsite or send scanned copies via Viber at: <strong>09XX-XXX-XXXX</strong>.</p>
+    <br>
+    <p>Thank you,<br>Escuela De Sto. Rosario</p>
+";
+
 
     $mail->send();
 } catch (Exception $e) {

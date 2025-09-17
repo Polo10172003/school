@@ -180,17 +180,17 @@ if ($grade_filter) {
           <option value="old">Old Student</option>
       </select>
 
-      <div id="lrnField" style="display:none; margin-top:10px;">
-          <label for="lrn">Enter LRN (for old students):</label>
-          <input type="text" id="lrn" name="lrn" placeholder="Enter LRN">
-      </div>
+      <div id="studentNumberField" style="display:none; margin-top:10px;">
+    <label for="student_number">Enter Student Number (for old students):</label>
+    <input type="text" id="student_number" name="student_number" placeholder="Enter Student Number">
+    </div>
+
 
       <!-- ✅ Always show payment type so choice is preserved and used downstream -->
       <div id="paymentTypeField" style="display:block; margin-top:10px;">
           <label for="payment_type">Payment Type:</label>
           <select id="payment_type" name="payment_type">
               <option value="onsite">Onsite Payment</option>
-              <option value="online">Online Payment</option>
           </select>
       </div>
 
@@ -200,16 +200,16 @@ if ($grade_filter) {
 
 <script>
   const studentType = document.getElementById('student_type');
-  const lrnField = document.getElementById('lrnField');
+  const studentNumberField = document.getElementById('studentNumberField');
   const paymentTypeField = document.getElementById('paymentTypeField');
 
   function updateVisibility() {
     if (studentType.value === 'old') {
-      lrnField.style.display = 'block';
-      document.getElementById('lrn').required = true;
+      studentNumberField.style.display = 'block';
+      document.getElementById('student_number').required = true;
     } else {
-      lrnField.style.display = 'none';
-      document.getElementById('lrn').required = false;
+      studentNumberField.style.display = 'none';
+      document.getElementById('student_number').required = false;
     }
     // ✅ keep payment type visible for both new/old
     paymentTypeField.style.display = 'block';

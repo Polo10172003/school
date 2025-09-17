@@ -3,7 +3,7 @@ session_start();
 include('db_connection.php');
 
 $student_type  = $_GET['student_type']  ?? '';
-$lrn           = $_GET['lrn']           ?? '';
+$student_number= $_GET['student_number']           ?? '';
 $payment_type  = $_GET['payment_type']  ?? '';
 
 // ---------------- NEW STUDENT ----------------
@@ -18,27 +18,27 @@ if ($student_type === 'new') {
 
     // Optional: pass along in query too (nice to have)
     $q = !empty($payment_type) ? ('?payment_type=' . urlencode($payment_type)) : '';
-    header('Location: early_registration.php' . $q);
+    header('Location: StudentNoVerification/early_registration.php' . $q);
     exit();
 }
 
 // ---------------- OLD STUDENT ----------------
 if ($student_type === 'old') {
-    if (!$lrn) {
-        echo "LRN is required for old students.";
+    if (!$student_number) {
+        echo "Student Number is required for old students.";
         exit();
     }
 
     // Fetch old student data
-    $stmt = $conn->prepare("SELECT * FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
-    $stmt->bind_param("s", $lrn);
+    $stmt = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? ORDER BY id DESC LIMIT 1");
+    $stmt->bind_param("s", $student_number);
     $stmt->execute();
     $result  = $stmt->get_result();
     $student = $result->fetch_assoc();
     $stmt->close();
 
     if (!$student) {
-        echo "Student with LRN {$lrn} not found.";
+        echo "Student with Student Number {$student_number} not found.";
         exit();
     }
 
@@ -63,18 +63,16 @@ if ($student_type === 'old') {
     $_SESSION['registration']['yearlevel'] = $suggestedGrade;
 
     // ----------------- ONSITE PAYMENT HANDLING (OLD) -----------------
-    // ----------------- ONSITE PAYMENT HANDLING (OLD) -----------------
 if ($payment_type === 'onsite') {
-    // Re-fetch by LRN to be extra sure we have the latest names
-    $q = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
-    $q->bind_param("s", $lrn);
+    $q = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE student_number = ? ORDER BY id DESC LIMIT 1");
+    $q->bind_param("s", $student_number);
     $q->execute();
     $q->bind_result($student_id_db, $firstname_db, $lastname_db);
     $q->fetch();
     $q->close();
 
     if (!$student_id_db) {
-        die("Could not resolve student by LRN for onsite payment.");
+        die("Could not resolve student by Student Number for onsite payment.");
     }
 
     $student_id = (string)$student_id_db;       // student_payments.student_id is VARCHAR(20)
@@ -123,7 +121,7 @@ $fix->close();
 
     // ----------------- ONLINE PAYMENT HANDLING (OLD) -----------------
     elseif ($payment_type === 'online') {
-        header("Location: choose_payment.php?lrn=" . urlencode($lrn));
+        header("Location: choose_payment.php?student_number=" . urlencode($student_number));
         exit();
     } 
     // ----------------- DEFAULT / NO PAYMENT TYPE -----------------

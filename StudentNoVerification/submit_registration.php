@@ -51,19 +51,9 @@ if ($result->num_rows > 0) {
 }
 $check->close();
 
-// 🔹 Step 2: Generate Student Number for new students
 $student_number = null;
-if ($student_type === 'New') {
-    do {
-        $student_number = "ESR-" . date("Y") . "-" . str_pad(rand(1, 99999), 5, "0", STR_PAD_LEFT);
-        $checkNum = $conn->prepare("SELECT id FROM students_registration WHERE student_number = ? LIMIT 1");
-        $checkNum->bind_param("s", $student_number);
-        $checkNum->execute();
-        $checkNum->store_result();
-        $exists = $checkNum->num_rows > 0;
-        $checkNum->close();
-    } while ($exists);
-}
+
+
 
 // 🔹 Step 3: Save Registration
 $stmt = $conn->prepare("INSERT INTO students_registration 
@@ -82,10 +72,11 @@ if ($stmt->execute()) {
     $_SESSION['email_job'] = [
         'email' => $emailaddress,
         'name' => "$firstname $lastname",
-        'student_number' => $student_number,
+        'student_number'=>$student_number,
         'student_type' => $student_type
     ];
 
+    unset($_SESSION['registration']);
     // ✅ Redirect instantly
     header("Location: success.php?sn=" . urlencode($student_number));
     exit();

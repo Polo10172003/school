@@ -1,13 +1,15 @@
 <?php
-require 'vendor/autoload.php';
-include 'db_connection.php';
+require '../vendor/autoload.php';
+include __DIR__ . '/../db_connection.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 
-$student_id   = $argv[1] ?? 0;
-$payment_type = $argv[2] ?? '';
-$amount       = $argv[3] ?? 0;
-$status       = $argv[4] ?? '';
+$student_id     = $argv[1] ?? 0;
+$payment_type   = $argv[2] ?? '';
+$amount         = $argv[3] ?? 0;
+$status         = $argv[4] ?? '';
+$student_number = $argv[5] ?? null; // <-- optional
+
 
 if (!$student_id) exit;
 
@@ -36,7 +38,7 @@ $mail->addAddress($email, "$firstname $lastname");
 
 $mail->isHTML(true);
 $mail->Subject = 'Payment Receipt and Portal Access';
-$mail->Body    = "
+$mail->Body = "
     <h2>Payment Receipt Confirmation</h2>
     <p>Dear <strong>$firstname $lastname</strong>,</p>
     <p>We have received your payment for the following:</p>
@@ -46,7 +48,9 @@ $mail->Body    = "
         <li><strong>Status:</strong> $status</li>
     </ul>
     <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
+    " . ($student_number ? "<p>Your Student Number is: <strong>$student_number</strong></p>" : "") . "
     <hr>
     <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
 ";
+
 $mail->send();
