@@ -73,8 +73,6 @@ if (!$lrn) {
     <div id="step2" class="step">
         <h2>Online Payment - Step 2</h2>
         <form action="submit_payment.php" method="POST" enctype="multipart/form-data">
-           <input type="hidden" name="lrn" value="<?php echo $lrn; ?>"> 
-
             <label for="reference_number">Reference Number:</label><br>
             <input type="text" name="reference_number" required><br><br>
 

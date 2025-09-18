@@ -90,9 +90,26 @@ $stmt->close();
             </tr>
             <?php endforeach; ?>
         </table>
+     
+
     <?php else: ?>
         <p>✅ No upcoming dues. All payments are cleared!</p>
     <?php endif; ?>
+    <form action="choose_payment.php" method="GET" style="margin-top:15px; text-align:center;">
+    <input type="hidden" name="student_id" value="<?php echo $student_id; ?>">
+    <button type="submit" style="
+        background-color:#27ae60;
+        color:white;
+        padding:10px 20px;
+        border:none;
+        border-radius:6px;
+        font-weight:bold;
+        cursor:pointer;
+    ">
+        💳 Pay Now
+    </button>
+</form>
+
 
     <h3>💰 Payment History</h3>
     <?php if (count($paid) > 0): ?>
