@@ -91,27 +91,42 @@ include '../includes/header.php';
                 <input type="text" id="lrn" name="lrn">
             </div>
 
-            <!-- Year Level Dropdown (shows only if new LRN) -->
+            <!-- Year Level Dropdown -->
             <div class="form-group" id="yearLevelGroup">
                 <label for="yearlevel">Year Level</label>
-                <select id="yearlevel" name="yearlevel"required>
+                <select id="yearlevel" name="yearlevel" required>
                     <option value="">Select Year Level</option>
-                    <option value="Kinder 1" <?php echo ($yearlevel=='Kinder 1')?'selected':''; ?>>Kinder 1</option>
-                    <option value="Kinder 2" <?php echo ($yearlevel=='Kinder 2')?'selected':''; ?>>Kinder 2</option>
-                    <option value="Grade 1" <?php echo ($yearlevel=='Grade 1')?'selected':''; ?>>Grade 1</option>
-                    <option value="Grade 2" <?php echo ($yearlevel=='Grade 2')?'selected':''; ?>>Grade 2</option>
-                    <option value="Grade 3" <?php echo ($yearlevel=='Grade 3')?'selected':''; ?>>Grade 3</option>
-                    <option value="Grade 4" <?php echo ($yearlevel=='Grade 4')?'selected':''; ?>>Grade 4</option>
-                    <option value="Grade 5" <?php echo ($yearlevel=='Grade 5')?'selected':''; ?>>Grade 5</option>
-                    <option value="Grade 6" <?php echo ($yearlevel=='Grade 6')?'selected':''; ?>>Grade 6</option>
-                    <option value="Grade 7" <?php echo ($yearlevel=='Grade 7')?'selected':''; ?>>Grade 7</option>
-                    <option value="Grade 8" <?php echo ($yearlevel=='Grade 8')?'selected':''; ?>>Grade 8</option>
-                    <option value="Grade 9" <?php echo ($yearlevel=='Grade 9')?'selected':''; ?>>Grade 9</option>
-                    <option value="Grade 10" <?php echo ($yearlevel=='Grade 10')?'selected':''; ?>>Grade 10</option>
-                    <option value="Grade 11" <?php echo ($yearlevel=='Grade 11')?'selected':''; ?>>Grade 11</option>
-                    <option value="Grade 12" <?php echo ($yearlevel=='Grade 12')?'selected':''; ?>>Grade 12</option>
+                    <option value="Kinder 1" <?= $yearlevel=='Kinder 1'?'selected':''; ?>>Kinder 1</option>
+                    <option value="Kinder 2" <?= $yearlevel=='Kinder 2'?'selected':''; ?>>Kinder 2</option>
+                    <option value="Grade 1" <?= $yearlevel=='Grade 1'?'selected':''; ?>>Grade 1</option>
+                    <option value="Grade 2" <?= $yearlevel=='Grade 2'?'selected':''; ?>>Grade 2</option>
+                    <option value="Grade 3" <?= $yearlevel=='Grade 3'?'selected':''; ?>>Grade 3</option>
+                    <option value="Grade 4" <?= $yearlevel=='Grade 4'?'selected':''; ?>>Grade 4</option>
+                    <option value="Grade 5" <?= $yearlevel=='Grade 5'?'selected':''; ?>>Grade 5</option>
+                    <option value="Grade 6" <?= $yearlevel=='Grade 6'?'selected':''; ?>>Grade 6</option>
+                    <option value="Grade 7" <?= $yearlevel=='Grade 7'?'selected':''; ?>>Grade 7</option>
+                    <option value="Grade 8" <?= $yearlevel=='Grade 8'?'selected':''; ?>>Grade 8</option>
+                    <option value="Grade 9" <?= $yearlevel=='Grade 9'?'selected':''; ?>>Grade 9</option>
+                    <option value="Grade 10" <?= $yearlevel=='Grade 10'?'selected':''; ?>>Grade 10</option>
+                    <option value="Grade 11" <?= $yearlevel=='Grade 11'?'selected':''; ?>>Grade 11</option>
+                    <option value="Grade 12" <?= $yearlevel=='Grade 12'?'selected':''; ?>>Grade 12</option>
                 </select>
             </div>
+
+            <!-- Course/Strand Dropdown -->
+            <div class="form-group" id="courseGroup" style="display:none;">
+                <label for="course">Strand</label>
+                <select id="course" name="course">
+                    <option value="">Select Strand</option>
+                    <option value="ABM" <?= ($registration['course'] ?? '')=='ABM'?'selected':''; ?>>ABM</option>
+                    <option value="GAS" <?= ($registration['course'] ?? '')=='GAS'?'selected':''; ?>>GAS</option>
+                    <option value="HUMMS" <?= ($registration['course'] ?? '')=='HUMMS'?'selected':''; ?>>HUMMS</option>
+                    <option value="TVL" <?= ($registration['course'] ?? '')=='TVL'?'selected':''; ?>>TVL</option>
+                    <option value="ICT" <?= ($registration['course'] ?? '')=='ICT'?'selected':''; ?>>ICT</option>
+                </select>
+            </div>
+
+
 
             <div class="form-group">
                 <label for="lastname">Last Name</label>
@@ -193,12 +208,33 @@ include '../includes/header.php';
 window.onload = function() {
     const yearLevelGroup = document.getElementById("yearLevelGroup");
     const lrnField = document.getElementById("lrn");
-
-   
 };
 
-
 </script>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const yearLevel = document.getElementById("yearlevel");
+    const courseGroup = document.getElementById("courseGroup");
+    const courseSelect = document.getElementById("course");
+
+    function toggleCourseField() {
+        if (yearLevel.value === "Grade 11" || yearLevel.value === "Grade 12") {
+            courseGroup.style.display = "block";
+            courseSelect.required = true;
+        } else {
+            courseGroup.style.display = "none";
+            courseSelect.required = false;
+            courseSelect.value = ""; // clear if hidden
+        }
+    }
+
+    yearLevel.addEventListener("change", toggleCourseField);
+    toggleCourseField(); // run once on load
+});
+</script>
+
+
 </html>
 <?php 
     include '../includes/footer.php';
