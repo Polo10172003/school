@@ -266,28 +266,35 @@ if ($grade_filter) {
         if ($row['year'] === 'Grade 12' && $row['academic_status'] === 'Passed') {
             echo '<span class="badge bg-success">Graduated</span>';
         } else {
-            echo !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Pending';
+            echo !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Ongoing';
         }
         ?>
     </td>
     <td>
-        <!-- Edit / Delete -->
-    
+    <?php if ($row['academic_status'] === 'Graduated'): ?>
+        <!-- Actions for Graduated Students -->
+        <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
+        <a href="archive_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a> |
+        <span id="portal-status-<?= $row['id'] ?>" class="status-label" 
+              style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
+            <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
+        </span>
+    <?php else: ?>
+        <!-- Actions for Non-Graduated Students -->
         <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
         <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a> |
-        <span id="portal-status-<?= $row['id'] ?>" class="status-label" style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
-       <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
-      </span>
-
-        <?php if ($row['academic_status'] === 'Graduated'): ?>
-            Graduated
-        <?php else: ?>
-            <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
-        <?php endif; ?>
-    </td>
+        <span id="portal-status-<?= $row['id'] ?>" class="status-label" 
+              style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
+            <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?> |
+        </span>
+        <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a> |
+        
+    <?php endif; ?>
+</td>
 
 <?php endwhile; ?>
 </table>
+
 
 <!-- Button to promote selected students -->
 <input type="submit" value="Update Selected Status" style="margin-top:15px;">
