@@ -50,7 +50,39 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
           $student_number = $new_number;
       }
 
-      // 🔹 Insert payment
+      // 🔹 Check if there's already a pending onsite payment for this student & amount
+      $check = $conn->prepare("
+      SELECT id 
+      FROM student_payments 
+      WHERE student_id = ? AND payment_status = 'pending'
+      ORDER BY created_at DESC LIMIT 1
+      ");
+      $check->bind_param("i", $student_id);
+      $check->execute();
+      $check->bind_result($pending_payment_id);
+      $check->fetch();
+      $check->close();
+
+      if ($pending_payment_id) {
+      // ✅ Update the existing pending payment to paid
+      $updPay = $conn->prepare("
+          UPDATE student_payments 
+          SET payment_status = 'paid', or_number = ?, payment_date = ?
+          WHERE id = ?
+      ");
+      $updPay->bind_param("ssi", $or_number, $payment_date, $pending_payment_id);
+      $updPay->execute();
+      $updPay->close();
+
+      // Enroll student
+      $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+      $upd->bind_param("i", $student_id);
+      $upd->execute();
+      $upd->close();
+
+      $message = "Pending onsite payment updated to Paid. Student enrolled.";
+      } else {
+      // ❌ No pending → insert new payment (normal flow)
       $ins = $conn->prepare("
           INSERT INTO student_payments
               (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, created_at)
@@ -69,7 +101,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
           $php_path = "/Applications/XAMPP/bin/php";
           $worker   = __DIR__ . "/email_worker.php";
 
-          // pass student number only if it was newly generated
           $cmd = "$php_path $worker $student_id $payment_type $amount paid";
           if ($new_number) {
               $cmd .= " $new_number";
@@ -81,8 +112,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
           $message = "Error: " . $conn->error;
       }
       $ins->close();
+      }
+    }
   }
-}
+
 
 
 // 📌 Search functionality
@@ -288,31 +321,85 @@ $payments = $conn->query("
   </form>
 
   <?php if (!empty($search_results)): ?>
-      <h3>Search Results</h3>
-      <ul>
-          <?php foreach ($search_results as $s): ?>
-              <li>
-                  [<?= $s['student_number'] ?>] <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
-                  <form class="cash-payment-form" method="POST" action="cashier_dashboard.php" style="display:inline;">
-                      <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                      <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
-                      <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
+    <h3>Search Results</h3>
+    <ul>
+        <?php foreach ($search_results as $s): ?>
+            <li style="margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:6px;">
+                <strong>[<?= $s['student_number'] ?>]</strong> <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
 
-                      <label for="amount">Amount (₱)</label>
-                      <input type="number" name="amount" step="0.01" required>
+                <?php
+                // 🔎 Check if this student has a pending enrollment payment
+                $pending = $conn->prepare("
+                    SELECT id, amount, created_at 
+                    FROM student_payments 
+                    WHERE student_id = ? AND payment_status = 'pending'
+                    ORDER BY created_at DESC LIMIT 1
+                ");
+                $pending->bind_param("i", $s['id']);
+                $pending->execute();
+                $pendingResult = $pending->get_result();
+                if ($pendingRow = $pendingResult->fetch_assoc()):
+                ?>
+<h4>Pending Enrollment Payment</h4>
+<table style="width:100%; border-collapse: collapse; margin-top:10px; border:1px solid #ccc;">
+    <thead>
+        <tr style="background:#fff3cd;">
+            <th style="padding:8px; border:1px solid #ccc;">Date</th>
+            <th style="padding:8px; border:1px solid #ccc;">Amount</th>
+            <th style="padding:8px; border:1px solid #ccc;">Status</th>
+            <th style="padding:8px; border:1px solid #ccc;">Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="padding:8px; border:1px solid #ccc;"><?= $pendingRow['created_at'] ?></td>
+            <td style="padding:8px; border:1px solid #ccc;">₱ <?= number_format($pendingRow['amount'], 2) ?></td>
+            <td style="padding:8px; border:1px solid #ccc; color:orange; font-weight:bold;">Pending</td>
+            <td style="padding:8px; border:1px solid #ccc;">
+                <form method="POST" action="cashier_dashboard.php" style="display:flex; gap:5px; align-items:center;">
+                    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                    <input type="hidden" name="amount" value="<?= $pendingRow['amount'] ?>">
+                    <input type="hidden" name="payment_type" value="Cash">
+                    <input type="hidden" name="payment_status" value="paid">
 
-                      <label for="or_number">Official Receipt #</label>
-                      <input type="text" name="or_number" required>
+                    <input type="text" name="or_number" placeholder="OR #" required 
+                           style="flex:1; padding:5px; border:1px solid #ccc; border-radius:4px;">
 
-                      <input type="hidden" name="payment_type" value="Cash">
-                      <input type="hidden" name="payment_status" value="paid">
+                    <button type="submit" 
+                            style="background:green; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">
+                        ✅ Mark as Paid
+                    </button>
+                </form>
+            </td>
+        </tr>
+    </tbody>
+</table>
 
-                      <button type="submit">💵 Record Cash Payment</button>
-                  </form>
-              </li>
-          <?php endforeach; ?>
-      </ul>
-  <?php endif; ?>
+                <?php endif; $pending->close(); ?>
+
+                <!-- Regular cash payment form (for 2nd, 3rd, etc. payments) -->
+                <div style="margin-top:15px;">
+                    <form class="cash-payment-form" method="POST" action="cashier_dashboard.php">
+                        <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                        <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
+                        <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
+
+                        <label for="amount">New Payment Amount (₱)</label>
+                        <input type="number" name="amount" step="0.01" required>
+
+                        <label for="or_number">Official Receipt #</label>
+                        <input type="text" name="or_number" required>
+
+                        <input type="hidden" name="payment_type" value="Cash">
+                        <input type="hidden" name="payment_status" value="paid">
+
+                        <button type="submit">💵 Record Cash Payment</button>
+                    </form>
+                </div>
+            </li>
+        <?php endforeach; ?>
+    </ul>
+<?php endif; ?>
 
 
 

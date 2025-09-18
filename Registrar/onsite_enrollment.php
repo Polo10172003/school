@@ -1,6 +1,6 @@
 <?php
 session_start();
-include('db_connection.php');
+include __DIR__ . '/../db_connection.php';
 
 $student_type  = $_GET['student_type']  ?? '';
 $student_number= $_GET['student_number']           ?? '';
@@ -80,7 +80,7 @@ if ($payment_type === 'onsite') {
     $lastname   = $lastname_db  ?? '';
 
     // TODO: compute correct fee for the grade level
-    $total_amount_due = 5000.00;
+    $total_amount_due = 9110.00;
 
     // 1) Insert pending CASH payment
     // 1) Insert pending CASH payment

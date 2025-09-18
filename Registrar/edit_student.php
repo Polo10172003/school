@@ -2,8 +2,8 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'vendor/autoload.php'; // PHPMailer autoload
-include 'db_connection.php';
+require __DIR__ . '/../vendor/autoload.php';
+include __DIR__ . '/../db_connection.php';
 
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']); // Sanitize input

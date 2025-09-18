@@ -1,5 +1,5 @@
 <?php
-include 'db_connection.php';
+include __DIR__ . '/../db_connection.php';
 
 // Promotion map
 function nextYear($year) {

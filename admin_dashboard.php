@@ -189,24 +189,25 @@
       <textarea name="message" required></textarea>
 
       <label for="grades">Send To:</label>
-      <select name="grades[]" multiple required>
-          <option value="everyone">Everyone</option>
-          <option value="preschool">Pre-School</option>
-          <option value="k1">Kinder-1</option>
-          <option value="k2">Kinder-2</option>
-          <option value="g1">Grade-1</option>
-          <option value="g2">Grade-2</option>
-          <option value="g3">Grade-3</option>
-          <option value="g4">Grade-4</option>
-          <option value="g5">Grade-5</option>
-          <option value="g6">Grade-6</option>
-          <option value="g7">Grade-7</option>
-          <option value="g8">Grade-8</option>
-          <option value="g9">Grade-9</option>
-          <option value="g10">Grade-10</option>
-          <option value="g11">Grade-11</option>
-          <option value="g12">Grade-12</option>
-      </select>
+    <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:10px;">
+    <label><input type="checkbox" name="grades[]" value="everyone"> Everyone</label>
+    <label><input type="checkbox" name="grades[]" value="preschool"> Pre-School</label>
+    <label><input type="checkbox" name="grades[]" value="k1"> Kinder-1</label>
+    <label><input type="checkbox" name="grades[]" value="k2"> Kinder-2</label>
+    <label><input type="checkbox" name="grades[]" value="g1"> Grade-1</label>
+    <label><input type="checkbox" name="grades[]" value="g2"> Grade-2</label>
+    <label><input type="checkbox" name="grades[]" value="g3"> Grade-3</label>
+    <label><input type="checkbox" name="grades[]" value="g4"> Grade-4</label>
+    <label><input type="checkbox" name="grades[]" value="g5"> Grade-5</label>
+    <label><input type="checkbox" name="grades[]" value="g6"> Grade-6</label>
+    <label><input type="checkbox" name="grades[]" value="g7"> Grade-7</label>
+    <label><input type="checkbox" name="grades[]" value="g8"> Grade-8</label>
+    <label><input type="checkbox" name="grades[]" value="g9"> Grade-9</label>
+    <label><input type="checkbox" name="grades[]" value="g10"> Grade-10</label>
+    <label><input type="checkbox" name="grades[]" value="g11"> Grade-11</label>
+    <label><input type="checkbox" name="grades[]" value="g12"> Grade-12</label>
+</div>
+
 
       <input type="submit" value="Send Announcement">
   </form>

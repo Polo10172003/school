@@ -1,5 +1,5 @@
 <?php
-include('db_connection.php');
+include __DIR__ . '/../db_connection.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -272,29 +272,30 @@ if ($grade_filter) {
     </td>
     <td>
         <!-- Edit / Delete -->
+    
         <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
-        <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
+        <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a> |
+        <span id="portal-status-<?= $row['id'] ?>" class="status-label" style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
+       <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
+      </span>
 
-        <!-- Activation Status -->
-        <?php if ($row['portal_status'] === 'activated'): ?>
-            | <span style="color:gray;">Activated</span>
-        <?php else: ?>
-          | <a href="activate_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Activate student portal account?')">Activate</a>
-        <?php endif; ?>
-
-        <!-- Academic Status / Update Link -->
         <?php if ($row['academic_status'] === 'Graduated'): ?>
-            | <span class="badge bg-success">Graduated</span>
+            Graduated
         <?php else: ?>
-            | <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
+            <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
         <?php endif; ?>
     </td>
-</tr>
+
 <?php endwhile; ?>
 </table>
 
 <!-- Button to promote selected students -->
-<input type="submit" value="Promote Selected" style="margin-top:15px;">
+<input type="submit" value="Update Selected Status" style="margin-top:15px;">
+<!-- Button to activate selected accounts -->
+<button type="button" id="bulkActivateBtn" style="margin-left:10px; background-color:#008000; color:white;">
+  Activate Selected Accounts
+</button>
+
 </form>
 
 <script>
@@ -303,6 +304,40 @@ document.getElementById('checkAll').addEventListener('change', function() {
     const boxes = document.querySelectorAll('input[name="student_ids[]"]');
     boxes.forEach(b => b.checked = this.checked);
 });
+</script>
+<script>
+  document.getElementById('bulkActivateBtn').addEventListener('click', async () => {
+    const checked = [...document.querySelectorAll('input[name="student_ids[]"]:checked')].map(cb => cb.value);
+    if (checked.length === 0) {
+        alert("Please select at least one student.");
+        return;
+    }
+
+    const res = await fetch("bulk_activate.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_ids: checked })
+    });
+
+    const data = await res.json();
+    if (data.success) {
+        checked.forEach(id => {
+            const span = document.getElementById("portal-status-" + id);
+            if (span) {
+              span.textContent = "Activated";
+              span.style.color = "green";     
+                   }
+        });
+        let msg = `✅ ${data.activated} accounts activated.`;
+      if (data.errors && data.errors.length > 0) {
+          msg += `\n⚠ Some issues:\n- ${data.errors.join("\n- ")}`;
+      }
+        alert(msg);
+    } else {
+        alert("❌ Error activating accounts."+ data.error || Unknown);
+    }
+});
+
 </script>
 
 <?php else: ?>
