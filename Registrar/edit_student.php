@@ -90,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $mail->send();
 
-            echo "<script>alert('Student record updated successfully and notification email sent!'); window.location.href='admin_dashboard.php';</script>";
+            echo "<script>alert('Student record updated successfully and notification email sent!'); window.location.href='registrar_dashboard.php';</script>";
             exit();
         } catch (Exception $e) {
             echo "<script>alert('Student record updated but email could not be sent. Mailer Error: {$mail->ErrorInfo}'); window.location.href='admin_dashboard.php';</script>";

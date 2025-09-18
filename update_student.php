@@ -8,7 +8,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($conn->query($sql) === TRUE) {
         echo "Student updated successfully.";
-        header("Location: admin_dashboard.php");
+        header("Location: registrar_dashboard.php");
         exit();
     } else {
         echo "Error: " . $conn->error;
