@@ -27,7 +27,7 @@ if (!$student_id) {
 }
 
 // 🔹 Fetch all payments of this student (linked by student_id for reliability)
-$sql = "SELECT payment_type, amount, payment_status, payment_date, reference_number 
+$sql = "SELECT payment_type, amount, payment_status, payment_date, reference_number ,or_number
         FROM student_payments 
         WHERE student_id = ?
         ORDER BY created_at DESC";
@@ -103,6 +103,8 @@ $stmt->close();
                 <th>Status</th>
                 <th>Payment Date</th>
                 <th>Reference</th>
+                <th>OR Number</th>
+
             </tr>
             <?php foreach ($paid as $p): ?>
             <tr>
@@ -111,6 +113,8 @@ $stmt->close();
                 <td class="paid"><?php echo ucfirst($p['payment_status']); ?></td>
                 <td><?php echo $p['payment_date'] ?: 'N/A'; ?></td>
                 <td><?php echo $p['reference_number'] ?: 'N/A'; ?></td>
+                <td><?php echo $p['or_number'] ?: 'N/A'; ?></td>
+
             </tr>
             <?php endforeach; ?>
         </table>

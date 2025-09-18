@@ -122,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
 // 🔹 Email via background worker
         $php_path = "/Applications/XAMPP/bin/php";
         $worker   = __DIR__ . "/email_worker.php";
-        exec("$php_path $worker $id > /dev/null 2>&1 &");
+        exec("$php_path $worker $student_id > /dev/null 2>&1 &");
 
 
         $successCount++;

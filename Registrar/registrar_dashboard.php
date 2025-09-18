@@ -324,7 +324,7 @@ document.getElementById('checkAll').addEventListener('change', function() {
         checked.forEach(id => {
             const span = document.getElementById("portal-status-" + id);
             if (span) {
-              span.textContent = "Activated";
+              span.innerText = "Activated";
               span.style.color = "green";     
                    }
         });

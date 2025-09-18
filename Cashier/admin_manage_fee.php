@@ -1,6 +1,6 @@
 <?php
 // Include database connection
-include('db_connection.php');
+include __DIR__ . '/../db_connection.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Capture the form data from POST

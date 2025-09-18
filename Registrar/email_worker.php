@@ -23,12 +23,12 @@ if ($email) {
         $mail->isSMTP();
         $mail->Host = 'smtp.gmail.com'; 
         $mail->SMTPAuth = true;
-        $mail->Username = 'your-email@gmail.com'; 
-        $mail->Password = 'your-app-password'; 
+        $mail->Username = 'deadpoolvictorio@gmail.com'; 
+        $mail->Password = 'ldcmeapjfuonxypu';
         $mail->SMTPSecure = 'tls';
         $mail->Port = 587;
 
-        $mail->setFrom('your-email@gmail.com', 'Escuela De Sto. Rosario');
+        $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
         $mail->addAddress($email, "$firstname $lastname");
 
         $mail->isHTML(true);
