@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Sep 11, 2025 at 04:09 PM
+-- Generation Time: Sep 18, 2025 at 03:38 PM
 -- Server version: 10.1.22-MariaDB
 -- PHP Version: 7.0.18
 
@@ -21,6 +21,50 @@ SET time_zone = "+00:00";
 --
 -- Database: `student_enrollmentform`
 --
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `archived_students`
+--
+
+CREATE TABLE `archived_students` (
+  `id` int(11) NOT NULL,
+  `student_number` varchar(50) DEFAULT NULL,
+  `year` varchar(50) NOT NULL,
+  `course` varchar(50) DEFAULT NULL,
+  `lrn` varchar(50) NOT NULL,
+  `lastname` varchar(100) NOT NULL,
+  `firstname` varchar(100) NOT NULL,
+  `middlename` varchar(100) NOT NULL,
+  `specaddress` varchar(255) NOT NULL,
+  `brgy` varchar(100) NOT NULL,
+  `city` varchar(100) NOT NULL,
+  `mother` varchar(100) NOT NULL,
+  `father` varchar(100) NOT NULL,
+  `gname` varchar(100) DEFAULT NULL,
+  `sex` varchar(10) NOT NULL,
+  `dob` date NOT NULL,
+  `religion` varchar(50) NOT NULL,
+  `emailaddress` varchar(100) NOT NULL,
+  `contactno` varchar(20) NOT NULL,
+  `schooltype` varchar(50) NOT NULL,
+  `sname` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `enrollment_status` enum('waiting','enrolled') DEFAULT 'waiting',
+  `student_type` varchar(10) DEFAULT NULL,
+  `academic_status` varchar(50) NOT NULL DEFAULT '',
+  `portal_status` enum('pending','activated') DEFAULT 'pending',
+  `section` varchar(100) DEFAULT NULL,
+  `adviser` varchar(100) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
+-- Dumping data for table `archived_students`
+--
+
+INSERT INTO `archived_students` (`id`, `student_number`, `year`, `course`, `lrn`, `lastname`, `firstname`, `middlename`, `specaddress`, `brgy`, `city`, `mother`, `father`, `gname`, `sex`, `dob`, `religion`, `emailaddress`, `contactno`, `schooltype`, `sname`, `created_at`, `enrollment_status`, `student_type`, `academic_status`, `portal_status`, `section`, `adviser`) VALUES
+(47, 'ESR-29715', 'Graduated', 'ABM', '02000308654', 'SOLOMON', 'RAIN', 'M', '123 BAHAY', 'TAYTAY', 'RIZAL', 'mama', 'papa', '', 'Male', '2003-10-17', 'romCat', 'rainsolomon1212@gmail.com', '098723921029', 'private', 'URS', '2025-09-18 13:10:03', 'enrolled', 'New', 'Graduated', 'activated', 'ABM - Section 1', 'Sir Mendoza');
 
 -- --------------------------------------------------------
 
@@ -54,15 +98,18 @@ CREATE TABLE `students_registration` (
   `enrollment_status` enum('waiting','enrolled') DEFAULT 'waiting',
   `student_type` varchar(10) DEFAULT NULL,
   `academic_status` varchar(50) NOT NULL DEFAULT '',
-  `portal_status` enum('pending','activated') DEFAULT 'pending'
+  `portal_status` enum('pending','activated') DEFAULT 'pending',
+  `section` varchar(100) DEFAULT NULL,
+  `adviser` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Dumping data for table `students_registration`
 --
 
-INSERT INTO `students_registration` (`id`, `student_number`, `year`, `course`, `lrn`, `lastname`, `firstname`, `middlename`, `specaddress`, `brgy`, `city`, `mother`, `father`, `gname`, `sex`, `dob`, `religion`, `emailaddress`, `contactno`, `schooltype`, `sname`, `created_at`, `enrollment_status`, `student_type`, `academic_status`, `portal_status`) VALUES
-(36, 'ESR-2025-03304', 'Grade 11', '', '02000307451', 'Victorio ', 'Polo Emmanuelle ', 'Matuto', '212V CAPRI OASIS', 'Maybunga ', 'Pasig', 'Baby', 'rex', '', 'Male', '2003-10-17', 'romCat', 'victoriopolo03@gmail.com', '09863', 'private', 'APEC', '2025-09-11 11:03:13', 'enrolled', 'New', 'Ongoing', 'activated');
+INSERT INTO `students_registration` (`id`, `student_number`, `year`, `course`, `lrn`, `lastname`, `firstname`, `middlename`, `specaddress`, `brgy`, `city`, `mother`, `father`, `gname`, `sex`, `dob`, `religion`, `emailaddress`, `contactno`, `schooltype`, `sname`, `created_at`, `enrollment_status`, `student_type`, `academic_status`, `portal_status`, `section`, `adviser`) VALUES
+(42, 'ESR-2025-78274', 'Grade 2', '', '02000306451', 'Pereira', 'Samantha', 'Bacani', '130 Dr. Sixto Antonio Avenue', 'Rosario', 'Pasig', 'Dulce Bacani', 'Bong Pereira', '', 'Female', '2002-03-28', 'romCat', 'victoriopolo03@gmail.com', '099876543', 'private', 'APEC', '2025-09-16 14:48:23', 'enrolled', 'New', 'Ongoing', 'activated', 'Section A', 'Ms. Santos'),
+(45, 'ESR-04510', 'Grade 3', '', '03000207456', 'Vitto', 'Jhon', 'B', '123', 'a', 'a', 'a', 'a', '', 'Female', '2002-03-28', 'romCat', 'jhonbernvitto04@gmail.com\r\n', '123', 'private', 'Apec', '2025-09-17 15:03:28', 'enrolled', 'New', 'Ongoing', 'activated', 'Section A', 'Ms. Santos');
 
 -- --------------------------------------------------------
 
@@ -85,9 +132,9 @@ CREATE TABLE `student_accounts` (
 --
 
 INSERT INTO `student_accounts` (`id`, `email`, `password`, `is_first_login`, `created_at`, `reset_token`, `token_expiry`) VALUES
-(7, 'jhonbernvitto04@gmail.com', '$2y$10$IGvlZJ/Es54oosfsVkJQSOIF.q0MxlqYkAVbbFWSv3PSkIAsBQgPe', 0, '2025-09-01 05:23:59', NULL, NULL),
-(8, 'matthew.4402@gmail.com', '$2y$10$3UrR26VAVPLGYdiDJqxymuyhPasHxIEG4dS4Ud3vFBoWs2y6c.EzO', 0, '2025-09-01 06:39:41', NULL, NULL),
-(9, 'victoriopolo03@gmail.com', '$2y$10$ZvXI.HSbGXsECqLaQY1F3ed307AU8kjpIDn.0mjv22GAfV02MYyGe', 0, '2025-09-11 14:06:14', NULL, NULL);
+(22, 'victoriopolo03@gmail.com', '$2y$10$FYbAtyz6BpLVpVrP0Map7e5w2IBlIQNFUg5niWEDzirGHSmdTncNK', 0, '2025-09-18 11:23:21', NULL, NULL),
+(23, 'jhonbernvitto04@gmail.com\r\n', NULL, 1, '2025-09-18 11:23:21', NULL, NULL),
+(24, 'rainsolomon1212@gmail.com', NULL, 1, '2025-09-18 13:11:52', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -116,36 +163,16 @@ CREATE TABLE `student_payments` (
 --
 
 INSERT INTO `student_payments` (`id`, `student_id`, `firstname`, `lastname`, `payment_type`, `amount`, `payment_status`, `payment_date`, `created_at`, `reference_number`, `or_number`, `screenshot_path`, `screenshot`) VALUES
-(43, '19', 'POLO EMMANUELLE', 'VICTORIO', 'Online', '7500.00', 'paid', '2025-09-08', '2025-08-23 06:23:25', '1092837', NULL, 'payment_uploads/1755930205_Screenshot 2025-08-20 at 21.12.39.png', NULL),
-(44, '20', 'Andrei', 'Santos ', 'Online', '7500.00', 'declined', NULL, '2025-08-26 14:58:03', '1235448156', NULL, 'payment_uploads/1756220283_14e6ca6f-9e56-4df3-a8eb-d4e3f066b2e3.jpeg', NULL),
-(45, '21', 'JHON BERN', 'VITTO', 'Online', '5000.00', 'paid', '2025-09-04', '2025-09-01 05:21:47', '9863136', NULL, 'payment_uploads/1756704107_1a4dc36a-262c-402c-9370-31465768eb5c.jpeg', NULL),
-(46, '21', 'JHON BERN', 'VITTO', 'Online', '4000.00', 'paid', '2025-09-11', '2025-09-01 06:12:20', '56787654', NULL, 'payment_uploads/1756707140_6c280b88-1b46-4448-9dd5-a0482a0e7c81.jpeg', NULL),
-(47, '23', 'MATTHEW', 'SANTOS', 'Online', '4000.00', 'paid', '2025-09-02', '2025-09-01 06:38:14', '987654', NULL, 'payment_uploads/1756708694_1a4dc36a-262c-402c-9370-31465768eb5c.jpeg', NULL),
-(48, '23', 'MATTHEW', 'SANTAS', 'Online', '2000.00', 'paid', '2025-09-02', '2025-09-02 13:27:17', '123', NULL, 'payment_uploads/1756819637_1a4dc36a-262c-402c-9370-31465768eb5c.jpeg', NULL),
-(49, '24', 'q', 'q', 'Online', '1234.00', 'paid', '2025-09-08', '2025-09-08 09:31:02', '1235448156', NULL, 'payment_uploads/1757323862_1a4dc36a-262c-402c-9370-31465768eb5c.jpeg', NULL),
-(50, '27', 'a', 'a', 'Online', '800.00', 'paid', '2025-09-09', '2025-09-08 15:37:36', '876', NULL, 'payment_uploads/1757345856_Screenshot 2025-09-02 at 22.55.23.png', NULL),
-(51, '19', NULL, NULL, 'cash', '5000.00', 'paid', '2025-09-08', '2025-09-08 16:09:27', NULL, NULL, NULL, NULL),
-(52, '19', NULL, NULL, 'cash', '5000.00', 'paid', '2025-09-08', '2025-09-08 16:11:03', NULL, NULL, NULL, NULL),
-(53, '19', NULL, NULL, 'cash', '5000.00', 'paid', '2025-09-08', '2025-09-08 16:14:37', NULL, NULL, NULL, NULL),
-(54, '19', NULL, NULL, 'cash', '5000.00', 'paid', '2025-09-08', '2025-09-08 16:15:44', NULL, NULL, NULL, NULL),
-(55, '32', NULL, NULL, 'Cash', '5000.00', 'paid', '2025-09-09', '2025-09-09 12:42:03', '55', '21', NULL, NULL),
-(56, '33', NULL, NULL, 'Cash', '5000.00', 'paid', '2025-09-09', '2025-09-09 15:13:20', NULL, '2', NULL, NULL),
-(57, '31', 'ee', 'ee', 'Cash', '5000.00', 'pending', NULL, '2025-09-09 15:25:17', NULL, NULL, NULL, NULL),
-(58, '19', 'POLO EMMANUELLE', 'VICTORIO', 'Cash', '5000.00', 'pending', NULL, '2025-09-09 15:25:34', NULL, NULL, NULL, NULL),
-(59, '19', 'POLO EMMANUELLE', 'VICTORIO', 'Online', '2500.00', 'paid', '2025-09-09', '2025-09-09 15:26:09', '56', NULL, 'payment_uploads/1757431569_Screenshot 2025-09-02 at 22.55.23.png', NULL),
-(60, '30', 'a', 'a', 'Cash', '5000.00', 'pending', NULL, '2025-09-09 15:28:05', NULL, NULL, NULL, NULL),
-(61, '27', 'a', 'a', 'Online', '666.00', 'pending', '2025-09-09', '2025-09-09 15:28:26', '666', NULL, 'payment_uploads/1757431706_Screenshot 2025-09-02 at 22.55.27.png', NULL),
-(62, '19', 'POLO EMMANUELLE', 'VICTORIO', 'Cash', '5000.00', 'pending', NULL, '2025-09-09 15:32:22', NULL, NULL, NULL, NULL),
-(63, '34', 'KALOY', 'DIMAGIBA', 'Cash', '5000.00', 'paid', '2025-09-09', '2025-09-09 15:32:42', NULL, '123', NULL, NULL),
-(65, '36', NULL, NULL, 'Cash', '5000.00', 'paid', '2025-09-11', '2025-09-11 11:03:41', NULL, '123456789', NULL, NULL),
-(66, '36', NULL, NULL, 'Cash', '5000.00', 'paid', '2025-09-11', '2025-09-11 11:03:44', NULL, '78', NULL, NULL),
-(67, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '6000.00', 'paid', '2025-09-11', '2025-09-11 12:31:05', NULL, '129', NULL, NULL),
-(68, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '6000.00', 'paid', '2025-09-11', '2025-09-11 12:40:17', NULL, '129', NULL, NULL),
-(69, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '6000.00', 'paid', '2025-09-11', '2025-09-11 13:42:24', NULL, '129', NULL, NULL),
-(70, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '2000.00', 'paid', '2025-09-11', '2025-09-11 13:42:40', NULL, '0928731', NULL, NULL),
-(71, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '2000.00', 'paid', '2025-09-11', '2025-09-11 13:42:54', NULL, '0928731', NULL, NULL),
-(72, '36', 'Polo Emmanuelle ', 'Victorio ', 'Cash', '1500.00', 'paid', '2025-09-11', '2025-09-11 13:49:00', NULL, '109283721', NULL, NULL),
-(73, '37', 'RAIN', 'SOLOMON', 'Online', '5500.00', 'paid', '2025-09-11', '2025-09-11 13:55:25', '1738', NULL, 'payment_uploads/1757598925_pixel-art-city-game-level-600nw-2515685417 copy.png', NULL);
+(87, '42', 'Samantha', 'Pereira', 'Cash', '1500.00', 'paid', '2025-09-16', '2025-09-16 15:53:35', NULL, '124', NULL, NULL),
+(88, '42', 'Samantha', 'Pereira', 'Cash', '1000.00', 'paid', '2025-09-16', '2025-09-16 15:59:26', NULL, '123', NULL, NULL),
+(89, '45', 'Jhon', 'Vitto', 'Cash', '6000.00', 'paid', '2025-09-17', '2025-09-17 15:12:03', NULL, '092837271', NULL, NULL),
+(98, '42', 'Samantha', 'Pereira', 'Cash', '9110.00', 'paid', '2025-09-18', '2025-09-18 02:27:44', NULL, '17834', NULL, NULL),
+(99, '42', 'Samantha', 'Pereira', 'Cash', '9110.00', 'paid', '2025-09-18', '2025-09-18 02:32:12', NULL, '0928731', NULL, NULL),
+(100, '42', 'Samantha', 'Pereira', 'Cash', '8000.00', 'paid', '2025-09-18', '2025-09-18 11:31:04', NULL, '9028392', NULL, NULL),
+(101, '42', 'Samantha', 'Pereira', 'Cash', '9000.00', 'paid', '2025-09-18', '2025-09-18 11:37:13', NULL, '2131249', NULL, NULL),
+(102, '42', 'Samantha', 'Pereira', 'Cash', '5000.00', 'paid', '2025-09-18', '2025-09-18 11:39:50', NULL, '123456', NULL, NULL),
+(103, '42', 'Samantha', 'Pereira', 'Cash', '2000.00', 'paid', '2025-09-18', '2025-09-18 11:41:28', NULL, '124241341', NULL, NULL),
+(104, '47', 'RAIN', 'SOLOMON', 'Cash', '9110.00', 'paid', '2025-09-18', '2025-09-18 13:10:36', NULL, '12393412', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -205,6 +232,13 @@ INSERT INTO `users` (`id`, `username`, `password`, `fullname`, `role`) VALUES
 --
 
 --
+-- Indexes for table `archived_students`
+--
+ALTER TABLE `archived_students`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `student_number` (`student_number`);
+
+--
 -- Indexes for table `students_registration`
 --
 ALTER TABLE `students_registration`
@@ -242,20 +276,25 @@ ALTER TABLE `users`
 --
 
 --
+-- AUTO_INCREMENT for table `archived_students`
+--
+ALTER TABLE `archived_students`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
+--
 -- AUTO_INCREMENT for table `students_registration`
 --
 ALTER TABLE `students_registration`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=39;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=48;
 --
 -- AUTO_INCREMENT for table `student_accounts`
 --
 ALTER TABLE `student_accounts`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=25;
 --
 -- AUTO_INCREMENT for table `student_payments`
 --
 ALTER TABLE `student_payments`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=74;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=105;
 --
 -- AUTO_INCREMENT for table `tuition_fees`
 --

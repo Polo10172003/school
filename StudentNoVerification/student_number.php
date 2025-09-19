@@ -148,7 +148,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <p class="mt-3 text-center">
             No student number yet? 
-            <a href="StudentNoVerification/early_registration.php">Click here to register</a>
+            <a href="StudentNoVerification/ineeditNaregistration.php">Click here to register</a>
         </p>
     </div>
     </div>

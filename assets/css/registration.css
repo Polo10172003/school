@@ -1,0 +1,100 @@
+.main-content {
+            background: #f4f4f4;
+            padding-top: 30px;
+            padding-bottom: 30px;
+        }
+
+        .form-container {
+            width: 70%;
+            margin: auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }   
+
+        /* General container style */
+        .form-information {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            background: #fff;
+        }
+
+        .form-information:hover {
+            background-color: #ffffff;
+            transform: translateY(-10px);
+        }
+
+        /* Title */
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #0056d2;
+        }
+
+        /* Rows */
+        .form-row {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        /* Column setups */
+        .form-row.four-cols {
+            grid-template-columns: repeat(4, 1fr);
+        }
+        .form-row.three-cols {
+            grid-template-columns: repeat(3, 1fr);
+        }
+        .form-row.two-cols {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        /* Groups */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Inputs, selects */
+        .form-group input,
+        .form-group select {
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* Label */
+        .form-group label {
+            margin-bottom: 5px;
+            font-weight: 500;
+            font-size: 13px;
+        }
+
+        /* Submit */
+        .btn {
+            background:  #145A32;
+            color: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            display: block;
+            margin-top: 20px;
+            border: none;
+        }
+        .btn:hover {
+            background-color: #0f723aff;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+        }
+
+        .required {
+            color: red;
+        }

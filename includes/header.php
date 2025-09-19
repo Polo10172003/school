@@ -11,8 +11,9 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+</head>
 
-  <style>
+<style>
     /* Jumbotron */
     .jumbotron {
       background: url('EsrBanner.jpg') center/cover no-repeat;
@@ -100,7 +101,13 @@
           <li class="nav-item"><a class="nav-link fw-bold active" href="#home">Home</a></li>
           <li class="nav-item"><a class="nav-link fw-bold" href="#aboutus">About Us</a></li>
           <li class="nav-item"><a class="nav-link fw-bold" href="tuition_fees.php">Tuition Fees</a></li>
-          <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
+          <?php if (isset($_SESSION['student_email'])): ?>
+              <!-- If logged in → show Logout -->
+              <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/logout.php">Logout</a></li>
+          <?php else: ?>
+              <!-- If not logged in → show Portal -->
+              <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
+          <?php endif; ?>
         </ul>
       </div>
     </div>

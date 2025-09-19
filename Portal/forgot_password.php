@@ -1,6 +1,7 @@
 <?php
 require '../vendor/autoload.php';
 require '../db_connection.php';
+include '../includes/header.php';
 date_default_timezone_set('Asia/Manila'); // Or your actual timezone
 
 
@@ -57,7 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $msg = "Failed to send email. Error: {$mail->ErrorInfo}";
         }
     } else {
-        $msg = "Email not found in student accounts.";
+        $msg = "Email not registered.";
     }
 }
 ?>
@@ -71,11 +72,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             font-family: Arial;
             background: #f0f0f0;
         }
-        .container {
+        .pass-container {
             max-width: 400px;
             margin: 80px auto;
             background: white;
-            padding: 30px;
+            padding: 20px;
             border-radius: 8px;
             box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
         }
@@ -86,27 +87,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-        button {
-            background: #007bff;
-            color: white;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
+        .btn-submit {
+            width: 100%; padding: 10px;
+            background: #145A32; color: white; border: none; border-radius: 5px;
+        }
+        .btn-submit:hover {
+            background-color: #0f723aff;
+            color: #ffffff !important;
+            transform: translateY(-1px);
+        }
+        .error { color: red; text-align: center; 
         }
         .message {
             margin-top: 15px;
-            color: green;
+            color: red;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h2>Forgot Password</h2>
+<div class="pass-container">
+    <h2 class="text-center mb-4 fw-bold">Forgot Password</h2>
     <form method="POST">
         <label>Enter your registered email:</label>
         <input type="email" name="email" required placeholder="example@gmail.com">
-        <button type="submit">Send Reset Link</button>
+        <button type="submit" class="btn-submit w-100">Send Reset Link</button>
     </form>
     <?php if ($msg): ?>
         <p class="message"><?= $msg ?></p>
@@ -114,3 +119,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </div>
 </body>
 </html>
+<?php
+   include '../includes/footer.php';
+?>

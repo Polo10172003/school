@@ -4,6 +4,12 @@ session_start();
 
 $error = '';
 
+// If already logged in, redirect to portal
+if (isset($_SESSION['student_email'])) {
+    header("Location: student_portal.php");
+    exit();
+}
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
@@ -76,6 +82,7 @@ include '../includes/header.php';
     <title>Student Login</title>
     <style>
         .login-container {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             width: 400px; 
             margin: 80px auto;
             background: white; 
@@ -99,7 +106,8 @@ include '../includes/header.php';
             color: #ffffff !important;
             transform: translateY(-1px);
         }
-        .error { color: red; text-align: center; }
+        .error { color: red; text-align: center; 
+        }
     </style>
 </head>
 <main>
