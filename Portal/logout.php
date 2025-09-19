@@ -2,6 +2,6 @@
 session_start();
 session_unset();
 session_destroy();
-header("Location: ../index.php"); // balik sa homepage after logout
+header("Location: student_login.php"); // balik sa homepage after logout
 exit();
 ?>
