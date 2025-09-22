@@ -53,14 +53,15 @@ $mother_emailaddress = $registration['mother_emailaddress'] ?? '';
 $mother_occupation = $registration['mother_occupation'] ?? '';
 
 // Guardian's info
-$guardian_lastname = $registration['guardian_lastname'] ?? '';
-$guardian_firstname = $registration['guardian_firstname'] ?? '';
-$guardian_middlename = $registration['guardian_middlename'] ?? '';
-$guardian_suffixname = $registration['guardian_suffixname'] ?? '';
-$guardian_mobnumber = $registration['guardian_mobnumber'] ?? '';
-$guardian_emailaddress = $registration['guardian_emailaddress'] ?? '';
-$guardian_occupation = $registration['guardian_occupation'] ?? '';
-$guardian_relationship = $registration['guardian_relationship'] ?? '';
+$guardian_lastname     = !empty($data['guardian_lastname']) ? $data['guardian_lastname'] : null;
+$guardian_firstname    = !empty($data['guardian_firstname']) ? $data['guardian_firstname'] : null;
+$guardian_middlename   = !empty($data['guardian_middlename']) ? $data['guardian_middlename'] : null;
+$guardian_suffixname   = !empty($data['guardian_suffixname']) ? $data['guardian_suffixname'] : null;
+$guardian_mobnumber    = !empty($data['guardian_mobnumber']) ? $data['guardian_mobnumber'] : null;
+$guardian_emailaddress = !empty($data['guardian_emailaddress']) ? $data['guardian_emailaddress'] : null;
+$guardian_occupation   = !empty($data['guardian_occupation']) ? $data['guardian_occupation'] : null;
+$guardian_relationship = !empty($data['guardian_relationship']) ? $data['guardian_relationship'] : null;
+
 
 if (isset($_POST['sameAddress'])) {
     $_POST['p_streetno'] = $_POST['streetno'];
@@ -331,6 +332,9 @@ include '../includes/header.php';
                                 <label for="emailaddress">Email Address <span class="required">*</span></label>
                                 <input type="email" id="emailaddress" name="emailaddress" required value="<?php echo htmlspecialchars($emailaddress); ?>"
                                 placeholder="example@domain.com">
+                                <small style="color:#555; font-size:12px; display:block; margin-top:5px;">
+                ⚠️ Please use the same email where you want to receive all school information, payments, and announcements.
+            </small>
                             </div>
                         </div>
                     </div>
@@ -429,12 +433,12 @@ include '../includes/header.php';
                             <div class="form-group">
                                 <label for="guardian_lastname">Last Name </label>
                                 <input type="text" id="guardian_lastname" name="guardian_lastname" value="<?php echo htmlspecialchars($guardian_lastname ?? ''); ?>" 
-                                    required placeholder="Surname">
+                                    placeholder="Surname">
                             </div>
                             <div class="form-group">
                                 <label for="guardian_firstname">First Name </label>
                                 <input type="text" id="guardian_firstname" name="guardian_firstname" value="<?php echo htmlspecialchars($guardian_firstname ?? ''); ?>" 
-                                    required placeholder="Given Name">
+                                    placeholder="Given Name">
                             </div>
                             <div class="form-group">
                                 <label for="guardian_middlename">Middle Initial</label>
@@ -451,12 +455,12 @@ include '../includes/header.php';
                             <div class="form-group">
                                 <label for="guardian_mobnumber">Mobile Number </label>
                                 <input type="text" id="guardian_mobnumber" name="guardian_mobnumber" value="<?php echo htmlspecialchars($guardian_mobnumber ?? ''); ?>" 
-                                    required placeholder="09XXXXXXXXX">
+                                    placeholder="09XXXXXXXXX">
                             </div>
                             <div class="form-group">
                                 <label for="guardian_emailaddress">Email </label>
                                 <input type="email" id="guardian_emailaddress" name="guardian_emailaddress"  value="<?php echo htmlspecialchars($guardian_emailaddress ?? ''); ?>" 
-                                    required placeholder="Email Address">
+                                    placeholder="Email Address">
                             </div>
                             <div class="form-group">
                                 <label for="guardian_occupation">Occupation</label>

@@ -37,12 +37,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
         $checkResult = $check->get_result();
 
         if ($checkResult->num_rows === 0) {
-            $insert = $conn->prepare("INSERT INTO student_accounts (email, is_first_login) VALUES (?, 1)");
-            $insert->bind_param("s", $email);
+            // Get student info from students_registration
+            $info = $conn->prepare("SELECT student_number, firstname, lastname FROM students_registration WHERE id = ?");
+            $info->bind_param("i", $student_id);
+            $info->execute();
+            $info->bind_result($student_number, $firstname, $lastname);
+            $info->fetch();
+            $info->close();
+        
+            // Insert into student_accounts with new fields
+            $insert = $conn->prepare("
+                INSERT INTO student_accounts (student_number, firstname, lastname, email, is_first_login) 
+                VALUES (?, ?, ?, ?, 1)
+            ");
+            $insert->bind_param("ssss", $student_number, $firstname, $lastname, $email);
             $insert->execute();
             $insert->close();
         }
         $check->close();
+        
 
         // ✅ Mark as activated
         $upd = $conn->prepare("UPDATE students_registration SET portal_status = 'activated' WHERE id = ?");
