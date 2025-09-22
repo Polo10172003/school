@@ -3,15 +3,13 @@
 <?php
 session_start();
 
-if (isset($_GET['lrn'])) {
-    $_SESSION['lrn'] = $_GET['lrn'];  // Save LRN in session
+if (isset($_GET['student_number'])) {
+    $_SESSION['student_number'] = $_GET['student_number'];  // Save LRN in session
 }
 
-$lrn = $_SESSION['lrn'] ?? $_POST['lrn'] ?? '';
+$student_number = $_SESSION['student_number'] ?? $_POST['student_number'] ?? '';
 
-if (!$lrn) {
-    die("LRN is missing. Please go back and try again.");
-}
+$_SESSION[''] = $student_number;
 ?>
 
 

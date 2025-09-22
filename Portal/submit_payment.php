@@ -12,13 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // ✅ STEP 1: Get student info from SESSION
-    if (!isset($_SESSION['student_email'])) {
+    if (!isset($_SESSION['student_number'])) {
         die("Not logged in. Please log in again.");
     }
-    $student_email = $_SESSION['student_email'];
+    $student_number = $_SESSION['student_number'];
 
-    $stmt = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE emailaddress = ?");
-    $stmt->bind_param("s", $student_email);
+    $stmt = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE student_number = ?");
+    $stmt->bind_param("s", $student_number);
     $stmt->execute();
     $result = $stmt->get_result();
 
