@@ -28,20 +28,20 @@ include 'db_connection.php';
             <div class="col-md-4">
                 <label for="year" class="form-label">Grade Level:</label>
                 <select name="year" id="year" class="form-select">
-                    <option value="kinder1" <?= (isset($_GET['year']) && $_GET['year'] == 'kinder1') ? 'selected' : '' ?>>Kinder 1</option>
-                    <option value="kinder2" <?= (isset($_GET['year']) && $_GET['year'] == 'kinder2') ? 'selected' : '' ?>>Kinder 2</option>
-                    <option value="grade1" <?= (isset($_GET['year']) && $_GET['year'] == 'grade1') ? 'selected' : '' ?>>Grade 1</option>
-                    <option value="grade2" <?= (isset($_GET['year']) && $_GET['year'] == 'grade2') ? 'selected' : '' ?>>Grade 2</option>
-                    <option value="grade3" <?= (isset($_GET['year']) && $_GET['year'] == 'grade3') ? 'selected' : '' ?>>Grade 3</option>
-                    <option value="grade4" <?= (isset($_GET['year']) && $_GET['year'] == 'grade4') ? 'selected' : '' ?>>Grade 4</option>
-                    <option value="grade5" <?= (isset($_GET['year']) && $_GET['year'] == 'grade5') ? 'selected' : '' ?>>Grade 5</option>
-                    <option value="grade6" <?= (isset($_GET['year']) && $_GET['year'] == 'grade6') ? 'selected' : '' ?>>Grade 6</option>
-                    <option value="grade7" <?= (isset($_GET['year']) && $_GET['year'] == 'grade7') ? 'selected' : '' ?>>Grade 7 (Junior High)</option>
-                    <option value="grade8" <?= (isset($_GET['year']) && $_GET['year'] == 'grade8') ? 'selected' : '' ?>>Grade 8</option>
-                    <option value="grade9" <?= (isset($_GET['year']) && $_GET['year'] == 'grade9') ? 'selected' : '' ?>>Grade 9</option>
-                    <option value="grade10" <?= (isset($_GET['year']) && $_GET['year'] == 'grade10') ? 'selected' : '' ?>>Grade 10</option>
-                    <option value="grade11" <?= (isset($_GET['year']) && $_GET['year'] == 'grade11') ? 'selected' : '' ?>>Grade 11 (Senior High)</option>
-                    <option value="grade12" <?= (isset($_GET['year']) && $_GET['year'] == 'grade12') ? 'selected' : '' ?>>Grade 12</option>
+                    <option value="kinder1">Kinder 1</option>
+                    <option value="kinder2">Kinder 2</option>
+                    <option value="grade1">Grade 1</option>
+                    <option value="grade2">Grade 2</option>
+                    <option value="grade3">Grade 3</option>
+                    <option value="grade4">Grade 4</option>
+                    <option value="grade5">Grade 5</option>
+                    <option value="grade6">Grade 6</option>
+                    <option value="grade7">Grade 7 (Junior High)</option>
+                    <option value="grade8">Grade 8</option>
+                    <option value="grade9">Grade 9</option>
+                    <option value="grade10">Grade 10</option>
+                    <option value="grade11">Grade 11 (Senior High)</option>
+                    <option value="grade12">Grade 12</option>
                 </select>
             </div>
 
@@ -71,51 +71,94 @@ include 'db_connection.php';
                      ORDER BY grade_level ASC";
             $result = mysqli_query($conn, $query);
 
-            
-
             if (!$result) {
                 die("Query failed: " . mysqli_error($conn));
             }
-            if (mysqli_num_rows($result) > 0) {   
-                echo "<div class='table-responsive'><table class='table table-striped table-bordered'>
-                    <thead class='table-dark'>
-                        <tr>
-                            <th>Grade Level</th>
-                            <th>Annual Fee</th>
-                            <th>Cash</th>
-                            <th>Semi-Annually</th>
-                            <th>Quarterly</th>
-                            <th>Monthly</th>
-                        </tr>
-                    </thead>
-                    <tbody>";
-
+            if (mysqli_num_rows($result) > 0) {
                 while ($row = mysqli_fetch_assoc($result)) {
                     $entrance_fee = $row['entrance_fee'];
-                    $miscellaneous_fee = $row['miscellaneous_fee'];
-                    $tuition_fee = $row['tuition_fee'];
-                    $total_fee = $entrance_fee + $miscellaneous_fee + $tuition_fee;
+                    $misc_fee     = $row['miscellaneous_fee'];
+                    $tuition_fee  = $row['tuition_fee'];
+                    $total_fee    = $entrance_fee + $misc_fee + $tuition_fee;
 
-                    // Applying logic for payment schedules
-                    $cash_payment = $total_fee;
-                    $semi_annually = $total_fee / 2;
-                    $quarterly = $total_fee / 4;
-                    $monthly = $total_fee / 12;
-                    $annual_fee = $total_fee;
+                    // ---- Payment Schedules ----
+                    $annual_fee   = $total_fee;
+                    $cash_total   = ($entrance_fee * 0.9) + $misc_fee + $tuition_fee;
 
-                    $grade_level = ucwords(strtolower($row['grade_level']));
-                    $grade_level = preg_replace('/([a-zA-Z])([0-9])/', '$1 $2', $grade_level);
+                    $sa_first = $entrance_fee + $misc_fee + ($tuition_fee / 2);
+                    $sa_next  = $tuition_fee / 2;
 
-                    echo "<tr>
-                        <td>{$grade_level}</td>
-                        <td>₱" . number_format($annual_fee, 2) . "</td>
-                        <td>₱" . number_format($cash_payment, 2) . "</td>
-                        <td>₱" . number_format($semi_annually, 2) . "</td>
-                        <td>₱" . number_format($quarterly, 2) . "</td>
-                        <td>₱" . number_format($monthly, 2) . "</td>
-                    </tr>";
+                    $q_first = $entrance_fee + $misc_fee + ($tuition_fee / 4);
+                    $q_next  = $tuition_fee / 4;
+
+                    $m_first = $entrance_fee + $misc_fee + round($tuition_fee / 9, 2);
+                    $m_next  = round($tuition_fee / 9, 2);
+
+                    echo "<div class='table-responsive'>
+                        <table class='table table-bordered table-striped'>
+                            <thead class='table-dark'>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Annually</th>
+                                    <th>Cash (10% off Entrance)</th>
+                                    <th>Semi-Annually</th>
+                                    <th>Quarterly</th>
+                                    <th>Monthly</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>Annual Fee</td>
+                                    <td>₱" . number_format($total_fee, 2) . "</td>
+                                    <td>₱" . number_format($total_fee, 2) . "</td>
+                                    <td>₱" . number_format($total_fee, 2) . "</td>
+                                    <td>₱" . number_format($total_fee, 2) . "</td>
+                                    <td>₱" . number_format($total_fee, 2) . "</td>
+                                </tr>
+                                <tr>
+                                    <td>Entrance Fee</td>
+                                    <td>₱" . number_format($entrance_fee, 2) . "</td>
+                                    <td>₱" . number_format($entrance_fee * 0.9, 2) . "</td>
+                                    <td>₱" . number_format($entrance_fee, 2) . "</td>
+                                    <td>₱" . number_format($entrance_fee, 2) . "</td>
+                                    <td>₱" . number_format($entrance_fee, 2) . "</td>
+                                </tr>
+                                <tr>
+                                    <td>Miscellaneous Fee</td>
+                                    <td>₱" . number_format($misc_fee, 2) . "</td>
+                                    <td>₱" . number_format($misc_fee, 2) . "</td>
+                                    <td>₱" . number_format($misc_fee, 2) . "</td>
+                                    <td>₱" . number_format($misc_fee, 2) . "</td>
+                                    <td>₱" . number_format($misc_fee, 2) . "</td>
+                                </tr>
+                                <tr>
+                                    <td>Tuition Fee</td>
+                                    <td>₱" . number_format($tuition_fee, 2) . "</td>
+                                    <td>₱" . number_format($tuition_fee, 2) . "</td>
+                                    <td>₱" . number_format($tuition_fee / 2, 2) . " each</td>
+                                    <td>₱" . number_format($tuition_fee / 4, 2) . " each</td>
+                                    <td>₱" . number_format($tuition_fee / 9, 2) . " each</td>
+                                </tr>
+                                <tr>
+                                    <td>Next Payment</td>
+                                    <td>-</td>
+                                    <td>-</td>
+                                    <td>₱" . number_format($sa_next, 2) . "</td>
+                                    <td>₱" . number_format($q_next, 2) . "</td>
+                                    <td>₱" . number_format($m_next, 2) . "</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Total Upon Enrollment</strong></td>
+                                    <td><strong>₱" . number_format($annual_fee, 2) . "</strong></td>
+                                    <td><strong>₱" . number_format($cash_total, 2) . "</strong></td>
+                                    <td><strong>₱" . number_format($sa_first, 2) . "</strong></td>
+                                    <td><strong>₱" . number_format($q_first, 2) . "</strong></td>
+                                    <td><strong>₱" . number_format($m_first, 2) . "</strong></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>";
                 }
-                echo "</tbody></table></div>";
             } else {
                 echo "<div class='alert alert-warning'>No fee data found for the selected year, grade level, and student type.</div>";
             }
