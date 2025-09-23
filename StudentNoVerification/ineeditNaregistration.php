@@ -53,14 +53,14 @@ $mother_emailaddress = $registration['mother_emailaddress'] ?? '';
 $mother_occupation = $registration['mother_occupation'] ?? '';
 
 // Guardian's info
-$guardian_lastname     = !empty($data['guardian_lastname']) ? $data['guardian_lastname'] : null;
-$guardian_firstname    = !empty($data['guardian_firstname']) ? $data['guardian_firstname'] : null;
-$guardian_middlename   = !empty($data['guardian_middlename']) ? $data['guardian_middlename'] : null;
-$guardian_suffixname   = !empty($data['guardian_suffixname']) ? $data['guardian_suffixname'] : null;
-$guardian_mobnumber    = !empty($data['guardian_mobnumber']) ? $data['guardian_mobnumber'] : null;
-$guardian_emailaddress = !empty($data['guardian_emailaddress']) ? $data['guardian_emailaddress'] : null;
-$guardian_occupation   = !empty($data['guardian_occupation']) ? $data['guardian_occupation'] : null;
-$guardian_relationship = !empty($data['guardian_relationship']) ? $data['guardian_relationship'] : null;
+$guardian_lastname     = $registration['guardian_lastname'] ?? '';
+$guardian_firstname    = $registration['guardian_firstname'] ?? '';
+$guardian_middlename   = $registration['guardian_middlename'] ?? '';
+$guardian_suffixname   = $registration['guardian_suffixname'] ?? '';
+$guardian_mobnumber    = $registration['guardian_mobnumber'] ?? '';
+$guardian_emailaddress = $registration['guardian_emailaddress'] ?? '';
+$guardian_occupation   = $registration['guardian_occupation'] ?? '';
+$guardian_relationship = $registration['guardian_relationship'] ?? '';
 
 
 if (isset($_POST['sameAddress'])) {
@@ -77,7 +77,7 @@ if (isset($_POST['sameAddress'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $_SESSION['registration'] = array_merge($_SESSION['registration'] ?? [], $_POST);
 
-    header("Location: submit_registration.php");
+    header("Location: review_registration.php");
     exit();
 }
 
@@ -475,7 +475,7 @@ include '../includes/header.php';
                         </div>
                     </div>
                 </fieldset> 
-                <button type="submit" class="btn">Proceed to Next Step</button>
+                <button type="submit" class="btn">Submit Registration</button>
             </form>
         </div>
     </div>

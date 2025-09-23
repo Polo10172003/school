@@ -44,12 +44,63 @@ $sql = "SELECT * FROM tuition_fees
         WHERE REPLACE(LOWER(grade_level), ' ', '') = ? 
         AND LOWER(student_type) = ? 
         ORDER BY school_year DESC LIMIT 1";
-$stmt = $conn->prepare($sql);
-$stmt->bind_param("ss", $normalized_year, $student_type);
+$fee = null;
+$lower_type = strtolower($student_type);
+$typeCandidates = [$lower_type, 'new', 'old'];
+$typeCandidates = array_values(array_unique($typeCandidates));
 
-$stmt->execute();
-$fee = $stmt->get_result()->fetch_assoc();
-$stmt->close();
+foreach ($typeCandidates as $candidateType) {
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("ss", $normalized_year, $candidateType);
+    $stmt->execute();
+    $fee = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($fee) {
+        break;
+    }
+}
+
+function previousGradeLabel($current)
+{
+    $map = [
+        'Kinder 1' => 'Preschool',
+        'Kinder 2' => 'Kinder 1',
+        'Grade 1'  => 'Kinder 2',
+        'Grade 2'  => 'Grade 1',
+        'Grade 3'  => 'Grade 2',
+        'Grade 4'  => 'Grade 3',
+        'Grade 5'  => 'Grade 4',
+        'Grade 6'  => 'Grade 5',
+        'Grade 7'  => 'Grade 6',
+        'Grade 8'  => 'Grade 7',
+        'Grade 9'  => 'Grade 8',
+        'Grade 10' => 'Grade 9',
+        'Grade 11' => 'Grade 10',
+        'Grade 12' => 'Grade 11',
+    ];
+    return $map[$current] ?? null;
+}
+
+$previous_grade_label = previousGradeLabel($year);
+$grade_key = strtolower(str_replace(' ', '', $year));
+$no_previous = ($lower_type === 'new') || in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'grade1']);
+
+$previous_fee = null;
+if (!$no_previous && $previous_grade_label) {
+    $normalized_prev = strtolower(str_replace(' ', '', $previous_grade_label));
+    foreach ($typeCandidates as $candidateType) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ss", $normalized_prev, $candidateType);
+        $stmt->execute();
+        $previous_fee = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($previous_fee) {
+            break;
+        }
+    }
+} else {
+    $previous_grade_label = null;
+}
 
 // Fetch payments
 $sql = "SELECT payment_type, amount, payment_status, payment_date, reference_number ,or_number
@@ -72,6 +123,29 @@ while ($row = $result->fetch_assoc()) {
     }
 }
 $stmt->close();
+
+$pending_total = 0;
+foreach ($pending as $entry) {
+    $pending_total += floatval($entry['amount']);
+}
+
+$previous_grade_total = 0;
+if ($previous_fee) {
+    $previous_grade_total = floatval($previous_fee['entrance_fee'])
+        + floatval($previous_fee['miscellaneous_fee'])
+        + floatval($previous_fee['tuition_fee']);
+}
+$total_paid = array_sum(array_column($paid, 'amount'));
+
+$previous_paid_applied = 0;
+$previous_outstanding = 0;
+if ($previous_fee) {
+    $previous_paid_applied = min($total_paid, $previous_grade_total);
+    $previous_outstanding = max($previous_grade_total - $total_paid, 0);
+}
+
+$current_paid_amount = max($total_paid - $previous_paid_applied, 0);
+$current_paid_remaining = $current_paid_amount;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -140,7 +214,16 @@ $stmt->close();
             background: #f9f9f9;
         }
         .paid { color: #27ae60; font-weight: bold; }
-        .pending { color: #e74c3c; font-weight: bold; }
+    .pending { color: #e74c3c; font-weight: bold; }
+    .outstanding {
+        background: #fdecea;
+        color: #c0392b;
+        font-weight: 600;
+    }
+    .first-due {
+        background: #fff7e6;
+        font-weight: 600;
+    }
         .btn {
             background: #27ae60;
             color: white;
@@ -173,8 +256,6 @@ $stmt->close();
     <div class="card">
     <h3>📅 Full Payment Schedule</h3>
     <?php
-// Total already paid
-$total_paid = array_sum(array_column($paid, 'amount'));
 function generateScheduleFromDB($fee, $plan, $start_date = "2025-06-01") {
     $schedule = [];
     $date = new DateTime($start_date);
@@ -234,24 +315,42 @@ if ($fee) {
     echo "<table>
             <tr><th>Due Date</th><th>Amount Due</th></tr>";
 
-    foreach ($schedule as $due) {
+    if ($previous_grade_label && $previous_outstanding > 0) {
+        echo "<tr class='outstanding'>
+                <td>Past Due for {$previous_grade_label}</td>
+                <td>₱" . number_format($previous_outstanding, 2) . "</td>
+              </tr>";
+    }
+
+    $schedule_with_remaining = [];
+    $first_unpaid_index = null;
+    $remaining = $current_paid_remaining;
+
+    foreach ($schedule as $idx => $due) {
         $due_amount = $due['Amount'];
-
-        // Deduct what was already paid
-        if ($total_paid > 0) {
-            if ($total_paid >= $due_amount) {
-                $total_paid -= $due_amount;
-                continue; // This due is already covered
-            } else {
-                $due_amount -= $total_paid;
-                $total_paid = 0;
-            }
+        if ($remaining > 0) {
+            $deduct = min($remaining, $due_amount);
+            $due_amount -= $deduct;
+            $remaining -= $deduct;
         }
+        if ($due_amount > 0 && $first_unpaid_index === null) {
+            $first_unpaid_index = $idx;
+        }
+        $schedule_with_remaining[] = [
+            'Due Date' => $due['Due Date'],
+            'Amount' => $due_amount,
+            'Index' => $idx
+        ];
+    }
 
-        // Show only unpaid/remaining
-        echo "<tr>
-                <td>{$due['Due Date']}</td>
-                <td>₱" . number_format($due_amount, 2) . "</td>
+    foreach ($schedule_with_remaining as $row) {
+        if ($row['Amount'] <= 0) {
+            continue;
+        }
+        $rowClass = ($row['Index'] === $first_unpaid_index) ? 'first-due' : '';
+        echo "<tr class='{$rowClass}'>
+                <td>{$row['Due Date']}</td>
+                <td>₱" . number_format($row['Amount'], 2) . "</td>
               </tr>";
     }
 
@@ -268,9 +367,27 @@ if ($fee) {
         </form>
     </div>
 
+    <?php
+        $pending_display = [];
+        foreach ($pending as $p) {
+            $p['payment_type_display'] = $previous_grade_label ? ('Past Due for ' . $previous_grade_label) : ($p['payment_type'] ?? 'Pending');
+            $pending_display[] = $p;
+        }
+
+        if ($previous_grade_label && $previous_outstanding > 0 && empty($pending_display)) {
+            $pending_display[] = [
+                'payment_type_display' => 'Past Due for ' . $previous_grade_label,
+                'amount' => $previous_outstanding,
+                'payment_status' => 'Past Due',
+                'payment_date' => 'Previous School Year',
+                'reference_number' => null,
+                'or_number' => null
+            ];
+        }
+    ?>
     <div class="card">
         <h3>⏳ Pending Payments</h3>
-        <?php if (count($pending) > 0): ?>
+        <?php if (count($pending_display) > 0): ?>
             <table>
                 <tr>
                     <th>Payment Type</th>
@@ -279,11 +396,16 @@ if ($fee) {
                     <th>Submitted On</th>
                     <th>Reference</th>
                 </tr>
-                <?php foreach ($pending as $p): ?>
-                <tr>
-                    <td><?php echo htmlspecialchars($p['payment_type']); ?></td>
+                <?php foreach ($pending_display as $p): ?>
+                <?php
+                    $isPastDueRow = !empty($previous_grade_label) && isset($p['payment_type_display'])
+                        && strncmp($p['payment_type_display'], 'Past Due', 8) === 0;
+                    $rowClass = $isPastDueRow ? 'outstanding' : '';
+                ?>
+                <tr class="<?= $rowClass ?>">
+                    <td><?php echo htmlspecialchars($p['payment_type_display'] ?? ($p['payment_type'] ?? 'Pending')); ?></td>
                     <td>₱<?php echo number_format($p['amount'], 2); ?></td>
-                    <td class="pending"><?php echo ucfirst($p['payment_status'] ?: 'Pending'); ?></td>
+                    <td class="pending"><?php echo htmlspecialchars($p['payment_status'] ?? 'Pending'); ?></td>
                     <td><?php echo $p['payment_date'] ?: 'Awaiting review'; ?></td>
                     <td><?php echo $p['reference_number'] ?: 'N/A'; ?></td>
                 </tr>
@@ -293,6 +415,13 @@ if ($fee) {
             <p>✅ You have no pending payments right now.</p>
         <?php endif; ?>
     </div>
+
+    <?php if ($previous_grade_label && $previous_outstanding > 0): ?>
+    <div class="card">
+        <h3>⚠ Outstanding Balance</h3>
+        <p>You still have <strong>₱<?= number_format($previous_outstanding, 2); ?></strong> past due from <?= htmlspecialchars($previous_grade_label); ?>. This amount is added to your current payment schedule above.</p>
+    </div>
+    <?php endif; ?>
 
     <div class="card">
         <h3>💰 Payment History</h3>
@@ -333,6 +462,5 @@ window.addEventListener("blur", function () {
         });
 });
 </script>
-
 </body>
 </html>

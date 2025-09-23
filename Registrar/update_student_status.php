@@ -27,7 +27,7 @@ if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
     // Fetch current student info
-    $stmt = $conn->prepare("SELECT `year`, `academic_status` FROM students_registration WHERE id = ?");
+    $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $student = $stmt->get_result()->fetch_assoc();
@@ -37,6 +37,7 @@ if (isset($_GET['id'])) {
 
     $current_year = $student['year'];
     $current_status = $student['academic_status'];
+    $current_type = $student['student_type'];
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -44,11 +45,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $status = $_POST['status'];
 
     // Fetch current year again (safety)
-    $stmt = $conn->prepare("SELECT `year` FROM students_registration WHERE id = ?");
+    $stmt = $conn->prepare("SELECT `year`, `student_type` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
-    $current_year = $stmt->get_result()->fetch_assoc()['year'];
+    $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
+    $current_year = $row['year'];
+    $current_type = $row['student_type'];
 
     // --- PROMOTION / FAIL LOGIC ---
     if ($status === "Passed") {
@@ -64,9 +67,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $academic_status = "Failed";    // mark Failed
     }
 
+    $new_student_type = $current_type;
+    if ($status === 'Passed' && $next_year !== $current_year) {
+        $new_student_type = 'old';
+    }
+
     // Update DB
-    $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ? WHERE id = ?");
-    $stmt->bind_param("ssi", $next_year, $academic_status, $id);
+    $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
+    $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
     if ($stmt->execute()) {
         echo "<script>
                 alert('Student status updated successfully!');

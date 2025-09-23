@@ -1,4 +1,6 @@
 <?php
+session_start();
+
 require __DIR__ . '/../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -9,6 +11,19 @@ if ($conn->connect_error) {
 }
 
 $message = "";
+$shouldClearSearch = false;
+$flashMessage = $_SESSION['cashier_flash'] ?? '';
+$flashType = $_SESSION['cashier_flash_type'] ?? '';
+$clearSearchFlag = isset($_GET['search_cleared']);
+if ($flashMessage !== '') {
+    unset($_SESSION['cashier_flash']);
+}
+if ($flashType !== '') {
+    unset($_SESSION['cashier_flash_type']);
+}
+if ($flashType === 'success') {
+    $clearSearchFlag = true;
+}
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
   $student_id = intval($_POST["student_id"]);
@@ -81,6 +96,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
       $upd->close();
 
       $message = "Pending onsite payment updated to Paid. Student enrolled.";
+      $shouldClearSearch = true;
       } else {
       // ❌ No pending → insert new payment (normal flow)
       $ins = $conn->prepare("
@@ -108,22 +124,83 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
           exec("$cmd > /dev/null 2>&1 &");
 
           $message = "Cash payment recorded successfully. Student enrolled.";
+          $shouldClearSearch = true;
       } else {
           $message = "Error: " . $conn->error;
       }
       $ins->close();
       }
+    } else {
+        $message = "Official receipt number is required.";
     }
+    if ($message !== '') {
+        $_SESSION['cashier_flash'] = $message;
+        $_SESSION['cashier_flash_type'] = $shouldClearSearch ? 'success' : 'error';
+    }
+    $redirectUrl = 'cashier_dashboard.php';
+    if ($shouldClearSearch) {
+        $redirectUrl .= '?search_cleared=1';
+    }
+    header("Location: $redirectUrl", true, 303);
+    exit();
   }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tuition_fee_form'])) {
+    $school_year = trim($_POST['school_year'] ?? '');
+    $student_type = trim($_POST['student_type'] ?? '');
+    $year = trim($_POST['year'] ?? '');
+    $entrance_fee = floatval($_POST['entrance_fee'] ?? 0);
+    $miscellaneous_fee = floatval($_POST['miscellaneous_fee'] ?? 0);
+    $tuition_fee = floatval($_POST['tuition_fee'] ?? 0);
+    $total_upon_enrollment = floatval($_POST['total_upon_enrollment'] ?? 0);
 
+    if ($school_year !== '' && $student_type !== '' && $year !== '') {
+        $stmt = $conn->prepare("INSERT INTO tuition_fees (school_year, student_type, grade_level, entrance_fee, miscellaneous_fee, tuition_fee, total_upon_enrollment)
+            VALUES (?, ?, ?, ?, ?, ?, ?)");
+        if ($stmt) {
+            $stmt->bind_param(
+                "sssdddd",
+                $school_year,
+                $student_type,
+                $year,
+                $entrance_fee,
+                $miscellaneous_fee,
+                $tuition_fee,
+                $total_upon_enrollment
+            );
+
+            if ($stmt->execute()) {
+                $_SESSION['cashier_flash'] = 'Tuition fee saved successfully.';
+                $_SESSION['cashier_flash_type'] = 'success';
+            } else {
+                $_SESSION['cashier_flash'] = 'Failed to save tuition fee. Please try again.';
+                $_SESSION['cashier_flash_type'] = 'error';
+            }
+            $stmt->close();
+        } else {
+            $_SESSION['cashier_flash'] = 'Failed to prepare tuition statement.';
+            $_SESSION['cashier_flash_type'] = 'error';
+        }
+    } else {
+        $_SESSION['cashier_flash'] = 'Please complete the required tuition fields.';
+        $_SESSION['cashier_flash_type'] = 'error';
+    }
+
+    header('Location: cashier_dashboard.php#fees', true, 303);
+    exit();
+}
 
 // 📌 Search functionality
 $search_results = [];
-if (!empty($_GET['search_name'])) {
-    $search_name = "%" . $conn->real_escape_string($_GET['search_name']) . "%";
+$searchQuery = isset($_GET['search_name']) ? trim($_GET['search_name']) : '';
+if ($clearSearchFlag) {
+    $searchQuery = '';
+}
+
+if ($searchQuery !== '') {
+    $search_name_like = "%" . $conn->real_escape_string($searchQuery) . "%";
     $stmt = $conn->prepare("SELECT id, student_number, firstname, lastname, year FROM students_registration WHERE lastname LIKE ? ORDER BY lastname");
-    $stmt->bind_param("s", $search_name);
+    $stmt->bind_param("s", $search_name_like);
     $stmt->execute();
     $result = $stmt->get_result();
     while ($row = $result->fetch_assoc()) {
@@ -160,18 +237,82 @@ $payments = $conn->query("
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #f0f4f3;
       margin: 0;
-      padding: 0;
       color: #333;
+      display: flex;
     }
 
-  
+    .sidebar {
+      width: 230px;
+      background-color: #004d00;
+      color: white;
+      min-height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      display: flex;
+      flex-direction: column;
+      padding: 30px 0;
+      box-shadow: 4px 0 12px rgba(0, 0, 0, 0.1);
+    }
 
-    .container {
-      width: 90%;
-      max-width: 1000px;
-      margin: 30px auto;
+    .sidebar h1 {
+      font-size: 20px;
+      text-align: center;
+      margin: 0 20px 25px;
+    }
+
+    .nav-links {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      flex-grow: 1;
+    }
+
+    .nav-link {
+      color: white;
+      text-decoration: none;
+      padding: 12px 24px;
+      font-weight: bold;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background-color 0.3s ease;
+    }
+
+    .nav-link:hover {
+      background-color: #007f3f;
+    }
+
+    .sidebar .logout-btn {
+      margin: 20px 20px 0;
+      background-color: #a30000;
+      color: white;
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      transition: background-color 0.3s ease;
+    }
+
+    .sidebar .logout-btn:hover {
+      background-color: #7a0000;
+    }
+
+    .main-content {
+      margin-left: 230px;
+      padding: 30px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .section-card {
       background: white;
       padding: 30px;
+      margin-bottom: 30px;
       border-radius: 12px;
       box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
     }
@@ -180,6 +321,59 @@ $payments = $conn->query("
       color: #007f3f;
       border-bottom: 2px solid #007f3f;
       padding-bottom: 10px;
+      margin-top: 0;
+    }
+
+    form {
+      margin-top: 20px;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    select,
+    input[type="text"],
+    input[type="number"] {
+      width: 100%;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    button {
+      margin-top: 20px;
+      background-color: #007f3f;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    button:hover {
+      background-color: #004d00;
+    }
+
+    .secondary-btn {
+      display: inline-block;
+      padding: 10px 20px;
+      margin-left: 10px;
+      background-color: #7a7a7a;
+      color: white;
+      border-radius: 8px;
+      font-weight: bold;
+      text-decoration: none;
+      transition: background-color 0.3s ease;
+    }
+
+    .secondary-btn:hover {
+      background-color: #5c5c5c;
     }
 
     table {
@@ -216,228 +410,170 @@ $payments = $conn->query("
       color: #004d00;
     }
 
-    form {
-      margin-top: 30px;
-    }
-
-    label {
-      display: block;
-      margin-top: 15px;
-      font-weight: bold;
-    }
-
-    select, input[type="text"], input[type="number"] {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-    }
-
-    button {
-      margin-top: 20px;
-      background-color: #007f3f;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    button:hover {
-      background-color: #004d00;
-    }
-
-    .manage-button {
-      display: inline-block;
-      background-color: #007f3f;
-      color: white;
-      padding: 12px 24px;
-      margin-bottom: 20px;
-      text-decoration: none;
-      font-size: 16px;
-      font-weight: bold;
-      border-radius: 8px;
-      transition: background-color 0.3s ease, transform 0.2s ease;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    header {
-    background-color: #004d00;
-    color: white;
-    text-align: center;
-    padding: 20px 0;
-    position: relative; /* <-- Add this line */
-  }
-
-  /* Logout button styling */
-  .logout-btn {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    background-color: #a30000;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    text-decoration: none;
-    font-size: 14px;
-  }
-  .logout-btn:hover {
-    background-color: #7a0000;
-  }
-
-
     .success {
       background-color: #e0ffe0;
       padding: 10px;
-      margin-top: 10px;
+      margin-bottom: 20px;
       border: 1px solid green;
+      border-radius: 6px;
     }
+
+    .error {
+      background-color: #ffe0e0;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #d9534f;
+      border-radius: 6px;
+    }
+
+    .paid { color: #27ae60; font-weight: bold; }
+    .pending { color: #e74c3c; font-weight: bold; }
   </style>
 </head>
 <body>
 
-<header style="position: relative;">
-  <h1>Escuela De Sto. Rosario</h1>
-  <h2>Cashier Dashboard</h2>
-  <a href="admin_manage_fee.php" class="manage-button">Manage Fees</a>
+<div class="sidebar">
+  <h1>Cashier Panel</h1>
+  <nav>
+    <ul class="nav-links">
+      <li><a class="nav-link" href="#record">💵 Record Payment</a></li>
+      <li><a class="nav-link" href="#filters">🧮 Filter Payments</a></li>
+      <li><a class="nav-link" href="#records">📑 Payment Records</a></li>
+      <li><a class="nav-link" href="#fees">⚙️ Manage Fees</a></li>
+    </ul>
+  </nav>
   <a href="cashier_login.php" class="logout-btn">Logout</a>
-</header>
+</div>
 
+<div class="main-content">
+  <?php if ($flashMessage !== ''): ?>
+    <?php $alertClass = ($flashType === 'success') ? 'success' : 'error'; ?>
+    <div class="<?= $alertClass ?>"><?= htmlspecialchars($flashMessage) ?></div>
+  <?php endif; ?>
 
-<div class="container">
-  <h2>Record Onsite Payment</h2>
-  
-  <!-- Search Form -->
-  <form method="GET" action="cashier_dashboard.php">
-      <label for="search_name">Search Student by Last Name</label>
-      <input type="text" name="search_name" placeholder="Enter surname..." required>
-      <button type="submit">🔍 Search</button>
-  </form>
+  <div class="section-card" id="record">
+    <h2>Record Onsite Payment</h2>
 
-  <?php if (!empty($search_results)): ?>
-    <h3>Search Results</h3>
-    <ul>
-        <?php foreach ($search_results as $s): ?>
-            <li style="margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:6px;">
-                <strong>[<?= $s['student_number'] ?>]</strong> <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
+    <form method="GET" action="cashier_dashboard.php">
+        <label for="search_name">Search Student by Last Name</label>
+        <input type="text" name="search_name" placeholder="Enter surname..." value="<?= htmlspecialchars($searchQuery) ?>" required>
+        <button type="submit">🔍 Search</button>
+    </form>
 
-                <?php
-                // 🔎 Check if this student has a pending enrollment payment
-                $pending = $conn->prepare("
-                    SELECT id, amount, created_at 
-                    FROM student_payments 
-                    WHERE student_id = ? AND payment_status = 'pending'
-                    ORDER BY created_at DESC LIMIT 1
-                ");
-                $pending->bind_param("i", $s['id']);
-                $pending->execute();
-                $pendingResult = $pending->get_result();
-                if ($pendingRow = $pendingResult->fetch_assoc()):
-                ?>
-<h4>Pending Enrollment Payment</h4>
-<table style="width:100%; border-collapse: collapse; margin-top:10px; border:1px solid #ccc;">
-    <thead>
-        <tr style="background:#fff3cd;">
-            <th style="padding:8px; border:1px solid #ccc;">Date</th>
-            <th style="padding:8px; border:1px solid #ccc;">Amount</th>
-            <th style="padding:8px; border:1px solid #ccc;">Status</th>
-            <th style="padding:8px; border:1px solid #ccc;">Action</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td style="padding:8px; border:1px solid #ccc;"><?= $pendingRow['created_at'] ?></td>
-            <td style="padding:8px; border:1px solid #ccc;">₱ <?= number_format($pendingRow['amount'], 2) ?></td>
-            <td style="padding:8px; border:1px solid #ccc; color:orange; font-weight:bold;">Pending</td>
-            <td style="padding:8px; border:1px solid #ccc;">
-                <form method="POST" action="cashier_dashboard.php" style="display:flex; gap:5px; align-items:center;">
-                    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                    <input type="hidden" name="amount" value="<?= $pendingRow['amount'] ?>">
-                    <input type="hidden" name="payment_type" value="Cash">
-                    <input type="hidden" name="payment_status" value="paid">
+    <?php if (!empty($search_results) && !$clearSearchFlag): ?>
+      <div id="search-results-container">
+        <h3>Search Results</h3>
+        <ul>
+            <?php foreach ($search_results as $s): ?>
+                <li style="margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:6px;">
+                    <strong>[<?= $s['student_number'] ?>]</strong> <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
 
-                    <input type="text" name="or_number" placeholder="OR #" required 
-                           style="flex:1; padding:5px; border:1px solid #ccc; border-radius:4px;">
-
-                    <button type="submit" 
-                            style="background:green; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">
-                        ✅ Mark as Paid
-                    </button>
-                </form>
-            </td>
-        </tr>
-    </tbody>
-</table>
-
-                <?php endif; $pending->close(); ?>
-
-                <!-- Regular cash payment form (for 2nd, 3rd, etc. payments) -->
-                <div style="margin-top:15px;">
-                    <form class="cash-payment-form" method="POST" action="cashier_dashboard.php">
+                    <?php
+                    $pending = $conn->prepare("
+                        SELECT id, amount, created_at 
+                        FROM student_payments 
+                        WHERE student_id = ? AND payment_status = 'pending'
+                        ORDER BY created_at DESC LIMIT 1
+                    ");
+                    $pending->bind_param("i", $s['id']);
+                    $pending->execute();
+                    $pendingResult = $pending->get_result();
+                    if ($pendingRow = $pendingResult->fetch_assoc()):
+                    ?>
+    <h4>Pending Enrollment Payment</h4>
+    <table style="width:100%; border-collapse: collapse; margin-top:10px; border:1px solid #ccc;">
+        <thead>
+            <tr style="background:#fff3cd;">
+                <th style="padding:8px; border:1px solid #ccc;">Date</th>
+                <th style="padding:8px; border:1px solid #ccc;">Amount</th>
+                <th style="padding:8px; border:1px solid #ccc;">Status</th>
+                <th style="padding:8px; border:1px solid #ccc;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td style="padding:8px; border:1px solid #ccc;"><?= $pendingRow['created_at'] ?></td>
+                <td style="padding:8px; border:1px solid #ccc;">₱ <?= number_format($pendingRow['amount'], 2) ?></td>
+                <td style="padding:8px; border:1px solid #ccc; color:orange; font-weight:bold;">Pending</td>
+                <td style="padding:8px; border:1px solid #ccc;">
+                    <form method="POST" action="cashier_dashboard.php" style="display:flex; gap:5px; align-items:center;" class="pending-payment-form">
                         <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                        <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
-                        <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
-
-                        <label for="amount">New Payment Amount (₱)</label>
-                        <input type="number" name="amount" step="0.01" required>
-
-                        <label for="or_number">Official Receipt #</label>
-                        <input type="text" name="or_number" required>
-
+                        <input type="hidden" name="amount" value="<?= $pendingRow['amount'] ?>">
                         <input type="hidden" name="payment_type" value="Cash">
                         <input type="hidden" name="payment_status" value="paid">
 
-                        <button type="submit">💵 Record Cash Payment</button>
+                        <input type="text" name="or_number" placeholder="OR #" required 
+                               style="flex:1; padding:5px; border:1px solid #ccc; border-radius:4px;">
+
+                        <button type="submit" 
+                                style="background:green; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">
+                            ✅ Mark as Paid
+                        </button>
                     </form>
-                </div>
-            </li>
-        <?php endforeach; ?>
-    </ul>
-<?php endif; ?>
+                </td>
+            </tr>
+        </tbody>
+    </table>
 
+                    <?php endif; $pending->close(); ?>
 
+                    <div style="margin-top:15px;">
+                        <form class="cash-payment-form" method="POST" action="cashier_dashboard.php">
+                            <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                            <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
+                            <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
 
-  <!-- Filter Section --> 
-  <h2>Filter Payments</h2>
-  <form method="GET" action="cashier_dashboard.php#filterForm" id="filterForm">
-  <label>Grade Level</label>
-  <select name="filter_grade_level">
-  <option value="">All</option>
-  <?php
-    // Fetch distinct years for the filter dropdown
-  $grade_levels_result = $conn->query("SELECT DISTINCT year FROM students_registration ORDER BY year");
-  while ($gl = $grade_levels_result->fetch_assoc()):
-      $selected = ($_GET['filter_grade_level'] ?? '') == $gl['year'] ? "selected" : "";
-      echo "<option value='{$gl['year']}' $selected>{$gl['year']}</option>";
-  endwhile;
+                            <label for="amount">New Payment Amount (₱)</label>
+                            <input type="number" name="amount" step="0.01" required>
 
-  ?>
-</select>
+                            <label for="or_number">Official Receipt #</label>
+                            <input type="text" name="or_number" required>
 
+                            <input type="hidden" name="payment_type" value="Cash">
+                            <input type="hidden" name="payment_status" value="paid">
 
+                            <button type="submit">💵 Record Cash Payment</button>
+                        </form>
+                    </div>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+      </div>
+    <?php endif; ?>
+  </div>
 
-    <label>Status</label>
-    <select name="filter_status">
-      <option value="">All</option>
-      <option value="paid" <?= ($_GET['filter_status'] ?? '') == "paid" ? "selected" : "" ?>>Paid</option>
-      <option value="pending" <?= ($_GET['filter_status'] ?? '') == "pending" ? "selected" : "" ?>>Pending</option>
-    </select>
+  <div class="section-card" id="filters">
+    <h2>Filter Payments</h2>
+    <form method="GET" action="cashier_dashboard.php#filters" id="filterForm">
+      <label>Grade Level</label>
+      <select name="filter_grade_level">
+        <option value="">All</option>
+        <?php
+          $grade_levels_result = $conn->query("SELECT DISTINCT year FROM students_registration ORDER BY year");
+          while ($gl = $grade_levels_result->fetch_assoc()):
+              $selected = ($_GET['filter_grade_level'] ?? '') == $gl['year'] ? "selected" : "";
+              echo "<option value='{$gl['year']}' $selected>{$gl['year']}</option>";
+          endwhile;
+        ?>
+      </select>
 
-    <button type="submit">Apply Filter</button>
-    <a href="cashier_dashboard.php" class="manage-button" style="background-color: gray;">Reset</a>
-  </form>
+      <label>Status</label>
+      <select name="filter_status">
+        <option value="">All</option>
+        <option value="paid" <?= ($_GET['filter_status'] ?? '') == "paid" ? "selected" : "" ?>>Paid</option>
+        <option value="pending" <?= ($_GET['filter_status'] ?? '') == "pending" ? "selected" : "" ?>>Pending</option>
+      </select>
 
-  <!-- Payment Table -->
-  <h2>Payment Records</h2>
-  <table>
-    <thead>
-      <tr>
+      <button type="submit">Apply Filter</button>
+      <a href="cashier_dashboard.php" class="secondary-btn">Reset</a>
+    </form>
+  </div>
+
+  <div class="section-card" id="records">
+    <h2>Payment Records</h2>
+    <table id="paymentTable">
+      <thead>
+        <tr>
         <th>Date</th>
         <th>Student</th>
         <th>Type</th>
@@ -505,6 +641,94 @@ $payments = $conn->query("
 
 
 </table>
+  </div>
+
+  <div class="section-card" id="fees">
+    <h2>Manage Tuition Fees</h2>
+    <form method="POST" action="cashier_dashboard.php#fees" class="tuition-form">
+      <input type="hidden" name="tuition_fee_form" value="1">
+
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <div>
+          <label for="school_year">School Year</label>
+          <input type="text" id="school_year" name="school_year" placeholder="e.g., 2024-2025" required>
+        </div>
+
+        <div>
+          <label for="year">Grade Level</label>
+          <select id="year" name="year" required>
+            <?php
+              $gradeOptions = [
+                'kinder1' => 'Kinder 1',
+                'kinder2' => 'Kinder 2',
+                'grade1' => 'Grade 1',
+                'grade2' => 'Grade 2',
+                'grade3' => 'Grade 3',
+                'grade4' => 'Grade 4',
+                'grade5' => 'Grade 5',
+                'grade6' => 'Grade 6',
+                'grade7' => 'Grade 7',
+                'grade8' => 'Grade 8',
+                'grade9' => 'Grade 9',
+                'grade10' => 'Grade 10',
+                'grade11' => 'Grade 11',
+                'grade12' => 'Grade 12',
+              ];
+              foreach ($gradeOptions as $value => $label) {
+                  echo "<option value='{$value}'>{$label}</option>";
+              }
+            ?>
+          </select>
+        </div>
+
+        <div>
+          <label for="student_type">Student Type</label>
+          <select id="student_type" name="student_type" required>
+            <option value="new">New</option>
+            <option value="old">Old</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="entrance_fee">Entrance Fee</label>
+          <input type="number" step="0.01" id="entrance_fee" name="entrance_fee" required oninput="calculatePayment()">
+        </div>
+
+        <div>
+          <label for="miscellaneous_fee">Miscellaneous Fee</label>
+          <input type="number" step="0.01" id="miscellaneous_fee" name="miscellaneous_fee" required oninput="calculatePayment()">
+        </div>
+
+        <div>
+          <label for="tuition_fee">Tuition Fee</label>
+          <input type="number" step="0.01" id="tuition_fee" name="tuition_fee" required oninput="calculatePayment()">
+        </div>
+
+        <div>
+          <label for="total_upon_enrollment">Total Upon Enrollment</label>
+          <input type="number" step="0.01" id="total_upon_enrollment" name="total_upon_enrollment" required>
+        </div>
+
+        <div>
+          <label for="payment_schedule">Payment Schedule</label>
+          <select id="payment_schedule" name="payment_schedule" onchange="calculatePayment()" required>
+            <option value="annually">Annually</option>
+            <option value="semi-annually">Semi-Annually</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="calculated_payment">Calculated Payment</label>
+          <input type="text" id="calculated_payment" readonly>
+        </div>
+      </div>
+
+      <button type="submit">Save Tuition Fee</button>
+    </form>
+  </div>
+</div>
           <!-- Payment Modal (outside the table loop, at the end of body) -->
         <!-- Payment Modal -->
 <div id="paymentModal" style="
@@ -585,10 +809,29 @@ document.addEventListener("DOMContentLoaded", function () {
   const screenshotSection = document.getElementById("screenshotSection");
   const modalScreenshot = document.getElementById("modalScreenshot");
   let currentType = "";
+  let activeButton = null;
+
+  const searchContainer = document.getElementById('search-results-container');
+  const searchInput = document.querySelector('input[name="search_name"]');
+  const clearSearchUI = () => {
+    if (searchContainer) {
+      searchContainer.innerHTML = '';
+    }
+    if (searchInput) {
+      searchInput.value = '';
+    }
+  };
+
+  document.querySelectorAll('.cash-payment-form, .pending-payment-form').forEach(form => {
+    form.addEventListener('submit', () => {
+      clearSearchUI();
+    });
+  });
 
   // Open Modal when "View Payment" is clicked
   document.querySelectorAll(".view-payment-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
+      activeButton = btn;
       document.getElementById("modalStudent").textContent = btn.dataset.student || "";
       document.getElementById("modalType").textContent = btn.dataset.type || "";
       document.getElementById("modalAmount").textContent = (parseFloat(btn.dataset.amount) || 0).toFixed(2);
@@ -666,6 +909,12 @@ document.addEventListener("DOMContentLoaded", function () {
           statusCell.innerHTML =
             "<span style='color: green;'>Paid" + (currentType === "cash" ? " (Cash)" : "") + "</span>";
         }
+        if (activeButton) {
+          activeButton.dataset.status = 'Paid';
+          if (payload.or_number) {
+            activeButton.dataset.or = payload.or_number;
+          }
+        }
         alert("✅ Student’s payment has been accepted.");
         modal.style.display = "none";
       } else if (data) {
@@ -684,6 +933,9 @@ document.addEventListener("DOMContentLoaded", function () {
       if (data && data.success) {
         const statusCell = document.getElementById("status-" + id);
         if (statusCell) statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
+        if (activeButton) {
+          activeButton.dataset.status = 'Declined';
+        }
         alert("❌ Student’s payment has been declined.");
         modal.style.display = "none";
       } else if (data) {
@@ -692,6 +944,42 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 });
+</script>
+
+<script>
+function calculatePayment() {
+  const tuitionInput = document.getElementById('tuition_fee');
+  const miscInput = document.getElementById('miscellaneous_fee');
+  const entranceInput = document.getElementById('entrance_fee');
+  const scheduleSelect = document.getElementById('payment_schedule');
+  const display = document.getElementById('calculated_payment');
+
+  if (!tuitionInput || !miscInput || !entranceInput || !scheduleSelect || !display) {
+    return;
+  }
+
+  const tuition = parseFloat(tuitionInput.value || '0');
+  const misc = parseFloat(miscInput.value || '0');
+  const entrance = parseFloat(entranceInput.value || '0');
+  const total = tuition + misc + entrance;
+
+  let result = total;
+  switch (scheduleSelect.value) {
+    case 'semi-annually':
+      result = total / 2;
+      break;
+    case 'quarterly':
+      result = total / 4;
+      break;
+    case 'monthly':
+      result = total / 12;
+      break;
+    default:
+      result = total;
+  }
+
+  display.value = result.toFixed(2);
+}
 </script>
 <script>
 // 🔹 AJAX handler for cash payments
