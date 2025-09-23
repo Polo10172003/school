@@ -475,6 +475,12 @@ $payments = $conn->query("
         <td><?= $row['created_at'] ?></td>
         
         <td>
+        <?php 
+    $shotUrl = $row['screenshot_path']; 
+    if ($shotUrl && strpos($shotUrl, 'http') !== 0) {
+        $shotUrl = "http://localhost" . $shotUrl;  // make it absolute
+    }
+  ?>
           <button 
             class="view-payment-btn" 
             data-id="<?= $row['id'] ?>" 
@@ -484,7 +490,7 @@ $payments = $conn->query("
             data-status="<?= ucfirst($row['payment_status']) ?>"
             data-reference="<?= $row['reference_number'] ?>"
             data-or="<?= $row['or_number'] ?>"
-            data-screenshot="<?= $row['screenshot_path'] ?>"
+            data-screenshot="<?= $shotUrl ?>"   
           >
             View Payment
           </button>
@@ -589,12 +595,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
       // Set screenshot (if any)
       const shot = (btn.dataset.screenshot || "").trim();
-      if (shot) {
-        modalScreenshot.src = shot;
-        screenshotSection.style.display = "block";
-      } else {
-        screenshotSection.style.display = "none";
-      }
+        if (shot) {
+          modalScreenshot.src = shot;   // ✅ now points to correct /Enrollment/payment_uploads/ file
+          screenshotSection.style.display = "block";
+        } else {
+          screenshotSection.style.display = "none";
+        }
 
   // ✅ Conditional Reference / OR display
     currentType = (btn.dataset.type || "").toLowerCase();

@@ -1,9 +1,9 @@
     <?php
-    require 'vendor/autoload.php';
+    require __DIR__ . '/../vendor/autoload.php';
     use PHPMailer\PHPMailer\PHPMailer;
     use PHPMailer\PHPMailer\Exception;
 
-    include 'db_connection.php';
+    include __DIR__ . '/../db_connection.php';
     if ($conn->connect_error) {
         die("Connection failed: " . $conn->connect_error);
     }
