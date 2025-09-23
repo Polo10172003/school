@@ -269,6 +269,32 @@ if ($fee) {
     </div>
 
     <div class="card">
+        <h3>⏳ Pending Payments</h3>
+        <?php if (count($pending) > 0): ?>
+            <table>
+                <tr>
+                    <th>Payment Type</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Submitted On</th>
+                    <th>Reference</th>
+                </tr>
+                <?php foreach ($pending as $p): ?>
+                <tr>
+                    <td><?php echo htmlspecialchars($p['payment_type']); ?></td>
+                    <td>₱<?php echo number_format($p['amount'], 2); ?></td>
+                    <td class="pending"><?php echo ucfirst($p['payment_status'] ?: 'Pending'); ?></td>
+                    <td><?php echo $p['payment_date'] ?: 'Awaiting review'; ?></td>
+                    <td><?php echo $p['reference_number'] ?: 'N/A'; ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </table>
+        <?php else: ?>
+            <p>✅ You have no pending payments right now.</p>
+        <?php endif; ?>
+    </div>
+
+    <div class="card">
         <h3>💰 Payment History</h3>
         <?php if (count($paid) > 0): ?>
             <table>

@@ -250,6 +250,8 @@ if ($grade_filter) {
     <th>ID</th>
     <th>Name</th>
     <th>Grade Level</th>
+    <th>Section</th>
+    <th>Adviser</th>
     <th>Academic Status</th>
     <th>Actions</th>
 </tr>
@@ -261,6 +263,8 @@ if ($grade_filter) {
     <td><?= $row['id'] ?></td>
     <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
     <td><?= htmlspecialchars($row['year']) ?></td>
+    <td><?= htmlspecialchars($row['section'] ?? 'Not Assigned') ?></td>
+    <td><?= htmlspecialchars($row['adviser'] ?? 'Not Assigned') ?></td>
     <td>
         <?php 
         if ($row['year'] === 'Grade 12' && $row['academic_status'] === 'Passed') {
@@ -275,6 +279,7 @@ if ($grade_filter) {
         <!-- Actions for Graduated Students -->
         <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
         <a href="archive_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a> |
+        <a href="update_section.php?id=<?= $row['id'] ?>">Change Section</a> |
         <span id="portal-status-<?= $row['id'] ?>" class="status-label" 
               style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
             <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
@@ -283,10 +288,11 @@ if ($grade_filter) {
         <!-- Actions for Non-Graduated Students -->
         <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a> |
         <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a> |
+        <a href="update_section.php?id=<?= $row['id'] ?>">Change Section</a> |
         <span id="portal-status-<?= $row['id'] ?>" class="status-label" 
               style="color:<?= ($row['portal_status'] === 'activated') ? 'green' : 'red' ?>">
-            <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?> |
-        </span>
+            <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
+        </span> |
         <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a> |
         
     <?php endif; ?>

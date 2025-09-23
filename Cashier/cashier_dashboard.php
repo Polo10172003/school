@@ -476,11 +476,13 @@ $payments = $conn->query("
         
         <td>
         <?php 
-    $shotUrl = $row['screenshot_path']; 
-    if ($shotUrl && strpos($shotUrl, 'http') !== 0) {
-        $shotUrl = "http://localhost" . $shotUrl;  // make it absolute
-    }
-  ?>
+  $shotUrl = $row['screenshot_path']; 
+  if ($shotUrl && strpos($shotUrl, 'http') !== 0) {
+      $shotUrl = "http://localhost" . $shotUrl;
+  }
+  echo "<!-- DEBUG: $shotUrl -->";  // 👈 check page source
+?>
+
           <button 
             class="view-payment-btn" 
             data-id="<?= $row['id'] ?>" 

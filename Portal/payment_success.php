@@ -127,9 +127,9 @@ session_start();
 
 <nav>
   <ul>
-    <li><a href="index.php">Home</a></li>
+    <li><a href="/Enrollment/index.php">Home</a></li>
     <li><a href="#about">About Us</a></li>
-    <li><a href="#portal">Portal</a></li>
+    <li><a href="/Enrollment/Portal/student_login.php">Portal</a></li>
     <li><a href="tuition_fees.php">Tuition Fees</a></li>
   </ul>
 </nav>
@@ -143,7 +143,7 @@ session_start();
   <h2>Payment Submitted Successfully!</h2>
   <p>Thank you for your payment. Your transaction is now being reviewed by our finance department.</p>
   <p>Please keep your reference number and wait for confirmation via SMS or Email.</p>
-  <a href="index.php" class="btn-primary">Return to Home</a>
+  <a href="/Enrollment/index.php" class="btn-primary">Return to Home</a>
 </div>
 
 <footer>
