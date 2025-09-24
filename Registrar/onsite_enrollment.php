@@ -16,9 +16,9 @@ if ($student_type === 'new') {
         $_SESSION['onsite_payment_type'] = $payment_type; // 'onsite' or 'online'
     }
 
-    // Optional: pass along in query too (nice to have)
+    // Route straight to the core registration form used online so staff can encode onsite
     $q = !empty($payment_type) ? ('?payment_type=' . urlencode($payment_type)) : '';
-    header('Location: StudentNoVerification/early_registration.php' . $q);
+    header('Location: ../StudentNoVerification/ineeditNaregistration.php' . $q);
     exit();
 }
 

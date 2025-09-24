@@ -79,3 +79,12 @@ Array
     [4] => SAMANTHA AMIARRA
     [5] => PEREIRA
 )
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 58
+    [2] => New
+    [3] => jhonbernvitto04@gmail.com
+    [4] => JHON BERN
+    [5] => VITTO
+)

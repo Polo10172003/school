@@ -459,6 +459,18 @@ if ($previous_grade_label && ($previous_fee || $previous_outstanding > 0 || $pre
     ];
 }
 
+$selected_view_key = $_GET['finance_view'] ?? null;
+$available_view_keys = array_column($finance_views, 'key');
+
+if (!$selected_view_key || !in_array($selected_view_key, $available_view_keys, true)) {
+    $selected_view_key = $available_view_keys[0] ?? null;
+}
+
+foreach ($finance_views as &$finance_view_ref) {
+    $finance_view_ref['is_default'] = ($finance_view_ref['key'] === $selected_view_key);
+}
+unset($finance_view_ref);
+
 $has_multiple_views = count($finance_views) > 1;
 ?>
 <style>
@@ -610,16 +622,16 @@ $has_multiple_views = count($finance_views) > 1;
             <div class="col-lg-8 d-flex flex-column gap-4">
                 <?php if ($has_multiple_views): ?>
                     <div class="d-flex justify-content-end">
-                        <div class="w-100" style="max-width: 240px;">
+                        <form method="GET" action="Portal/student_portal.php" class="w-100" style="max-width: 240px;">
                             <label for="financeViewSelector" class="form-label small text-muted mb-1">View financial data for</label>
-                            <select id="financeViewSelector" class="form-select form-select-sm">
+                            <select id="financeViewSelector" name="finance_view" class="form-select form-select-sm" onchange="this.form.submit()">
                                 <?php foreach ($finance_views as $view_option): ?>
                                     <option value="<?php echo htmlspecialchars($view_option['key']); ?>" <?php echo $view_option['is_default'] ? 'selected' : ''; ?>>
                                         <?php echo htmlspecialchars($view_option['label']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
-                        </div>
+                        </form>
                     </div>
                 <?php endif; ?>
 
@@ -740,16 +752,18 @@ $has_multiple_views = count($finance_views) > 1;
                                                 }
 
                                                 $display_amount = '';
-                                                if (isset($row['amount_outstanding'])) {
-                                                    $original = number_format((float) ($row['amount_original'] ?? 0), 2);
-                                                    $outstanding = (float) $row['amount_outstanding'];
-                                                    if ($outstanding > 0) {
-                                                        $display_amount = '₱' . number_format($outstanding, 2) . ' - Past Due';
+                                                if (array_key_exists('amount_outstanding', $row)) {
+                                                    $originalRaw = (float) ($row['amount_original'] ?? 0);
+                                                    $outstandingRaw = (float) ($row['amount_outstanding'] ?? 0);
+                                                    $original = round($originalRaw, 2);
+                                                    $outstanding = round($outstandingRaw, 2);
+
+                                                    if ($outstanding <= 0.009) {
+                                                        $display_amount = '<span class="text-success fw-semibold">Paid</span> (₱' . number_format($original, 2) . ')';
+                                                    } elseif ($original > $outstanding + 0.009) {
+                                                        $display_amount = '₱' . number_format($outstanding, 2) . ' of ₱' . number_format($original, 2) . ' remaining';
                                                     } else {
-                                                        $display_amount = '<span class="text-success fw-semibold">Paid</span>';
-                                                        if (isset($row['amount_original'])) {
-                                                            $display_amount .= " <span class=\"text-muted\">(₱{$original})</span>";
-                                                        }
+                                                        $display_amount = '₱' . number_format($outstanding, 2);
                                                     }
                                                 } else {
                                                     $display_amount = '₱' . number_format((float) ($row['amount'] ?? 0), 2);
@@ -1028,23 +1042,13 @@ $has_multiple_views = count($finance_views) > 1;
             });
         }
 
-        const viewSelector = document.getElementById('financeViewSelector');
-        if (viewSelector) {
-            viewSelector.addEventListener('change', function () {
-                const selected = this.value;
-                document.querySelectorAll('.finance-view').forEach(function (view) {
-                    view.style.display = view.dataset.view === selected ? '' : 'none';
-                });
-            });
-        }
-
-        // Auto logout if student navigates away or closes tab
-        window.addEventListener('blur', function () {
-            fetch('Portal/logout.php')
-                .then(function () {
-                    window.location.href = 'Portal/student_login.php';
-                });
-        });
+        // Auto logout if student navigates away or closes tab (disabled intentionally)
+        // window.addEventListener('blur', function () {
+        //     fetch('Portal/logout.php')
+        //         .then(function () {
+        //             window.location.href = 'Portal/student_login.php';
+        //         });
+        // });
     });
 </script>
 
