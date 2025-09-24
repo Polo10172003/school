@@ -110,7 +110,7 @@ $fix->close();
 
     // 3) Keep enrollment pending until cashier confirms
     $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'pending' WHERE id = ?");
-    $upd->bind_param("i", $student_id_db);
+    $upd->bind_param("i", $student_id);
     $upd->execute();
     $upd->close();
 

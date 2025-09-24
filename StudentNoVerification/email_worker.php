@@ -17,7 +17,7 @@ if (php_sapi_name() === 'cli') {
     global $argv;
     file_put_contents($tempDir . '/worker_debug.txt', print_r($argv, true), FILE_APPEND);
 
-    $student_id   = $argv[1] ?? 0;
+    $student_id   = (int) ($argv[1] ?? 0);
     $student_type = $argv[2] ?? '';
     $email        = $argv[3] ?? '';
     $firstname    = $argv[4] ?? '';
@@ -33,7 +33,7 @@ if (php_sapi_name() === 'cli') {
     file_put_contents($tempDir . '/worker_debug.txt', "Browser mode triggered\n", FILE_APPEND);
 }
 
-if (!$email) {
+if (!$email || !$student_id) {
     error_log("❌ Worker started but no email provided");
     exit;
 }
@@ -176,11 +176,20 @@ try {
 
     $mail->isHTML(true);
     $mail->Subject = "Registration Acknowledgment - ESR";
-    $mail->Body = "
-        <p>Dear $lastname $firstname </p>
-        <p>Thank you for registering as a <strong>$student_type student</strong>.</p>
-        <p>We attached a PDF copy of your enrollment form for your reference.</p>
-        <p>Thank you,<br>Escuela De Sto. Rosario</p>
+$student_type_label = ucfirst(strtolower($student_type)) === 'Old' ? 'Old' : 'New';
+$mail->Body = "
+        <p>Dear <strong>$firstname $lastname</strong>,</p>
+        <p>Thank you for registering as a <strong>$student_type_label student</strong> of Escuela De Sto. Rosario.</p>
+        <p>Attached is a copy of your submitted enrollment form for your records.</p>
+        <p>Please visit the school to submit the following documents for verification:</p>
+        <ul>
+            <li>Certificate of Good Moral Character</li>
+            <li>Birth Certificate (PSA)</li>
+            <li>Parents' Marriage Contract</li>
+            <li>Student Baptismal Certificate <em>(if the last two are unavailable, kindly inform the registrar)</em></li>
+        </ul>
+        <p>If you have already submitted these documents, you may disregard this reminder.</p>
+        <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>
     ";
 
     $mail->addAttachment($pdf_path, "Enrollment_Form.pdf");

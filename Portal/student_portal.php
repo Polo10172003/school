@@ -66,22 +66,46 @@ foreach ($typeCandidates as $candidateType) {
 function previousGradeLabel($current)
 {
     $map = [
-        'Kinder 1' => 'Preschool',
-        'Kinder 2' => 'Kinder 1',
-        'Grade 1'  => 'Kinder 2',
-        'Grade 2'  => 'Grade 1',
-        'Grade 3'  => 'Grade 2',
-        'Grade 4'  => 'Grade 3',
-        'Grade 5'  => 'Grade 4',
-        'Grade 6'  => 'Grade 5',
-        'Grade 7'  => 'Grade 6',
-        'Grade 8'  => 'Grade 7',
-        'Grade 9'  => 'Grade 8',
-        'Grade 10' => 'Grade 9',
-        'Grade 11' => 'Grade 10',
-        'Grade 12' => 'Grade 11',
+        'kinder 1' => 'Preschool',
+        'kinder1' => 'Preschool',
+        'kinder 2' => 'Kinder 1',
+        'kinder2' => 'Kinder 1',
+        'grade 1'  => 'Kinder 2',
+        'grade1'   => 'Kinder 2',
+        'grade 2'  => 'Grade 1',
+        'grade2'   => 'Grade 1',
+        'grade 3'  => 'Grade 2',
+        'grade3'   => 'Grade 2',
+        'grade 4'  => 'Grade 3',
+        'grade4'   => 'Grade 3',
+        'grade 5'  => 'Grade 4',
+        'grade5'   => 'Grade 4',
+        'grade 6'  => 'Grade 5',
+        'grade6'   => 'Grade 5',
+        'grade 7'  => 'Grade 6',
+        'grade7'   => 'Grade 6',
+        'grade 8'  => 'Grade 7',
+        'grade8'   => 'Grade 7',
+        'grade 9'  => 'Grade 8',
+        'grade9'   => 'Grade 8',
+        'grade 10' => 'Grade 9',
+        'grade10'  => 'Grade 9',
+        'grade 11' => 'Grade 10',
+        'grade11'  => 'Grade 10',
+        'grade 12' => 'Grade 11',
+        'grade12'  => 'Grade 11',
     ];
-    return $map[$current] ?? null;
+
+    $normalized = strtolower(trim((string) $current));
+    $normalized = str_replace(['-', '_'], ' ', $normalized);
+    $normalized = preg_replace('/\s+/', ' ', $normalized);
+
+    if (isset($map[$normalized])) {
+        return $map[$normalized];
+    }
+
+    $compacted = str_replace(' ', '', $normalized);
+    return $map[$compacted] ?? null;
 }
 
 $previous_grade_label = previousGradeLabel($year);
@@ -106,7 +130,7 @@ if (!$no_previous && $previous_grade_label) {
 }
 
 // Fetch payments
-$sql = "SELECT payment_type, amount, payment_status, payment_date, reference_number ,or_number
+$sql = "SELECT payment_type, amount, payment_status, payment_date, reference_number, or_number, created_at
         FROM student_payments 
         WHERE student_id = ?
         ORDER BY created_at DESC";
@@ -119,7 +143,12 @@ $paid = [];
 $pending = [];
 
 while ($row = $result->fetch_assoc()) {
-    if (strtolower($row['payment_status']) === 'paid') {
+    $row['amount'] = (float) ($row['amount'] ?? 0);
+    if (empty($row['payment_date']) && !empty($row['created_at'])) {
+        $row['payment_date'] = substr($row['created_at'], 0, 10);
+    }
+
+    if (strtolower((string) $row['payment_status']) === 'paid') {
         $paid[] = $row;
     } else {
         $pending[] = $row;
@@ -149,6 +178,58 @@ if ($previous_fee) {
 
 $current_paid_amount = max($total_paid - $previous_paid_applied, 0);
 $current_paid_remaining = $current_paid_amount;
+
+$paid_chronological = $paid;
+usort($paid_chronological, function (array $a, array $b) {
+    $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+    $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+    return strcmp((string) $timeA, (string) $timeB);
+});
+
+$remaining_prev_allocation = $previous_paid_applied;
+$remaining_current_allocation = $current_paid_amount;
+$paid_history_previous = [];
+$paid_history_current = [];
+
+foreach ($paid_chronological as $entry) {
+    $amount_remaining = (float) ($entry['amount'] ?? 0);
+    $original_amount = $amount_remaining;
+
+    if ($remaining_prev_allocation > 0) {
+        $apply_prev = min($amount_remaining, $remaining_prev_allocation);
+        if ($apply_prev > 0) {
+            $record = $entry;
+            $record['applied_amount'] = $apply_prev;
+            $record['source_amount'] = $original_amount;
+            $record['applied_to'] = $previous_grade_label;
+            $record['is_partial'] = $apply_prev < $original_amount;
+            $paid_history_previous[] = $record;
+            $remaining_prev_allocation -= $apply_prev;
+            $amount_remaining -= $apply_prev;
+        }
+    }
+
+    if ($amount_remaining > 0) {
+        $record = $entry;
+        $record['applied_amount'] = $amount_remaining;
+        $record['source_amount'] = $original_amount;
+        $record['applied_to'] = $year;
+        $record['is_partial'] = $amount_remaining < $original_amount;
+        $paid_history_current[] = $record;
+        $remaining_current_allocation = max($remaining_current_allocation - $amount_remaining, 0);
+    }
+}
+
+$historySort = function (&$list) {
+    usort($list, function (array $a, array $b) {
+        $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+        $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+        return strcmp((string) $timeB, (string) $timeA);
+    });
+};
+
+$historySort($paid_history_previous);
+$historySort($paid_history_current);
 
 $full_name = trim($firstname . ' ' . $lastname);
 $display_section = $section ?: 'Not Assigned';
@@ -291,6 +372,94 @@ foreach ($upcoming_rows as $row) {
     }
 }
 unset($row);
+
+$finance_views = [];
+$finance_views[] = [
+    'key' => 'current',
+    'label' => $year,
+    'remaining_balance' => $remaining_balance,
+    'total_paid' => $total_paid,
+    'pending_total' => $pending_total,
+    'plan_label' => $chosen_plan ? ucfirst($chosen_plan) : null,
+    'next_due_row' => $next_due_row,
+    'alert' => $has_previous_outstanding ? [
+        'grade' => $previous_grade_label,
+        'amount' => $previous_outstanding,
+    ] : null,
+    'schedule_rows' => $upcoming_rows,
+    'schedule_message' => $fee
+        ? 'All your scheduled payments are covered at the moment.'
+        : 'Your tuition details will appear here once released by the registrar.',
+    'pending_rows' => $pending_display,
+    'pending_message' => 'No pending payments right now.',
+    'current_year_total' => $current_year_total,
+    'history_rows' => $paid_history_current,
+    'history_message' => 'Payments will appear here once recorded for this grade.',
+    'is_default' => true,
+];
+
+if ($previous_grade_label && ($previous_fee || $previous_outstanding > 0 || $previous_paid_applied > 0)) {
+    $previous_schedule_rows = [];
+    if ($previous_fee) {
+        $prev_schedule = generateScheduleFromDB($previous_fee, 'quarterly');
+        $prev_paid_remaining = $previous_paid_applied;
+        foreach ($prev_schedule as $prevDue) {
+            $due_original = (float) $prevDue['Amount'];
+            $due_outstanding = $due_original;
+            if ($prev_paid_remaining > 0) {
+                $deduct = min($prev_paid_remaining, $due_outstanding);
+                $due_outstanding -= $deduct;
+                $prev_paid_remaining -= $deduct;
+            }
+            $previous_schedule_rows[] = [
+                'due_date' => $prevDue['Due Date'],
+                'amount_original' => $due_original,
+                'amount_outstanding' => $due_outstanding,
+                'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
+            ];
+        }
+    }
+
+    $previous_pending_rows = [];
+    if ($previous_outstanding > 0) {
+        $previous_pending_rows[] = [
+            'payment_type_display' => 'Past Due for ' . $previous_grade_label,
+            'amount' => $previous_outstanding,
+            'payment_status' => 'Past Due',
+            'payment_date' => 'Previous School Year',
+            'reference_number' => null,
+            'or_number' => null,
+            'is_placeholder' => true,
+        ];
+    }
+
+    $finance_views[] = [
+        'key' => 'previous',
+        'label' => 'Previous - ' . $previous_grade_label,
+        'remaining_balance' => $previous_outstanding,
+        'total_paid' => $previous_paid_applied,
+        'pending_total' => $previous_outstanding,
+        'plan_label' => $previous_fee ? 'Past Year Summary' : null,
+        'next_due_row' => null,
+        'alert' => null,
+        'schedule_rows' => $previous_schedule_rows,
+        'schedule_message' => $previous_fee
+            ? ($previous_outstanding > 0
+                ? 'Outstanding balance carried over from ' . $previous_grade_label . '.'
+                : 'No outstanding balance for this grade.')
+            : 'No tuition fee record was saved for ' . $previous_grade_label . ', but payment history is retained below.',
+        'pending_rows' => $previous_pending_rows,
+        'pending_message' => $previous_outstanding > 0
+            ? 'Pending balance remains from ' . $previous_grade_label . '.'
+            : 'No pending payments for this grade.',
+        'current_year_total' => $previous_grade_total,
+        'history_rows' => $paid_history_previous,
+        'history_message' => 'No payments were recorded for this grade yet.',
+        'is_default' => false,
+    ];
+}
+
+$has_multiple_views = count($finance_views) > 1;
 ?>
 <style>
     .portal-main {
@@ -439,185 +608,329 @@ unset($row);
             </div>
 
             <div class="col-lg-8 d-flex flex-column gap-4">
-                <div class="card portal-card">
-                    <div class="card-body">
-                        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
-                            <div>
-                                <h3 class="h5 fw-bold mb-1">Payment Overview</h3>
-                                <p class="text-muted mb-0">Track your tuition progress for this school year.</p>
-                            </div>
-                            <?php if ($has_previous_outstanding): ?>
-                                <span class="status-pill warning">
-                                    <i class="bi bi-exclamation-triangle"></i>
-                                    Past balance: ₱<?php echo number_format($previous_outstanding, 2); ?>
-                                </span>
-                            <?php else: ?>
-                                <span class="status-pill safe">
-                                    <i class="bi bi-check-circle"></i>
-                                    Account in good standing
-                                </span>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="row g-3 mt-3">
-                            <div class="col-sm-6 col-lg-3">
-                                <div class="summary-tile h-100">
-                                    <span class="label">Tuition Package</span>
-                                    <h4>₱<?php echo number_format($current_year_total, 2); ?></h4>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-lg-3">
-                                <div class="summary-tile h-100">
-                                    <span class="label">Remaining Balance</span>
-                                    <h4>₱<?php echo number_format($remaining_balance, 2); ?></h4>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-lg-3">
-                                <div class="summary-tile h-100">
-                                    <span class="label">Total Paid</span>
-                                    <h4>₱<?php echo number_format($total_paid, 2); ?></h4>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-lg-3">
-                                <div class="summary-tile h-100">
-                                    <span class="label">Pending Review</span>
-                                    <h4>₱<?php echo number_format($pending_total, 2); ?></h4>
-                                </div>
-                            </div>
+                <?php if ($has_multiple_views): ?>
+                    <div class="d-flex justify-content-end">
+                        <div class="w-100" style="max-width: 240px;">
+                            <label for="financeViewSelector" class="form-label small text-muted mb-1">View financial data for</label>
+                            <select id="financeViewSelector" class="form-select form-select-sm">
+                                <?php foreach ($finance_views as $view_option): ?>
+                                    <option value="<?php echo htmlspecialchars($view_option['key']); ?>" <?php echo $view_option['is_default'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($view_option['label']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
-                </div>
+                <?php endif; ?>
 
-                <div class="card portal-card">
-                    <div class="card-body">
-                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-                            <div>
-                                <h3 class="h5 fw-bold mb-1">Upcoming Payment Schedule</h3>
-                                <?php if ($fee): ?>
-                                    <div class="text-muted small">
-                                        Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($chosen_plan); ?></strong>
-                                        <?php if ($next_due_row): ?>· Next due on <strong><?php echo htmlspecialchars($next_due_row['due_date']); ?></strong><?php endif; ?>
-                                    </div>
+                <?php foreach ($finance_views as $view):
+                    $view_key = $view['key'];
+                    $is_default = $view['is_default'];
+                    $view_remaining = $view['remaining_balance'];
+                    $view_total_paid = $view['total_paid'];
+                    $view_pending_total = $view['pending_total'];
+                    $view_plan_label = $view['plan_label'];
+                    $view_next_due = $view['next_due_row'];
+                    $view_alert = $view['alert'];
+                    $view_schedule_rows = $view['schedule_rows'];
+                    $view_schedule_message = $view['schedule_message'];
+                    $view_pending_rows = $view['pending_rows'];
+                    $view_pending_message = $view['pending_message'];
+                    $view_year_total = $view['current_year_total'];
+                    $view_history_rows = $view['history_rows'] ?? [];
+                    $view_history_message = $view['history_message'] ?? 'No payments recorded yet.';
+                ?>
+                <div class="finance-view" data-view="<?php echo htmlspecialchars($view_key); ?>" style="<?php echo $is_default ? '' : 'display:none;'; ?>">
+                <div class="finance-view-content d-flex flex-column gap-4">
+                    <div class="card portal-card">
+                        <div class="card-body">
+                            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+                                <div>
+                                    <h3 class="h5 fw-bold mb-1">Payment Overview</h3>
+                                    <p class="text-muted mb-0">Track your tuition progress for this grade.</p>
+                                </div>
+                                <?php if ($view_alert): ?>
+                                    <span class="status-pill warning">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        Past due from <?php echo htmlspecialchars($view_alert['grade']); ?>: ₱<?php echo number_format($view_alert['amount'], 2); ?>
+                                    </span>
                                 <?php else: ?>
-                                    <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
+                                    <span class="status-pill safe">
+                                        <i class="bi bi-check-circle"></i>
+                                        <?php echo $view_key === 'previous' ? 'Past year summary' : 'Account in good standing'; ?>
+                                    </span>
                                 <?php endif; ?>
                             </div>
-                            <form action="Portal/choose_payment.php" method="GET" class="ms-lg-auto">
-                                <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
-                                <button type="submit" class="btn btn-success fw-semibold">
-                                    <i class="bi bi-credit-card me-2"></i>Pay Now
-                                </button>
-                            </form>
+
+                            <div class="row g-3 mt-3">
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="summary-tile h-100">
+                                        <span class="label">Tuition Package</span>
+                                        <h4>₱<?php echo number_format($view_year_total, 2); ?></h4>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="summary-tile h-100">
+                                        <span class="label">Remaining Balance</span>
+                                        <h4>₱<?php echo number_format($view_remaining, 2); ?></h4>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="summary-tile h-100">
+                                        <span class="label">Total Paid</span>
+                                        <h4>₱<?php echo number_format($view_total_paid, 2); ?></h4>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6 col-lg-3">
+                                    <div class="summary-tile h-100">
+                                        <span class="label">Pending Review</span>
+                                        <h4>₱<?php echo number_format($view_pending_total, 2); ?></h4>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-
-                        <?php if ($has_previous_outstanding): ?>
-                            <div class="alert alert-warning border-0 text-dark">
-                                <i class="bi bi-exclamation-circle me-2"></i>
-                                Past due from <?php echo htmlspecialchars($previous_grade_label); ?>: <strong>₱<?php echo number_format($previous_outstanding, 2); ?></strong>.
-                                This is added to your current schedule.
-                            </div>
-                        <?php endif; ?>
-
-                        <?php if ($fee && count($upcoming_rows) > 0): ?>
-                            <div class="table-responsive">
-                                <table class="table portal-table align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Due Date</th>
-                                            <th scope="col" class="text-end">Amount Due</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($upcoming_rows as $row): ?>
-                                            <tr class="<?php echo !empty($row['is_next']) ? 'next-due' : ''; ?>">
-                                                <td class="fw-semibold"><?php echo htmlspecialchars($row['due_date']); ?></td>
-                                                <td class="text-end">₱<?php echo number_format($row['amount'], 2); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php elseif ($fee): ?>
-                            <div class="empty-state mt-3">
-                                <i class="bi bi-check2-circle me-2"></i>All your scheduled payments are covered at the moment.
-                            </div>
-                        <?php else: ?>
-                            <div class="empty-state mt-3">
-                                <i class="bi bi-info-circle me-2"></i>Your tuition details will appear here once released by the registrar.
-                            </div>
-                        <?php endif; ?>
                     </div>
-                </div>
 
-                <div class="card portal-card">
-                    <div class="card-body">
-                        <h3 class="h5 fw-bold mb-3">Pending Payments</h3>
-                        <?php if (count($pending_display) > 0): ?>
-                            <div class="table-responsive">
-                                <table class="table portal-table align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Payment Type</th>
-                                            <th scope="col" class="text-end">Amount</th>
-                                            <th scope="col">Status</th>
-                                            <th scope="col">Submitted On</th>
-                                            <th scope="col">Reference</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($pending_display as $pending_row): ?>
-                                            <?php
-                                                $is_placeholder_row = !empty($pending_row['is_placeholder']);
+                    <div class="card portal-card">
+                        <div class="card-body">
+                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                                <div>
+                                    <h3 class="h5 fw-bold mb-1">Upcoming Payment Schedule</h3>
+                                    <?php if ($view_plan_label): ?>
+                                        <div class="text-muted small">
+                                            Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($view_plan_label); ?></strong>
+                                            <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['due_date']); ?></strong><?php endif; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
+                                    <?php endif; ?>
+                                </div>
+                                <form action="Portal/choose_payment.php" method="GET" class="ms-lg-auto">
+                                    <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
+                                    <button type="submit" class="btn btn-success fw-semibold">
+                                        <i class="bi bi-credit-card me-2"></i>Pay Now
+                                    </button>
+                                </form>
+                            </div>
+
+                            <?php if (!empty($view_alert) && $view_key === 'current'): ?>
+                                <div class="alert alert-warning border-0 text-dark">
+                                    <i class="bi bi-exclamation-circle me-2"></i>
+                                    Past due from <?php echo htmlspecialchars($view_alert['grade']); ?>: <strong>₱<?php echo number_format($view_alert['amount'], 2); ?></strong>.
+                                    This is added to your current schedule.
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($view_schedule_rows)): ?>
+                                <div class="table-responsive">
+                                    <table class="table portal-table align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Due Date</th>
+                                                <th scope="col" class="text-end">Amount Due</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($view_schedule_rows as $row):
+                                                $row_class = '';
+                                                if (!empty($row['row_class'])) {
+                                                    $row_class = $row['row_class'];
+                                                } elseif (!empty($row['is_next'])) {
+                                                    $row_class = 'next-due';
+                                                }
+
+                                                $display_amount = '';
+                                                if (isset($row['amount_outstanding'])) {
+                                                    $original = number_format((float) ($row['amount_original'] ?? 0), 2);
+                                                    $outstanding = (float) $row['amount_outstanding'];
+                                                    if ($outstanding > 0) {
+                                                        $display_amount = '₱' . number_format($outstanding, 2) . ' - Past Due';
+                                                    } else {
+                                                        $display_amount = '<span class="text-success fw-semibold">Paid</span>';
+                                                        if (isset($row['amount_original'])) {
+                                                            $display_amount .= " <span class=\"text-muted\">(₱{$original})</span>";
+                                                        }
+                                                    }
+                                                } else {
+                                                    $display_amount = '₱' . number_format((float) ($row['amount'] ?? 0), 2);
+                                                }
                                             ?>
-                                            <tr class="<?php echo $is_placeholder_row ? 'row-outstanding' : ''; ?>">
-                                                <td><?php echo htmlspecialchars($pending_row['payment_type_display'] ?? ($pending_row['payment_type'] ?? 'Pending')); ?></td>
-                                                <td class="text-end">₱<?php echo number_format((float) $pending_row['amount'], 2); ?></td>
-                                                <td><span class="badge bg-warning-subtle text-warning fw-semibold">Pending</span></td>
-                                                <td><?php echo htmlspecialchars($pending_row['payment_date'] ?: 'Awaiting review'); ?></td>
-                                                <td><?php echo htmlspecialchars($pending_row['reference_number'] ?: 'N/A'); ?></td>
+                                                <tr class="<?php echo $row_class; ?>">
+                                                    <td class="fw-semibold"><?php echo htmlspecialchars($row['due_date']); ?></td>
+                                                    <td class="text-end"><?php echo $display_amount; ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="empty-state mt-3">
+                                    <i class="bi bi-info-circle me-2"></i><?php echo htmlspecialchars($view_schedule_message); ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <div class="card portal-card">
+                        <div class="card-body">
+                            <h3 class="h5 fw-bold mb-3">Pending Payments</h3>
+                            <?php if (!empty($view_pending_rows)): ?>
+                                <div class="table-responsive">
+                                    <table class="table portal-table align-middle mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th scope="col">Payment Type</th>
+                                                <th scope="col" class="text-end">Amount</th>
+                                                <th scope="col">Status</th>
+                                                <th scope="col">Submitted On</th>
+                                                <th scope="col">Reference</th>
                                             </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        <?php else: ?>
-                            <div class="empty-state">
-                                <i class="bi bi-check2-circle me-2"></i>No pending payments right now.
-                            </div>
-                        <?php endif; ?>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($view_pending_rows as $pending_row):
+                                                $row_class = '';
+                                                if (!empty($pending_row['row_class'])) {
+                                                    $row_class = $pending_row['row_class'];
+                                                } elseif (!empty($pending_row['is_placeholder'])) {
+                                                    $row_class = 'row-outstanding';
+                                                }
+                                            ?>
+                                                <tr class="<?php echo $row_class; ?>">
+                                                    <td><?php echo htmlspecialchars($pending_row['payment_type_display'] ?? ($pending_row['payment_type'] ?? 'Pending')); ?></td>
+                                                    <td class="text-end">₱<?php echo number_format((float) ($pending_row['amount'] ?? 0), 2); ?></td>
+                                                    <td><span class="badge bg-warning-subtle text-warning fw-semibold"><?php echo htmlspecialchars($pending_row['payment_status'] ?? 'Pending'); ?></span></td>
+                                                    <td><?php echo htmlspecialchars($pending_row['payment_date'] ?? 'Awaiting review'); ?></td>
+                                                    <td><?php echo htmlspecialchars($pending_row['reference_number'] ?? $pending_row['or_number'] ?? 'N/A'); ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <?php else: ?>
+                                <div class="empty-state">
+                                    <i class="bi bi-check2-circle me-2"></i><?php echo htmlspecialchars($view_pending_message); ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
+                </div>
+                <?php endforeach; ?>
 
                 <div class="card portal-card mb-0">
                     <div class="card-body">
                         <h3 class="h5 fw-bold mb-3">Payment History</h3>
-                        <?php if (count($paid) > 0): ?>
-                            <div class="table-responsive">
-                                <table class="table portal-table align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th scope="col">Payment Type</th>
-                                            <th scope="col" class="text-end">Amount</th>
-                                            <th scope="col">Status</th>
-                                            <th scope="col">Payment Date</th>
-                                            <th scope="col">Reference</th>
-                                            <th scope="col">OR Number</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($paid as $history): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($history['payment_type']); ?></td>
-                                                <td class="text-end">₱<?php echo number_format((float) $history['amount'], 2); ?></td>
-                                                <td><span class="badge bg-success-subtle text-success fw-semibold"><?php echo ucfirst($history['payment_status']); ?></span></td>
-                                                <td><?php echo htmlspecialchars($history['payment_date'] ?: 'N/A'); ?></td>
-                                                <td><?php echo htmlspecialchars($history['reference_number'] ?: 'N/A'); ?></td>
-                                                <td><?php echo htmlspecialchars($history['or_number'] ?: 'N/A'); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                            </div>
+                        <?php $has_history = !empty($paid_history_current) || !empty($paid_history_previous); ?>
+                        <?php if ($has_history): ?>
+                            <?php if (!empty($paid_history_current)): ?>
+                                <div class="mb-4">
+                                    <h4 class="h6 text-uppercase text-muted mb-2">Current Grade - <?php echo htmlspecialchars($year); ?></h4>
+                                    <div class="table-responsive">
+                                        <table class="table portal-table align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Date</th>
+                                                    <th scope="col">Method</th>
+                                                    <th scope="col" class="text-end">Amount Applied</th>
+                                                    <th scope="col">References</th>
+                                                    <th scope="col">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($paid_history_current as $history_row):
+                                                    $history_amount = (float) ($history_row['applied_amount'] ?? $history_row['amount'] ?? 0);
+                                                    $history_source = (float) ($history_row['source_amount'] ?? $history_amount);
+                                                    $is_partial = !empty($history_row['is_partial']) && $history_source > 0 && abs($history_amount - $history_source) > 0.009;
+                                                    $reference_number = $history_row['reference_number'] ?? null;
+                                                    $or_number = $history_row['or_number'] ?? null;
+                                                    $date_display = $history_row['payment_date'] ?? ($history_row['created_at'] ?? '--');
+                                                    $status_label = ucfirst(strtolower((string) ($history_row['payment_status'] ?? 'Paid')));
+                                                ?>
+                                                    <tr>
+                                                        <td class="fw-semibold"><?php echo htmlspecialchars($date_display); ?></td>
+                                                        <td><?php echo htmlspecialchars(ucfirst((string) ($history_row['payment_type'] ?? 'N/A'))); ?></td>
+                                                        <td class="text-end">
+                                                            ₱<?php echo number_format($history_amount, 2); ?>
+                                                            <?php if ($is_partial): ?>
+                                                                <div class="text-muted small">From ₱<?php echo number_format($history_source, 2); ?></div>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td>
+                                                            <?php if ($reference_number): ?>
+                                                                <div>Ref: <?php echo htmlspecialchars($reference_number); ?></div>
+                                                            <?php endif; ?>
+                                                            <?php if ($or_number): ?>
+                                                                <div>OR: <?php echo htmlspecialchars($or_number); ?></div>
+                                                            <?php endif; ?>
+                                                            <?php if (!$reference_number && !$or_number): ?>
+                                                                <span class="text-muted">N/A</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td><span class="badge bg-success-subtle text-success fw-semibold"><?php echo htmlspecialchars($status_label); ?></span></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            <?php endif; ?>
+
+                            <?php if (!empty($paid_history_previous)): ?>
+                                <div class="<?php echo !empty($paid_history_current) ? 'mt-4' : ''; ?>">
+                                    <h4 class="h6 text-uppercase text-muted mb-2">Previous Grade<?php echo $previous_grade_label ? ' - ' . htmlspecialchars($previous_grade_label) : ''; ?></h4>
+                                    <div class="table-responsive">
+                                        <table class="table portal-table align-middle mb-0">
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Date</th>
+                                                    <th scope="col">Method</th>
+                                                    <th scope="col" class="text-end">Amount Applied</th>
+                                                    <th scope="col">References</th>
+                                                    <th scope="col">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <?php foreach ($paid_history_previous as $history_row):
+                                                    $history_amount = (float) ($history_row['applied_amount'] ?? $history_row['amount'] ?? 0);
+                                                    $history_source = (float) ($history_row['source_amount'] ?? $history_amount);
+                                                    $is_partial = !empty($history_row['is_partial']) && $history_source > 0 && abs($history_amount - $history_source) > 0.009;
+                                                    $reference_number = $history_row['reference_number'] ?? null;
+                                                    $or_number = $history_row['or_number'] ?? null;
+                                                    $date_display = $history_row['payment_date'] ?? ($history_row['created_at'] ?? '--');
+                                                    $status_label = ucfirst(strtolower((string) ($history_row['payment_status'] ?? 'Paid')));
+                                                ?>
+                                                    <tr>
+                                                        <td class="fw-semibold"><?php echo htmlspecialchars($date_display); ?></td>
+                                                        <td><?php echo htmlspecialchars(ucfirst((string) ($history_row['payment_type'] ?? 'N/A'))); ?></td>
+                                                        <td class="text-end">
+                                                            ₱<?php echo number_format($history_amount, 2); ?>
+                                                            <?php if ($is_partial): ?>
+                                                                <div class="text-muted small">From ₱<?php echo number_format($history_source, 2); ?></div>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td>
+                                                            <?php if ($reference_number): ?>
+                                                                <div>Ref: <?php echo htmlspecialchars($reference_number); ?></div>
+                                                            <?php endif; ?>
+                                                            <?php if ($or_number): ?>
+                                                                <div>OR: <?php echo htmlspecialchars($or_number); ?></div>
+                                                            <?php endif; ?>
+                                                            <?php if (!$reference_number && !$or_number): ?>
+                                                                <span class="text-muted">N/A</span>
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td><span class="badge bg-success-subtle text-success fw-semibold"><?php echo htmlspecialchars($status_label); ?></span></td>
+                                                    </tr>
+                                                <?php endforeach; ?>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            <?php elseif ($previous_grade_label): ?>
+                                <div class="empty-state">
+                                    <i class="bi bi-info-circle me-2"></i>No recorded payments for <?php echo htmlspecialchars($previous_grade_label); ?> yet.
+                                </div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <div class="empty-state">
                                 <i class="bi bi-info-circle me-2"></i>No payments recorded yet.
@@ -712,6 +1025,16 @@ unset($row);
         if (inboxToggle) {
             inboxToggle.addEventListener('click', function () {
                 loadInbox();
+            });
+        }
+
+        const viewSelector = document.getElementById('financeViewSelector');
+        if (viewSelector) {
+            viewSelector.addEventListener('change', function () {
+                const selected = this.value;
+                document.querySelectorAll('.finance-view').forEach(function (view) {
+                    view.style.display = view.dataset.view === selected ? '' : 'none';
+                });
             });
         }
 

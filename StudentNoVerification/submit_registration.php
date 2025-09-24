@@ -102,7 +102,7 @@ $student_number = null;
 // 🔹 Step 3: Save Registration
 // 🔹 Insert Query (52 columns)
 $sql = "INSERT INTO students_registration 
-    (year, course, lrn, lastname, firstname, middlename, suffixname,
+    (year, course, student_type, lrn, lastname, firstname, middlename, suffixname,
      gender, status, citizenship, dob, birthplace, religion,
      streetno, street, subd, brgy, city, province, zipcode,
      p_streetno, p_street, p_subd, p_brgy, p_city, p_province, p_zipcode,
@@ -111,7 +111,7 @@ $sql = "INSERT INTO students_registration
      mother_lastname, mother_firstname, mother_middlename, mother_suffixname, mother_mobnumber, mother_emailaddress, mother_occupation,
      guardian_lastname, guardian_firstname, guardian_middlename, guardian_suffixname, guardian_mobnumber, guardian_emailaddress, guardian_occupation, guardian_relationship
     )
-    VALUES (" . str_repeat("?,", 51) . "?)";
+    VALUES (" . str_repeat("?,", 52) . "?)";
 
 $stmt = $conn->prepare($sql);
 
@@ -120,8 +120,8 @@ if (!$stmt) {
 }
 
 // 🔹 Bind 52 variables
-$stmt->bind_param(str_repeat("s", 52),
-    $yearlevel, $course, $lrn, $lastname, $firstname, $middlename, $suffixname,
+$stmt->bind_param(str_repeat("s", 53),
+    $yearlevel, $course, $student_type, $lrn, $lastname, $firstname, $middlename, $suffixname,
     $gender, $status, $citizenship, $dob, $birthplace, $religion,
     $streetno, $street, $subd, $brgy, $city, $province, $zipcode,
     $p_streetno, $p_street, $p_subd, $p_brgy, $p_city, $p_province, $p_zipcode,
@@ -141,15 +141,16 @@ if ($stmt->execute()) {
     $worker   = __DIR__ . "/email_worker.php";
 
     // Escape arguments properly
-    $cmd = sprintf(
-        '%s %s %d %s %s %s',
+    $cmdParts = [
         escapeshellcmd($php_path),
         escapeshellarg($worker),
-        $student_id,
+        escapeshellarg((string) $student_id),
         escapeshellarg($student_type),
         escapeshellarg($emailaddress),
-        escapeshellarg("$firstname $lastname")
-    );
+        escapeshellarg($firstname),
+        escapeshellarg($lastname)
+    ];
+    $cmd = implode(' ', $cmdParts);
 
     // Capture debug output
     exec($cmd . " 2>&1", $output, $return_var);
