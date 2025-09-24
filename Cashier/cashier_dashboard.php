@@ -799,6 +799,19 @@ $payments = $conn->query("
   </div>
 </div>
 
+<style>
+  #paymentModal.modal-processing {
+    cursor: wait;
+  }
+  #acceptPaymentBtn.btn-loading,
+  #declinePaymentBtn.btn-loading,
+  #acceptPaymentBtn:disabled,
+  #declinePaymentBtn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+</style>
+
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const modal = document.getElementById("paymentModal");
@@ -827,6 +840,33 @@ document.addEventListener("DOMContentLoaded", function () {
       clearSearchUI();
     });
   });
+
+  function setProcessingState(isProcessing, action) {
+    const targetBtn = action === 'accept' ? acceptBtn : declineBtn;
+    const otherBtn = action === 'accept' ? declineBtn : acceptBtn;
+
+    if (!targetBtn || !otherBtn) {
+      return;
+    }
+
+    targetBtn.disabled = isProcessing;
+    otherBtn.disabled = isProcessing;
+    targetBtn.dataset.originalText = targetBtn.dataset.originalText || targetBtn.textContent;
+    otherBtn.dataset.originalText = otherBtn.dataset.originalText || otherBtn.textContent;
+
+    if (isProcessing) {
+      targetBtn.textContent = 'Processing…';
+      targetBtn.classList.add('btn-loading');
+      modal.classList.add('modal-processing');
+    } else {
+      targetBtn.textContent = targetBtn.dataset.originalText;
+      otherBtn.textContent = otherBtn.dataset.originalText;
+      targetBtn.classList.remove('btn-loading');
+      modal.classList.remove('modal-processing');
+      targetBtn.disabled = false;
+      otherBtn.disabled = false;
+    }
+  }
 
   // Open Modal when "View Payment" is clicked
   document.querySelectorAll(".view-payment-btn").forEach((btn) => {
@@ -897,28 +937,36 @@ document.addEventListener("DOMContentLoaded", function () {
     acceptBtn.addEventListener("click", async (e) => {
       e.preventDefault();
       const id = document.getElementById("modalPaymentId").value;
-      
+      setProcessingState(true, 'accept');
 
       const payload = { id, status: "paid" };
       if (currentType === "cash") payload.or_number = document.getElementById("modalRefOr").textContent;
 
-      const data = await postForm("update_payment_status.php", payload);
-      if (data && data.success) {
-        const statusCell = document.getElementById("status-" + id);
-        if (statusCell) {
-          statusCell.innerHTML =
-            "<span style='color: green;'>Paid" + (currentType === "cash" ? " (Cash)" : "") + "</span>";
-        }
-        if (activeButton) {
-          activeButton.dataset.status = 'Paid';
-          if (payload.or_number) {
-            activeButton.dataset.or = payload.or_number;
+      try {
+        const data = await postForm("update_payment_status.php", payload);
+        if (data && data.success) {
+          const statusCell = document.getElementById("status-" + id);
+          if (statusCell) {
+            statusCell.innerHTML =
+              "<span style='color: green;'>Paid" + (currentType === "cash" ? " (Cash)" : "") + "</span>";
           }
+          if (activeButton) {
+            activeButton.dataset.status = 'Paid';
+            if (payload.or_number) {
+              activeButton.dataset.or = payload.or_number;
+            }
+          }
+          document.getElementById("modalStatus").textContent = 'Paid';
+          alert("✅ Student’s payment has been accepted.");
+          modal.style.display = "none";
+        } else if (data) {
+          alert("Error: " + (data.error || "Unknown error"));
         }
-        alert("✅ Student’s payment has been accepted.");
-        modal.style.display = "none";
-      } else if (data) {
-        alert("Error: " + (data.error || "Unknown error"));
+      } catch (err) {
+        alert('Error communicating with server. Please try again.');
+        console.error(err);
+      } finally {
+        setProcessingState(false, 'accept');
       }
     });
   }
@@ -929,17 +977,27 @@ document.addEventListener("DOMContentLoaded", function () {
       e.preventDefault();
       const id = document.getElementById("modalPaymentId").value;
 
-      const data = await postForm("update_payment_status.php", { id, status: "declined" });
-      if (data && data.success) {
-        const statusCell = document.getElementById("status-" + id);
-        if (statusCell) statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
-        if (activeButton) {
-          activeButton.dataset.status = 'Declined';
+      setProcessingState(true, 'decline');
+
+      try {
+        const data = await postForm("update_payment_status.php", { id, status: "declined" });
+        if (data && data.success) {
+          const statusCell = document.getElementById("status-" + id);
+          if (statusCell) statusCell.innerHTML = "<span style='color: red;'>Declined</span>";
+          if (activeButton) {
+            activeButton.dataset.status = 'Declined';
+          }
+          document.getElementById("modalStatus").textContent = 'Declined';
+          alert("❌ Student’s payment has been declined.");
+          modal.style.display = "none";
+        } else if (data) {
+          alert("Error: " + (data.error || "Unknown error"));
         }
-        alert("❌ Student’s payment has been declined.");
-        modal.style.display = "none";
-      } else if (data) {
-        alert("Error: " + (data.error || "Unknown error"));
+      } catch (err) {
+        alert('Error communicating with server. Please try again.');
+        console.error(err);
+      } finally {
+        setProcessingState(false, 'decline');
       }
     });
   }

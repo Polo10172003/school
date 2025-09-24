@@ -11,14 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("Amount is required.");
     }
 
-    // ✅ STEP 1: Get student info from SESSION
-    if (!isset($_SESSION['student_number'])) {
+    $student_id = $_POST['student_id'] ?? null;
+    $student_number = $_POST['student_number'] ?? null;
+
+    if (!$student_number && isset($_SESSION['student_number'])) {
+        $student_number = $_SESSION['student_number'];
+    }
+
+    if ($student_id) {
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number FROM students_registration WHERE id = ?");
+        $stmt->bind_param("i", $student_id);
+    } elseif ($student_number) {
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number FROM students_registration WHERE student_number = ?");
+        $stmt->bind_param("s", $student_number);
+    } else {
         die("Not logged in. Please log in again.");
     }
-    $student_number = $_SESSION['student_number'];
 
-    $stmt = $conn->prepare("SELECT id, firstname, lastname FROM students_registration WHERE student_number = ?");
-    $stmt->bind_param("s", $student_number);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -26,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $student_id = $row['id'];
         $firstname  = $row['firstname'];
         $lastname   = $row['lastname'];
+        $student_number = $row['student_number'];
     } else {
         die("Student not found.");
     }
