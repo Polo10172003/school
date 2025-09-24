@@ -11,7 +11,7 @@ if ($conn->connect_error) {
 }
 
 $message = "";
-$shouldClearSearch = false;
+$saveSuccess = false;
 $flashMessage = $_SESSION['cashier_flash'] ?? '';
 $flashType = $_SESSION['cashier_flash_type'] ?? '';
 $clearSearchFlag = isset($_GET['search_cleared']);
@@ -21,19 +21,31 @@ if ($flashMessage !== '') {
 if ($flashType !== '') {
     unset($_SESSION['cashier_flash_type']);
 }
-if ($flashType === 'success') {
-    $clearSearchFlag = true;
-}
+// We keep search results visible after actions; cashiers can clear manually.
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
   $student_id = intval($_POST["student_id"]);
   $amount = floatval($_POST["amount"] ?? 0);
-  $payment_type = $_POST["payment_type"] ?? "Cash";
+  $payment_mode = $_POST["payment_mode"] ?? ($_POST["payment_type"] ?? "Cash");
+  $payment_type = $payment_mode ?: 'Cash';
   $payment_status = $_POST["payment_status"] ?? "paid";
   $payment_date = date("Y-m-d");
+  $or_number = isset($_POST["or_number"]) ? trim($_POST["or_number"]) : null;
+  $reference_number = isset($_POST["reference_number"]) ? trim($_POST["reference_number"]) : null;
+  if ($or_number === '') {
+      $or_number = null;
+  }
+  if ($reference_number === '') {
+      $reference_number = null;
+  }
 
-  if (isset($_POST["or_number"])) {
-      $or_number = $_POST["or_number"];
+  if (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null || $or_number === '')) {
+      $message = "Official receipt number is required for cash payments.";
+  } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null || $reference_number === '')) {
+      $message = "Reference number is required for non-cash payments.";
+  }
+
+  if ($message === "") {
 
       // 🔹 Fetch student details
       $stud = $conn->prepare("SELECT firstname, lastname, student_number, emailaddress FROM students_registration WHERE id = ?");
@@ -80,12 +92,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
 
       if ($pending_payment_id) {
       // ✅ Update the existing pending payment to paid
-      $updPay = $conn->prepare("
-          UPDATE student_payments 
-          SET payment_status = 'paid', or_number = ?, payment_date = ?
-          WHERE id = ?
-      ");
-      $updPay->bind_param("ssi", $or_number, $payment_date, $pending_payment_id);
+      if (strcasecmp($payment_type, 'Cash') === 0) {
+          $updPay = $conn->prepare("
+              UPDATE student_payments 
+              SET payment_type = ?, payment_status = 'paid', or_number = ?, payment_date = ?
+              WHERE id = ?
+          ");
+          $updPay->bind_param("sssi", $payment_type, $or_number, $payment_date, $pending_payment_id);
+      } else {
+          $updPay = $conn->prepare("
+              UPDATE student_payments 
+              SET payment_type = ?, payment_status = 'paid', reference_number = ?, payment_date = ?
+              WHERE id = ?
+          ");
+          $updPay->bind_param("sssi", $payment_type, $reference_number, $payment_date, $pending_payment_id);
+      }
       $updPay->execute();
       $updPay->close();
 
@@ -95,16 +116,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
       $upd->execute();
       $upd->close();
 
-      $message = "Pending onsite payment updated to Paid. Student enrolled.";
-      $shouldClearSearch = true;
+      $message = "Pending payment updated to Paid. Student enrolled.";
+      $saveSuccess = true;
       } else {
       // ❌ No pending → insert new payment (normal flow)
       $ins = $conn->prepare("
           INSERT INTO student_payments
-              (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, created_at)
-          VALUES (?,?,?, 'Cash', ?, 'paid', ?, ?, NOW())
+              (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+          VALUES (?,?,?,?,?, 'paid', ?, ?, ?, NOW())
       ");
-      $ins->bind_param("issdss", $student_id, $firstname, $lastname, $amount, $payment_date, $or_number);
+      $ins->bind_param("isssdsss", $student_id, $firstname, $lastname, $payment_type, $amount, $payment_date, $or_number, $reference_number);
 
       if ($ins->execute()) {
           // Enroll student
@@ -123,25 +144,28 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST["student_id"])) {
           }
           exec("$cmd > /dev/null 2>&1 &");
 
-          $message = "Cash payment recorded successfully. Student enrolled.";
-          $shouldClearSearch = true;
+          $message = ucfirst($payment_type) . " payment recorded successfully. Student enrolled.";
+          $saveSuccess = true;
       } else {
           $message = "Error: " . $conn->error;
       }
       $ins->close();
       }
-    } else {
-        $message = "Official receipt number is required.";
     }
-    if ($message !== '') {
-        $_SESSION['cashier_flash'] = $message;
-        $_SESSION['cashier_flash_type'] = $shouldClearSearch ? 'success' : 'error';
-    }
-    $redirectUrl = 'cashier_dashboard.php';
-    if ($shouldClearSearch) {
-        $redirectUrl .= '?search_cleared=1';
-    }
-    header("Location: $redirectUrl", true, 303);
+  if ($message !== '') {
+      $_SESSION['cashier_flash'] = $message;
+      $_SESSION['cashier_flash_type'] = $saveSuccess ? 'success' : 'error';
+  }
+
+  $redirectUrl = 'cashier_dashboard.php';
+  $lastSearch = trim($_POST['search_name'] ?? '');
+  if ($lastSearch !== '') {
+      $redirectUrl .= '?search_name=' . urlencode($lastSearch) . '#record';
+  } else {
+      $redirectUrl .= '#record';
+  }
+
+  header("Location: $redirectUrl", true, 303);
     exit();
   }
 
@@ -199,7 +223,7 @@ if ($clearSearchFlag) {
 
 if ($searchQuery !== '') {
     $search_name_like = "%" . $conn->real_escape_string($searchQuery) . "%";
-    $stmt = $conn->prepare("SELECT id, student_number, firstname, lastname, year FROM students_registration WHERE lastname LIKE ? ORDER BY lastname");
+    $stmt = $conn->prepare("SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE lastname LIKE ? ORDER BY lastname");
     $stmt->bind_param("s", $search_name_like);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -207,6 +231,227 @@ if ($searchQuery !== '') {
         $search_results[] = $row;
     }
     $stmt->close();
+}
+
+if (!function_exists('cashier_previous_grade_label')) {
+    function cashier_previous_grade_label($current)
+    {
+        static $map = [
+            'Kinder 1' => 'Preschool',
+            'Kinder 2' => 'Kinder 1',
+            'Grade 1'  => 'Kinder 2',
+            'Grade 2'  => 'Grade 1',
+            'Grade 3'  => 'Grade 2',
+            'Grade 4'  => 'Grade 3',
+            'Grade 5'  => 'Grade 4',
+            'Grade 6'  => 'Grade 5',
+            'Grade 7'  => 'Grade 6',
+            'Grade 8'  => 'Grade 7',
+            'Grade 9'  => 'Grade 8',
+            'Grade 10' => 'Grade 9',
+            'Grade 11' => 'Grade 10',
+            'Grade 12' => 'Grade 11',
+        ];
+        return $map[$current] ?? null;
+    }
+}
+
+if (!function_exists('cashier_normalize_grade_key')) {
+    function cashier_normalize_grade_key($label)
+    {
+        return strtolower(str_replace([' ', '-', '_'], '', $label));
+    }
+}
+
+if (!function_exists('cashier_fetch_fee')) {
+    function cashier_fetch_fee(mysqli $conn, $normalizedGrade, array $typeCandidates)
+    {
+        $sql = "SELECT * FROM tuition_fees WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? AND LOWER(student_type) = ? ORDER BY school_year DESC LIMIT 1";
+        foreach ($typeCandidates as $candidateType) {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('ss', $normalizedGrade, $candidateType);
+            $stmt->execute();
+            $fee = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($fee) {
+                return $fee;
+            }
+        }
+        return null;
+    }
+}
+
+if (!function_exists('cashier_generate_schedule')) {
+    function cashier_generate_schedule($fee, $plan, $start_date = '2025-06-01')
+    {
+        $schedule = [];
+        $date = new DateTime($start_date);
+
+        $entrance = (float) $fee['entrance_fee'];
+        $misc = (float) $fee['miscellaneous_fee'];
+        $tuition = (float) $fee['tuition_fee'];
+        $annual = $entrance + $misc + $tuition;
+
+        switch (strtolower($plan)) {
+            case 'annually':
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $annual];
+                break;
+            case 'cash':
+                $discountedEntrance = $entrance * 0.9;
+                $totalCash = $discountedEntrance + $misc + $tuition;
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $totalCash];
+                break;
+            case 'semi-annually':
+                $upon = $entrance + $misc + ($tuition / 2);
+                $next = $tuition / 2;
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
+                $date->modify('+6 months');
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $next];
+                break;
+            case 'quarterly':
+                $upon = $entrance + ($misc / 4) + ($tuition / 4);
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
+                for ($i = 1; $i <= 3; $i++) {
+                    $date->modify('+3 months');
+                    $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => ($misc / 4) + ($tuition / 4)];
+                }
+                break;
+            case 'monthly':
+                $upon = $entrance + ($misc / 12) + ($tuition / 12);
+                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
+                for ($i = 1; $i <= 11; $i++) {
+                    $date->modify('+1 month');
+                    $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => ($misc / 12) + ($tuition / 12)];
+                }
+                break;
+        }
+
+        return $schedule;
+    }
+}
+
+$search_financial = [];
+if (!empty($search_results)) {
+    foreach ($search_results as $result) {
+        $studentId = (int) $result['id'];
+        $gradeLevel = $result['year'];
+        $studentType = strtolower($result['student_type'] ?? 'new');
+        $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
+        $typeCandidates = array_values(array_unique([$studentType, 'new', 'old']));
+
+        $fee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates);
+
+        $previous_label = cashier_previous_grade_label($gradeLevel);
+        $previous_fee = null;
+        if ($previous_label) {
+            $normalizedPrev = cashier_normalize_grade_key($previous_label);
+            $previous_fee = cashier_fetch_fee($conn, $normalizedPrev, $typeCandidates);
+        }
+
+        $payments_stmt = $conn->prepare("SELECT payment_type, amount, payment_status, payment_date, reference_number, or_number FROM student_payments WHERE student_id = ? ORDER BY created_at DESC");
+        $payments_stmt->bind_param('i', $studentId);
+        $payments_stmt->execute();
+        $payments_res = $payments_stmt->get_result();
+        $paid = [];
+        $pending = [];
+        while ($row = $payments_res->fetch_assoc()) {
+            if (strtolower($row['payment_status']) === 'paid') {
+                $paid[] = $row;
+            } else {
+                $pending[] = $row;
+            }
+        }
+        $payments_stmt->close();
+
+        $previous_grade_total = 0.0;
+        if ($previous_fee) {
+            $previous_grade_total = (float) $previous_fee['entrance_fee'] + (float) $previous_fee['miscellaneous_fee'] + (float) $previous_fee['tuition_fee'];
+        }
+
+        $total_paid = array_sum(array_map('floatval', array_column($paid, 'amount')));
+
+        $previous_paid_applied = 0.0;
+        $previous_outstanding = 0.0;
+        if ($previous_fee) {
+            $previous_paid_applied = min($total_paid, $previous_grade_total);
+            $previous_outstanding = max($previous_grade_total - $total_paid, 0.0);
+        }
+
+        $current_paid_amount = max($total_paid - $previous_paid_applied, 0.0);
+
+        $schedule_rows = [];
+        $next_due_row = null;
+        $remaining_balance = $previous_outstanding;
+        $current_year_total = 0.0;
+
+        if ($fee) {
+            $current_year_total = (float) $fee['entrance_fee'] + (float) $fee['miscellaneous_fee'] + (float) $fee['tuition_fee'];
+            $schedule = cashier_generate_schedule($fee, 'quarterly');
+            $remaining = $current_paid_amount;
+            $first_unpaid_index = null;
+
+            foreach ($schedule as $idx => $due) {
+                $due_amount = (float) $due['Amount'];
+                if ($remaining > 0) {
+                    $deduct = min($remaining, $due_amount);
+                    $due_amount -= $deduct;
+                    $remaining -= $deduct;
+                }
+                if ($due_amount <= 0) {
+                    continue;
+                }
+                if ($first_unpaid_index === null) {
+                    $first_unpaid_index = $idx;
+                }
+                $schedule_rows[] = [
+                    'due_date' => $due['Due Date'],
+                    'amount' => $due_amount,
+                    'is_next' => false,
+                ];
+                $remaining_balance += $due_amount;
+            }
+
+            if ($first_unpaid_index !== null) {
+                $schedule_rows = array_values($schedule_rows);
+                if (!empty($schedule_rows)) {
+                    $schedule_rows[0]['is_next'] = true;
+                    $next_due_row = $schedule_rows[0];
+                }
+            }
+        }
+
+        $pending_total = array_sum(array_map('floatval', array_column($pending, 'amount')));
+
+        $pending_display = [];
+        foreach ($pending as $entry) {
+            $entry['payment_type_display'] = $entry['payment_type'] ?? 'Pending';
+            $pending_display[] = $entry;
+        }
+        if ($previous_label && $previous_outstanding > 0 && empty($pending_display)) {
+            $pending_display[] = [
+                'payment_type_display' => 'Past Due for ' . $previous_label,
+                'amount' => $previous_outstanding,
+                'payment_status' => 'Past Due',
+                'payment_date' => 'Previous School Year',
+                'reference_number' => null,
+                'or_number' => null,
+                'is_placeholder' => true,
+            ];
+        }
+
+        $search_financial[$studentId] = [
+            'remaining_balance' => $remaining_balance,
+            'total_paid' => $total_paid,
+            'pending_total' => $pending_total,
+            'previous_outstanding' => $previous_outstanding,
+            'previous_grade_label' => $previous_label,
+            'schedule_rows' => $schedule_rows,
+            'pending_rows' => $pending_display,
+            'next_due_row' => $next_due_row,
+            'current_year_total' => $current_year_total,
+            'has_previous_outstanding' => $previous_outstanding > 0,
+        ];
+    }
 }
 
 // 📌 Filters
@@ -428,6 +673,152 @@ $payments = $conn->query("
 
     .paid { color: #27ae60; font-weight: bold; }
     .pending { color: #e74c3c; font-weight: bold; }
+
+    .search-result-card h4 {
+      margin-top: 24px;
+      margin-bottom: 10px;
+      color: #0f4f24;
+    }
+
+    .search-result-card {
+      list-style: none;
+    }
+
+    .search-result-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(20, 90, 50, 0.12);
+      color: #145A32;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .summary-tile-sm {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(20, 90, 50, 0.12);
+      border-radius: 12px;
+      padding: 12px 16px;
+      min-width: 160px;
+      box-shadow: 0 6px 18px rgba(12, 68, 49, 0.09);
+    }
+
+    .summary-tile-sm .label {
+      display: block;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      color: #5d6d6f;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+
+    .summary-tile-sm strong {
+      font-size: 1.1rem;
+      color: #145A32;
+    }
+
+    .search-subsection {
+      margin-top: 22px;
+    }
+
+    .search-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      border: 1px solid #ced6d1;
+      background: #ffffff;
+    }
+
+    .search-table th,
+    .search-table td {
+      padding: 10px 12px;
+      border: 1px solid #d4ddd8;
+    }
+
+    .search-table th {
+      background: #145A32;
+      color: #ffffff;
+      text-align: left;
+      font-weight: 600;
+    }
+
+    .search-table .text-end {
+      text-align: right;
+    }
+
+    .next-due {
+      background: rgba(251, 216, 10, 0.22);
+      font-weight: 600;
+    }
+
+    .row-outstanding {
+      background: rgba(231, 76, 60, 0.12);
+    }
+
+    .search-subsection small {
+      color: #5d6d6f;
+    }
+
+    .form-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .form-grid > div {
+      flex: 1 1 220px;
+    }
+
+    .payment-fields-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .payment-fields-group .cash-field,
+    .payment-fields-group .gcash-field {
+      flex: 1 1 220px;
+    }
+
+    .payment-fields-group label {
+      margin-top: 0;
+    }
+
+    .record-btn {
+      margin-top: 18px;
+      background: linear-gradient(135deg, #145A32, #0d3b22);
+      color: #fff;
+      padding: 10px 22px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .record-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(12, 68, 49, 0.18);
+    }
+
+    .cashier-payment-entry select,
+    .cashier-payment-entry input {
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    .search-alert strong {
+      color: #784700;
+    }
+
+    .search-result-card small {
+      color: #6f7a76;
+    }
   </style>
 </head>
 <body>
@@ -465,74 +856,133 @@ $payments = $conn->query("
         <h3>Search Results</h3>
         <ul>
             <?php foreach ($search_results as $s): ?>
-                <li style="margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:6px;">
-                    <strong>[<?= $s['student_number'] ?>]</strong> <?= $s['lastname'] ?>, <?= $s['firstname'] ?> (<?= $s['year'] ?>)
+                <?php $snapshot = $search_financial[$s['id']] ?? null; ?>
+                <li class="search-result-card" style="margin-bottom:20px; padding:20px; border:1px solid #cdd5d2; border-radius:12px; background:#fdfefd;">
+                    <div class="search-result-header" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:12px;">
+                        <div>
+                            <span class="search-result-pill">Portal Account</span>
+                            <h3 style="margin:8px 0 4px;">
+                                <?= htmlspecialchars($s['lastname']) ?>, <?= htmlspecialchars($s['firstname']) ?>
+                                <small style="color:#5d6d6f; font-weight:500;">[<?= $s['student_number'] ?: 'No Student # yet' ?>]</small>
+                            </h3>
+                            <p style="margin:0; color:#4f5d57;">Grade <?= htmlspecialchars($s['year']) ?> <?= $s['section'] ? '• Section ' . htmlspecialchars($s['section']) : '' ?> <?= $s['student_type'] ? '• ' . ucfirst($s['student_type']) . ' student' : '' ?></p>
+                            <p style="margin:4px 0 0; color:#8aa19a; font-size:0.9rem;">Enrollment status: <strong><?= htmlspecialchars(ucfirst($s['enrollment_status'] ?? 'pending')) ?></strong></p>
+                        </div>
+                        <?php if ($snapshot): ?>
+                            <div class="search-summary-tiles" style="display:flex; flex-wrap:wrap; gap:12px;">
+                                <div class="summary-tile-sm">
+                                    <span class="label">Remaining Balance</span>
+                                    <strong>₱<?= number_format($snapshot['remaining_balance'], 2) ?></strong>
+                                </div>
+                                <div class="summary-tile-sm">
+                                    <span class="label">Total Paid</span>
+                                    <strong>₱<?= number_format($snapshot['total_paid'], 2) ?></strong>
+                                </div>
+                                <div class="summary-tile-sm">
+                                    <span class="label">Pending Review</span>
+                                    <strong>₱<?= number_format($snapshot['pending_total'], 2) ?></strong>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    </div>
 
-                    <?php
-                    $pending = $conn->prepare("
-                        SELECT id, amount, created_at 
-                        FROM student_payments 
-                        WHERE student_id = ? AND payment_status = 'pending'
-                        ORDER BY created_at DESC LIMIT 1
-                    ");
-                    $pending->bind_param("i", $s['id']);
-                    $pending->execute();
-                    $pendingResult = $pending->get_result();
-                    if ($pendingRow = $pendingResult->fetch_assoc()):
-                    ?>
-    <h4>Pending Enrollment Payment</h4>
-    <table style="width:100%; border-collapse: collapse; margin-top:10px; border:1px solid #ccc;">
-        <thead>
-            <tr style="background:#fff3cd;">
-                <th style="padding:8px; border:1px solid #ccc;">Date</th>
-                <th style="padding:8px; border:1px solid #ccc;">Amount</th>
-                <th style="padding:8px; border:1px solid #ccc;">Status</th>
-                <th style="padding:8px; border:1px solid #ccc;">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td style="padding:8px; border:1px solid #ccc;"><?= $pendingRow['created_at'] ?></td>
-                <td style="padding:8px; border:1px solid #ccc;">₱ <?= number_format($pendingRow['amount'], 2) ?></td>
-                <td style="padding:8px; border:1px solid #ccc; color:orange; font-weight:bold;">Pending</td>
-                <td style="padding:8px; border:1px solid #ccc;">
-                    <form method="POST" action="cashier_dashboard.php" style="display:flex; gap:5px; align-items:center;" class="pending-payment-form">
-                        <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                        <input type="hidden" name="amount" value="<?= $pendingRow['amount'] ?>">
-                        <input type="hidden" name="payment_type" value="Cash">
-                        <input type="hidden" name="payment_status" value="paid">
+                    <?php if ($snapshot && $snapshot['has_previous_outstanding']): ?>
+                        <div class="search-alert" style="margin:18px 0; padding:12px 16px; border-left:4px solid #e59819; background:rgba(251,216,10,0.16); color:#8a6d0a; border-radius:10px;">
+                            Outstanding balance from <?= htmlspecialchars($snapshot['previous_grade_label']); ?>: <strong>₱<?= number_format($snapshot['previous_outstanding'], 2) ?></strong>
+                        </div>
+                    <?php endif; ?>
 
-                        <input type="text" name="or_number" placeholder="OR #" required 
-                               style="flex:1; padding:5px; border:1px solid #ccc; border-radius:4px;">
+                    <?php if ($snapshot && !empty($snapshot['schedule_rows'])): ?>
+                        <div class="search-subsection">
+                            <h4>Upcoming Tuition Schedule</h4>
+                            <table class="search-table">
+                                <thead>
+                                    <tr>
+                                        <th>Due Date</th>
+                                        <th class="text-end">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($snapshot['schedule_rows'] as $row): ?>
+                                        <tr class="<?= !empty($row['is_next']) ? 'next-due' : '' ?>">
+                                            <td><?= htmlspecialchars($row['due_date']) ?></td>
+                                            <td class="text-end">₱<?= number_format($row['amount'], 2) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php elseif ($snapshot && $snapshot['current_year_total'] > 0): ?>
+                        <p style="margin:16px 0 0; color:#5d6d6f;">All dues for this plan are already covered.</p>
+                    <?php else: ?>
+                        <p style="margin:16px 0 0; color:#5d6d6f;">Tuition fee setup not found for this student yet.</p>
+                    <?php endif; ?>
 
-                        <button type="submit" 
-                                style="background:green; color:white; border:none; padding:6px 12px; border-radius:6px; cursor:pointer;">
-                            ✅ Mark as Paid
-                        </button>
-                    </form>
-                </td>
-            </tr>
-        </tbody>
-    </table>
+                    <?php if ($snapshot && !empty($snapshot['pending_rows'])): ?>
+                        <div class="search-subsection">
+                            <h4>Pending Payments</h4>
+                            <table class="search-table">
+                                <thead>
+                                    <tr>
+                                        <th>Payment Type</th>
+                                        <th class="text-end">Amount</th>
+                                        <th>Status</th>
+                                        <th>Submitted</th>
+                                        <th>Reference</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($snapshot['pending_rows'] as $pending_row): ?>
+                                        <tr class="<?= !empty($pending_row['is_placeholder']) ? 'row-outstanding' : '' ?>">
+                                            <td><?= htmlspecialchars($pending_row['payment_type_display'] ?? ($pending_row['payment_type'] ?? 'Pending')) ?></td>
+                                            <td class="text-end">₱<?= number_format((float) ($pending_row['amount'] ?? 0), 2) ?></td>
+                                            <td><?= htmlspecialchars($pending_row['payment_status'] ?? 'Pending') ?></td>
+                                            <td><?= htmlspecialchars($pending_row['payment_date'] ?? 'Awaiting review') ?></td>
+                                            <td><?= htmlspecialchars($pending_row['reference_number'] ?? $pending_row['or_number'] ?? 'N/A') ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php endif; ?>
 
-                    <?php endif; $pending->close(); ?>
-
-                    <div style="margin-top:15px;">
-                        <form class="cash-payment-form" method="POST" action="cashier_dashboard.php">
+                    <div class="search-subsection">
+                        <h4>Record Payment</h4>
+                        <form class="cash-payment-form cashier-payment-entry" method="POST" action="cashier_dashboard.php" data-student="<?= $s['id'] ?>">
                             <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                            <input type="hidden" name="firstname" value="<?= $s['firstname'] ?>">
-                            <input type="hidden" name="lastname" value="<?= $s['lastname'] ?>">
-
-                            <label for="amount">New Payment Amount (₱)</label>
-                            <input type="number" name="amount" step="0.01" required>
-
-                            <label for="or_number">Official Receipt #</label>
-                            <input type="text" name="or_number" required>
-
-                            <input type="hidden" name="payment_type" value="Cash">
+                            <input type="hidden" name="firstname" value="<?= htmlspecialchars($s['firstname']) ?>">
+                            <input type="hidden" name="lastname" value="<?= htmlspecialchars($s['lastname']) ?>">
                             <input type="hidden" name="payment_status" value="paid">
+                            <input type="hidden" name="search_name" value="<?= htmlspecialchars($searchQuery) ?>">
 
-                            <button type="submit">💵 Record Cash Payment</button>
+                            <div class="form-grid">
+                                <div>
+                                    <label>Payment Method</label>
+                                    <select name="payment_mode" class="payment-mode" data-target="modal-fields-<?= $s['id'] ?>">
+                                        <option value="Cash">Cash</option>
+                                        <option value="GCash">GCash</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Amount (₱)</label>
+                                    <input type="number" name="amount" step="0.01" min="0" required value="<?= $snapshot && $snapshot['next_due_row'] ? number_format($snapshot['next_due_row']['amount'], 2, '.', '') : '' ?>">
+                                    <?php if ($snapshot && $snapshot['next_due_row']): ?>
+                                        <small style="display:block; color:#5d6d6f;">Next due on <?= htmlspecialchars($snapshot['next_due_row']['due_date']) ?> for ₱<?= number_format($snapshot['next_due_row']['amount'], 2) ?></small>
+                                    <?php endif; ?>
+                                </div>
+                                <div id="modal-fields-<?= $s['id'] ?>" class="payment-fields-group">
+                                    <div class="cash-field">
+                                        <label>Official Receipt #</label>
+                                        <input type="text" name="or_number" placeholder="Enter OR number" required>
+                                    </div>
+                                    <div class="gcash-field" style="display:none;">
+                                        <label>GCash Reference #</label>
+                                        <input type="text" name="reference_number" placeholder="Enter reference #">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="record-btn">Record Payment</button>
                         </form>
                     </div>
                 </li>
@@ -818,7 +1268,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const closeModal = document.getElementById("closeModal");
   const acceptBtn = document.getElementById("acceptPaymentBtn");
   const declineBtn = document.getElementById("declinePaymentBtn");
-  const cashForm = document.getElementById("cashPaymentForm");
   const screenshotSection = document.getElementById("screenshotSection");
   const modalScreenshot = document.getElementById("modalScreenshot");
   let currentType = "";
@@ -826,19 +1275,34 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const searchContainer = document.getElementById('search-results-container');
   const searchInput = document.querySelector('input[name="search_name"]');
-  const clearSearchUI = () => {
-    if (searchContainer) {
-      searchContainer.innerHTML = '';
+  document.querySelectorAll('.payment-mode').forEach(select => {
+    const containerId = select.dataset.target;
+    const fieldsContainer = containerId ? document.getElementById(containerId) : null;
+    if (!fieldsContainer) {
+      return;
     }
-    if (searchInput) {
-      searchInput.value = '';
-    }
-  };
+    const cashField = fieldsContainer.querySelector('.cash-field');
+    const gcashField = fieldsContainer.querySelector('.gcash-field');
+    const orInput = fieldsContainer.querySelector('input[name="or_number"]');
+    const refInput = fieldsContainer.querySelector('input[name="reference_number"]');
 
-  document.querySelectorAll('.cash-payment-form, .pending-payment-form').forEach(form => {
-    form.addEventListener('submit', () => {
-      clearSearchUI();
-    });
+    const syncFields = () => {
+      const mode = select.value;
+      if (mode === 'Cash') {
+        if (cashField) cashField.style.display = 'block';
+        if (gcashField) gcashField.style.display = 'none';
+        if (orInput) orInput.required = true;
+        if (refInput) refInput.required = false;
+      } else {
+        if (cashField) cashField.style.display = 'none';
+        if (gcashField) gcashField.style.display = 'block';
+        if (orInput) orInput.required = false;
+        if (refInput) refInput.required = true;
+      }
+    };
+
+    select.addEventListener('change', syncFields);
+    syncFields();
   });
 
   function setProcessingState(isProcessing, action) {
@@ -1039,48 +1503,6 @@ function calculatePayment() {
   display.value = result.toFixed(2);
 }
 </script>
-<script>
-// 🔹 AJAX handler for cash payments
-document.querySelectorAll(".cash-payment-form").forEach(form => {
-  form.addEventListener("submit", async e => {
-    e.preventDefault();
-    const formData = new FormData(form);
-
-    const res = await fetch("cashier_dashboard.php", { method: "POST", body: formData });
-    const text = await res.text();
-
-    // Try parse JSON, fallback to reload
-    try {
-      const data = JSON.parse(text);
-      if (data.success) {
-        alert("✅ Payment recorded successfully.");
-
-        // Append new row in Payment Records instantly
-        const table = document.querySelector("#paymentTable tbody");
-        table.insertAdjacentHTML("afterbegin", `
-          <tr>
-            <td>${new Date().toISOString().split('T')[0]}</td>
-            <td>${formData.get("lastname")}, ${formData.get("firstname")}</td>
-            <td>Cash</td>
-            <td>₱ ${parseFloat(formData.get("amount")).toFixed(2)}</td>
-            <td><span style="color:green;">Paid</span></td>
-            <td>Just Now</td>
-          </tr>
-        `);
-
-        form.reset();
-      }
-    } catch {
-      // fallback reload if response is not JSON
-      location.reload();
-    }
-  });
-});
-</script>
-
-
-
-
           <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         
 
