@@ -1043,11 +1043,11 @@ $has_multiple_views = count($finance_views) > 1;
         }
 
         // Auto logout if student navigates away or closes tab (disabled intentionally)
-        // window.addEventListener('blur', function () {
-        //     fetch('Portal/logout.php')
-        //         .then(function () {
-        //             window.location.href = 'Portal/student_login.php';
-        //         });
+        window.addEventListener('blur', function () {
+             fetch('Portal/logout.php')
+                 .then(function () {
+                     window.location.href = 'Portal/student_login.php';
+                 });
         // });
     });
 </script>
