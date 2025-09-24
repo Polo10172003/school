@@ -19,24 +19,27 @@ if (!isset($_SESSION['student_number'])) {
     header("Location: student_login.php");
     exit();
 }
-include '../includes/header.php';
-
 
 $student_number = $_SESSION['student_number'];
 
-$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender
+$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender, emailaddress
         FROM students_registration 
         WHERE student_number = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $student_number);
 $stmt->execute();
-$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender);
+$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender, $student_email_portal);
 $stmt->fetch();
 $stmt->close();
 
 if (!$student_id) {
     die("Student account not found in students_registration.");
 }
+
+$portal_student_name = trim($firstname . ' ' . $lastname);
+$header_variant = 'student_portal';
+
+include '../includes/header.php';
 // Fetch tuition fee setup from admin
 $normalized_year = strtolower(str_replace(' ', '', $year));
 
@@ -628,12 +631,97 @@ unset($row);
 </main>
 
 <script>
-    // Auto logout if student navigates away or closes tab
-    window.addEventListener('blur', function () {
-        fetch('Portal/logout.php')
-            .then(function () {
-                window.location.href = 'Portal/student_login.php';
+    document.addEventListener('DOMContentLoaded', function () {
+        const changePasswordBtn = document.getElementById('portalChangePassword');
+        const inboxToggle = document.getElementById('studentInboxToggle');
+        const inboxMenu = document.getElementById('studentInboxMenu');
+        const inboxCountEl = document.getElementById('studentInboxCount');
+        let inboxLoaded = false;
+
+        if (changePasswordBtn) {
+            changePasswordBtn.addEventListener('click', async function () {
+                const originalText = changePasswordBtn.textContent;
+                changePasswordBtn.disabled = true;
+                changePasswordBtn.textContent = 'Sending…';
+                try {
+                    const response = await fetch('Portal/request_password_reset.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: '{}'
+                    });
+                    const data = await response.json();
+                    if (data && data.success) {
+                        alert('A confirmation email has been sent. Please check your inbox within the next 2 minutes.');
+                    } else {
+                        alert(data && data.error ? data.error : 'Unable to send reset email right now.');
+                    }
+                } catch (error) {
+                    console.error(error);
+                    alert('Something went wrong while sending the reset email.');
+                } finally {
+                    changePasswordBtn.disabled = false;
+                    changePasswordBtn.textContent = originalText;
+                }
             });
+        }
+
+        async function loadInbox() {
+            if (inboxLoaded) {
+                return;
+            }
+            try {
+                const response = await fetch('Portal/fetch_inbox.php');
+                const data = await response.json();
+                if (!data || !data.success) {
+                    throw new Error(data && data.error ? data.error : 'Unable to load announcements');
+                }
+
+                const items = data.items || [];
+                inboxMenu.querySelectorAll('[data-empty-state]').forEach(el => el.remove());
+                if (items.length === 0) {
+                    const emptyState = document.createElement('div');
+                    emptyState.className = 'dropdown-item-text text-muted small';
+                    emptyState.setAttribute('data-empty-state', '');
+                    emptyState.textContent = "You're all caught up.";
+                    inboxMenu.appendChild(emptyState);
+                } else {
+                    items.forEach(item => {
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'dropdown-item-text';
+                        wrapper.innerHTML = `<div class="fw-semibold">${item.subject}</div>
+                            <div class="small text-muted">${item.sent_at}</div>
+                            <div class="small" style="white-space: normal;">${item.body}</div>`;
+                        inboxMenu.appendChild(wrapper);
+                    });
+                }
+
+                if (items.length > 0 && inboxCountEl) {
+                    inboxCountEl.textContent = items.length;
+                    inboxCountEl.style.display = 'inline-block';
+                }
+
+                inboxLoaded = true;
+            } catch (error) {
+                console.error(error);
+                alert(error.message || 'Cannot load announcements right now.');
+            }
+        }
+
+        if (inboxToggle) {
+            inboxToggle.addEventListener('click', function () {
+                loadInbox();
+            });
+        }
+
+        // Auto logout if student navigates away or closes tab
+        window.addEventListener('blur', function () {
+            fetch('Portal/logout.php')
+                .then(function () {
+                    window.location.href = 'Portal/student_login.php';
+                });
+        });
     });
 </script>
 

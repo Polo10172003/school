@@ -82,14 +82,35 @@
       border-color: #145A32;
       box-shadow: 0 4px 8px rgba(20, 90, 50, 0.3);
     }
+
+    .badge-rounded {
+      border-radius: 999px;
+      font-size: 0.65rem;
+      padding: 0.2rem 0.45rem;
+    }
+
+    .inbox-menu {
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    .inbox-menu .dropdown-item-text + .dropdown-item-text {
+      border-top: 1px solid rgba(0,0,0,0.05);
+      margin-top: 6px;
+      padding-top: 6px;
+    }
   </style>
 </head>
 
 <body>
   <!-- Navbar -->
+  <?php
+    $is_portal_header = isset($header_variant) && $header_variant === 'student_portal';
+    $portal_display_name = $is_portal_header ? ($portal_student_name ?? 'My Account') : '';
+  ?>
   <nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #145A32;">
     <div class="container-fluid">
-      <a class="navbar-brand d-flex fw-bold align-items-center" href="#home">
+      <a class="navbar-brand d-flex fw-bold align-items-center" href="<?= $is_portal_header ? 'Portal/student_portal.php' : '#home'; ?>">
         <img src="Esrlogo.png" width="40" height="40" class="me-2">
         ESCUELA DE STO. ROSARIO
       </a>
@@ -97,16 +118,37 @@
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item"><a class="nav-link fw-bold active" href="#home">Home</a></li>
-          <li class="nav-item"><a class="nav-link fw-bold" href="#aboutus">About Us</a></li>
-          <li class="nav-item"><a class="nav-link fw-bold" href="tuition_fees.php">Tuition Fees</a></li>
-          <?php if (isset($_SESSION['student_email'])): ?>
-              <!-- If logged in → show Logout -->
-              <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/logout.php">Logout</a></li>
+        <ul class="navbar-nav ms-auto align-items-lg-center">
+          <?php if ($is_portal_header): ?>
+            <li class="nav-item dropdown me-2">
+              <a class="nav-link position-relative" href="#" id="studentInboxToggle" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-inbox"></i>
+                <span class="badge bg-warning text-dark position-absolute top-0 start-100 translate-middle badge-rounded" id="studentInboxCount" style="display:none;">0</span>
+              </a>
+              <div class="dropdown-menu dropdown-menu-end inbox-menu" aria-labelledby="studentInboxToggle" id="studentInboxMenu" style="min-width:320px; max-width:360px;">
+                <span class="dropdown-header">Announcements</span>
+                <div class="dropdown-item-text text-muted small" data-empty-state>You're all caught up.</div>
+              </div>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle fw-bold" href="#" id="studentAccountDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-person-circle me-2"></i><?= htmlspecialchars($portal_display_name); ?>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="studentAccountDropdown">
+                <li><button class="dropdown-item" type="button" id="portalChangePassword"><i class="bi bi-key me-2"></i>Change Password</button></li>
+                <li><button class="dropdown-item disabled" type="button"><i class="bi bi-pencil-square me-2"></i>Edit Profile (Coming Soon)</button></li>
+              </ul>
+            </li>
+            <li class="nav-item ms-lg-3"><a class="nav-link portal-btn fw-bold" href="Portal/logout.php">Logout</a></li>
           <?php else: ?>
-              <!-- If not logged in → show Portal -->
-              <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
+            <li class="nav-item"><a class="nav-link fw-bold active" href="#home">Home</a></li>
+            <li class="nav-item"><a class="nav-link fw-bold" href="#aboutus">About Us</a></li>
+            <li class="nav-item"><a class="nav-link fw-bold" href="tuition_fees.php">Tuition Fees</a></li>
+            <?php if (isset($_SESSION['student_email'])): ?>
+                <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/logout.php">Logout</a></li>
+            <?php else: ?>
+                <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
+            <?php endif; ?>
           <?php endif; ?>
         </ul>
       </div>

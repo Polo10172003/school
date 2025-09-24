@@ -1,12 +1,8 @@
 <?php
-require '../vendor/autoload.php';
-require '../db_connection.php';
+require __DIR__ . '/../vendor/autoload.php';
+include __DIR__ . '/../db_connection.php';
 include '../includes/header.php';
-date_default_timezone_set('Asia/Manila'); // Or your actual timezone
-
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+date_default_timezone_set('Asia/Manila');
 $msg = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -19,44 +15,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $stmt->get_result();
 
     if ($result->num_rows > 0) {
-        $token = bin2hex(random_bytes(50)); // generate secure token
-        $expiry = date("Y-m-d H:i:s", strtotime("+2 minutes"));
+        $token = bin2hex(random_bytes(32));
+        $expiry = date('Y-m-d H:i:s', time() + 120); // 2 minutes from now
 
-        // Store token in forgot_password table
         $insert = $conn->prepare("UPDATE student_accounts SET reset_token = ?, token_expiry = ? WHERE email = ?");
-        $insert->bind_param("sss", $token, $expiry, $email);
+        $insert->bind_param('sss', $token, $expiry, $email);
         $insert->execute();
+        $insert->close();
 
-        // Send reset email using PHPMailer
-        $mail = new PHPMailer(true);
-        try {
-            // SMTP settings
-            $mail->isSMTP();
-            $mail->Host = 'smtp.gmail.com';  // Your SMTP server
-            $mail->SMTPAuth = true;
-            $mail->Username = 'deadpoolvictorio@gmail.com'; // Your Gmail
-            $mail->Password = 'ldcmeapjfuonxypu';
-            $mail->SMTPSecure = 'tls';
-            $mail->Port = 587;
+        $phpPath = '/Applications/XAMPP/bin/php';
+        $worker = __DIR__ . '/forgot_password_worker.php';
+        $cmd = escapeshellcmd($phpPath) . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($email) . ' ' . escapeshellarg($token);
+        exec($cmd . ' > /dev/null 2>&1 &');
 
-            // Email content
-            $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
-            $mail->addAddress($email);
-            $mail->isHTML(true);
-            $mail->Subject = 'Password Reset Request';
-            $resetLink = "http://localhost/Enrollment/set_student_password.php?token=$token";
-            $mail->Body = "
-                <h3>Password Reset</h3>
-                <p>Click the link below to reset your password:</p>
-                <a href='$resetLink'>Reset Password</a><br><br>
-                <small>This link will expire in 2 mins.</small>
-            ";
-
-            $mail->send();
-            $msg = "A password reset link has been sent to your email.";
-        } catch (Exception $e) {
-            $msg = "Failed to send email. Error: {$mail->ErrorInfo}";
-        }
+        $msg = "If the email exists in our records, a reset link has been sent. It expires in 2 minutes.";
     } else {
         $msg = "Email not registered.";
     }

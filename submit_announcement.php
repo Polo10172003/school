@@ -1,8 +1,4 @@
 <?php
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-
-require 'vendor/autoload.php';
 include('db_connection.php');
 
 $subject = $_POST['subject'] ?? '';
@@ -13,48 +9,33 @@ if (empty($grades)) {
     die("No grades selected.");
 }
 
-$mail = new PHPMailer(true);
+$conn->query("CREATE TABLE IF NOT EXISTS student_announcements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    target_scope TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-try {
-    // SMTP settings
-    $mail->isSMTP();
-    $mail->Host       = 'smtp.gmail.com';
-    $mail->SMTPAuth   = true;
-    $mail->Username   = 'deadpoolvictorio@gmail.com';
-    $mail->Password   = 'ldcmeapjfuonxypu';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
+$normalizedScope = in_array('everyone', $grades, true)
+    ? 'everyone'
+    : implode(',', array_map('trim', $grades));
 
-    $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
-    $mail->isHTML(true);
-    $mail->Subject = $subject;
-    $mail->Body = "<p>$message</p>";
+$storeAnnouncement = $conn->prepare('INSERT INTO student_announcements (subject, body, target_scope) VALUES (?, ?, ?)');
+$storeAnnouncement->bind_param('sss', $subject, $message, $normalizedScope);
+$storeAnnouncement->execute();
+$storeAnnouncement->close();
 
-    $allEmails = [];
+$php_path = '/Applications/XAMPP/bin/php';
+$worker = __DIR__ . '/Portal/announcement_worker.php';
 
-    if (in_array("everyone", $grades)) {
-        $sql = "SELECT DISTINCT emailaddress, firstname, lastname FROM students_registration WHERE emailaddress IS NOT NULL AND emailaddress != ''";
-    } else {
-        // Convert array to SQL-safe string
-        $grade_list = "'" . implode("','", $grades) . "'";
-        $sql = "SELECT DISTINCT emailaddress, firstname, lastname FROM students_registration WHERE year IN ($grade_list) AND emailaddress IS NOT NULL AND emailaddress != ''";
-    }
+$cmd = escapeshellcmd($php_path) . ' ' . escapeshellarg($worker)
+    . ' ' . escapeshellarg($subject)
+    . ' ' . escapeshellarg($message)
+    . ' ' . escapeshellarg($normalizedScope);
+exec($cmd . ' > /dev/null 2>&1 &');
 
-    $result = $conn->query($sql);
-
-    if ($result->num_rows > 0) {
-        while ($row = $result->fetch_assoc()) {
-            $mail->addAddress($row['emailaddress'], $row['firstname'] . ' ' . $row['lastname']);
-        }
-
-        $mail->send();
-        echo "<script>alert('Announcement sent successfully.'); window.location.href = 'admin_dashboard.php';</script>";
-    } else {
-        echo "<script>alert('No students found for the selected grade levels.'); window.location.href = 'admin_dashboard.php';</script>";
-    }
-} catch (Exception $e) {
-    echo "Error sending announcement: {$mail->ErrorInfo}";
-}
+echo "<script>alert('Announcement queued successfully. Emails will be delivered in the background.'); window.location.href = 'admin_dashboard.php#announcements';</script>";
 
 $conn->close();
 ?>
