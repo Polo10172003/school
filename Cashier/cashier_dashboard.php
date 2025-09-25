@@ -34,6 +34,36 @@ $searchType = $searchData['type'];
 $clearSearchFlag = $searchData['cleared'];
 
 $payments = cashier_dashboard_fetch_payments($conn);
+$planOptions = cashier_dashboard_plan_labels();
+$tuitionPackages = cashier_dashboard_fetch_tuition_packages($conn);
+$pricingCategories = [
+  'regular' => 'Regular Students',
+  'fwc' => 'FWC Member',
+  'esc' => 'ESC / Government Subsidy',
+  'other' => 'Other / Custom',
+];
+$studentTypeLabels = [
+  'all' => 'All Students',
+  'new' => 'New',
+  'old' => 'Old',
+];
+$gradeOptions = [
+  'preprime1' => 'Pre-Prime 1',
+  'preprime2' => 'Pre-Prime 2',
+  'kindergarten' => 'Kindergarten',
+  'grade1' => 'Grade 1',
+  'grade2' => 'Grade 2',
+  'grade3' => 'Grade 3',
+  'grade4' => 'Grade 4',
+  'grade5' => 'Grade 5',
+  'grade6' => 'Grade 6',
+  'grade7' => 'Grade 7',
+  'grade8' => 'Grade 8',
+  'grade9' => 'Grade 9',
+  'grade10' => 'Grade 10',
+  'grade11' => 'Grade 11',
+  'grade12' => 'Grade 12',
+];
 ?>
 
 
@@ -444,47 +474,34 @@ $payments = cashier_dashboard_fetch_payments($conn);
     <form method="POST" action="cashier_dashboard.php#fees" class="tuition-form">
       <input type="hidden" name="tuition_fee_form" value="1">
 
-      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+      <div class="tuition-field-grid">
         <div>
           <label for="school_year">School Year</label>
-          <input type="text" id="school_year" name="school_year" placeholder="e.g., 2024-2025" required>
+          <input type="text" id="school_year" name="school_year" placeholder="e.g., 2025-2026" required>
         </div>
 
         <div>
           <label for="year">Grade Level</label>
           <select id="year" name="year" required>
-            <?php
-              $gradeOptions = [
-                'kinder1' => 'Kinder 1',
-                'kinder2' => 'Kinder 2',
-                'grade1' => 'Grade 1',
-                'grade2' => 'Grade 2',
-                'grade3' => 'Grade 3',
-                'grade4' => 'Grade 4',
-                'grade5' => 'Grade 5',
-                'grade6' => 'Grade 6',
-                'grade7' => 'Grade 7',
-                'grade8' => 'Grade 8',
-                'grade9' => 'Grade 9',
-                'grade10' => 'Grade 10',
-                'grade11' => 'Grade 11',
-                'grade12' => 'Grade 12',
-              ];
-              foreach ($gradeOptions as $value => $label) {
-                  echo "<option value='{$value}'>{$label}</option>";
-              }
-            ?>
+            <?php foreach ($gradeOptions as $value => $label): ?>
+              <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
+
+        <input type="hidden" name="student_type" value="all">
 
         <div>
-          <label for="student_type">Student Type</label>
-          <select id="student_type" name="student_type" required>
-            <option value="new">New</option>
-            <option value="old">Old</option>
+          <label for="pricing_category">Pricing Variant</label>
+          <select id="pricing_category" name="pricing_category">
+            <?php foreach ($pricingCategories as $value => $label): ?>
+              <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
+      </div>
 
+      <div class="tuition-field-grid">
         <div>
           <label for="entrance_fee">Entrance Fee</label>
           <input type="number" step="0.01" id="entrance_fee" name="entrance_fee" required oninput="calculatePayment()">
@@ -499,30 +516,114 @@ $payments = cashier_dashboard_fetch_payments($conn);
           <label for="tuition_fee">Tuition Fee</label>
           <input type="number" step="0.01" id="tuition_fee" name="tuition_fee" required oninput="calculatePayment()">
         </div>
+      </div>
 
+      <div class="tuition-field-grid">
         <div>
-          <label for="total_upon_enrollment">Total Upon Enrollment</label>
-          <input type="number" step="0.01" id="total_upon_enrollment" name="total_upon_enrollment" required>
-        </div>
-
-        <div>
-          <label for="payment_schedule">Payment Schedule</label>
+          <label for="payment_schedule">Payment Plan</label>
           <select id="payment_schedule" name="payment_schedule" onchange="calculatePayment()" required>
-            <option value="annually">Annually</option>
-            <option value="semi-annually">Semi-Annually</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="monthly">Monthly</option>
+            <?php foreach ($planOptions as $value => $label): ?>
+              <option value="<?= htmlspecialchars($value) ?>"><?= htmlspecialchars($label) ?></option>
+            <?php endforeach; ?>
           </select>
         </div>
 
         <div>
-          <label for="calculated_payment">Calculated Payment</label>
-          <input type="text" id="calculated_payment" readonly>
+          <label for="total_upon_enrollment">Due Upon Enrollment</label>
+          <input type="number" step="0.01" id="total_upon_enrollment" name="total_upon_enrollment" required>
+        </div>
+
+        <div>
+          <label for="calculated_payment">Plan Preview</label>
+          <input type="text" id="calculated_payment" readonly placeholder="Auto suggestion">
+          <small class="tuition-hint">Use the preview as guidance, then adjust the due amount to match your matrix.</small>
         </div>
       </div>
 
-      <button type="submit">Save Tuition Fee</button>
+      <div class="tuition-field-grid full">
+        <div>
+          <label for="next_payments">Next payments (one per line)</label>
+          <textarea id="next_payments" name="next_payments" rows="3" placeholder="e.g. 16500 | Due 5 January"></textarea>
+          <small class="tuition-hint">Format: Example: "16500 | Due on January 5".</small>
+        </div>
+      </div>
+
+      <div class="tuition-field-grid full">
+        <div>
+          <label for="plan_notes">Plan notes (optional)</label>
+          <textarea id="plan_notes" name="plan_notes" rows="2" placeholder="Add reminders about due dates, discounts, etc."></textarea>
+        </div>
+      </div>
+
+      <button type="submit">Save Tuition Plan</button>
     </form>
+
+    <?php if (!empty($tuitionPackages)): ?>
+      <h3 class="tuition-table-title">Saved tuition matrix</h3>
+      <div class="tuition-matrix-wrapper">
+        <table class="tuition-matrix-table">
+          <thead>
+            <tr>
+              <th>School Year</th>
+              <th>Student Type</th>
+              <th>Pricing Variant</th>
+              <th>Grade Level</th>
+              <th>Base Fees</th>
+              <th>Plans</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($tuitionPackages as $package): ?>
+              <tr>
+                <td><?= htmlspecialchars($package['school_year']) ?></td>
+                <td><?= htmlspecialchars($studentTypeLabels[$package['student_type']] ?? ucfirst($package['student_type'])) ?></td>
+                <td><?= htmlspecialchars($pricingCategories[$package['pricing_category']] ?? ucfirst($package['pricing_category'])) ?></td>
+                <?php
+                  $gradeLabel = $gradeOptions[$package['grade_level']] ?? ucwords(str_replace('_', ' ', $package['grade_level']));
+                  $normalizedGrade = strtolower(str_replace([' ', '_'], '', $package['grade_level']));
+                  if (in_array($normalizedGrade, ['kinder1', 'kinder2'], true)) {
+                      $gradeLabel = 'Kindergarten';
+                  }
+                ?>
+                <td><?= htmlspecialchars($gradeLabel) ?></td>
+                <td>
+                  <div>Entrance: ₱<?= number_format((float) $package['entrance_fee'], 2) ?></div>
+                  <div>Misc: ₱<?= number_format((float) $package['miscellaneous_fee'], 2) ?></div>
+                  <div>Tuition: ₱<?= number_format((float) $package['tuition_fee'], 2) ?></div>
+                  <div>Total program: ₱<?= number_format((float) $package['total_upon_enrollment'], 2) ?></div>
+                </td>
+                <td>
+                  <?php if (!empty($package['plans'])): ?>
+                    <ul class="tuition-plan-list">
+                      <?php foreach ($package['plans'] as $plan): ?>
+                        <li>
+                          <strong><?= htmlspecialchars($planOptions[$plan['plan_type']] ?? ucfirst($plan['plan_type'])) ?>:</strong>
+                          ₱<?= number_format((float) $plan['due_upon_enrollment'], 2) ?> due upon enrollment
+                          <?php if (!empty($plan['decoded_breakdown'])): ?>
+                            <div class="tuition-plan-breakdown">
+                              <?php foreach ($plan['decoded_breakdown'] as $entry): ?>
+                                <span>Next: ₱<?= number_format((float) ($entry['amount'] ?? 0), 2) ?><?= !empty($entry['note']) ? ' • ' . htmlspecialchars($entry['note']) : '' ?></span>
+                              <?php endforeach; ?>
+                            </div>
+                          <?php endif; ?>
+                          <?php if (!empty($plan['notes'])): ?>
+                            <div class="tuition-plan-note"><?= nl2br(htmlspecialchars($plan['notes'])) ?></div>
+                          <?php endif; ?>
+                        </li>
+                      <?php endforeach; ?>
+                    </ul>
+                  <?php else: ?>
+                    <em>No plan saved yet.</em>
+                  <?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    <?php else: ?>
+      <p class="tuition-empty">No tuition plans saved yet. Add one above to populate the matrix.</p>
+    <?php endif; ?>
   </div>
 </div>
           <!-- Payment Modal (outside the table loop, at the end of body) -->

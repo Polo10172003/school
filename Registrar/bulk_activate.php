@@ -1,6 +1,36 @@
 <?php
 include __DIR__ . '/../db_connection.php';
 
+function normalizeEarlyGrade(string $grade): string {
+    $grade = trim($grade);
+    if (in_array($grade, ['Kinder 1', 'Kinder 2'], true)) {
+        return 'Kindergarten';
+    }
+    return $grade;
+}
+
+function gradeSynonyms(string $grade): array {
+    $normalized = normalizeEarlyGrade($grade);
+    if ($normalized === 'Kindergarten') {
+        return ['Kindergarten', 'Kinder 1', 'Kinder 2'];
+    }
+    return [$normalized];
+}
+
+function sumSectionCount(mysqli $conn, array $grades, string $section): int {
+    $total = 0;
+    foreach ($grades as $variant) {
+        $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = ?");
+        $countQuery->bind_param("ss", $variant, $section);
+        $countQuery->execute();
+        $countQuery->bind_result($partial);
+        $countQuery->fetch();
+        $countQuery->close();
+        $total += (int) $partial;
+    }
+    return $total;
+}
+
 // Decode JSON request (from fetch)
 $input = json_decode(file_get_contents("php://input"), true);
 $student_ids = $input['student_ids'] ?? ($_POST['student_ids'] ?? []);
@@ -67,13 +97,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
         $section = null;
         $adviser = null;
 
-        if (in_array($year, ['Kinder 1','Kinder 2'])) {
-            $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Hershey'");
-            $countQuery->bind_param("s", $year);
-            $countQuery->execute();
-            $countQuery->bind_result($hersheyCount);
-            $countQuery->fetch();
-            $countQuery->close();
+        $normalizedYear = normalizeEarlyGrade($year);
+        $yearVariants = gradeSynonyms($year);
+
+        if (in_array($normalizedYear, ['Pre-Prime 1','Pre-Prime 2','Kindergarten'], true)) {
+            $hersheyCount = sumSectionCount($conn, $yearVariants, 'Hershey');
 
             if ($hersheyCount < 20) {
                 $section = "Hershey";
@@ -82,13 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
                 $section = "Kisses";
                 $adviser = "Mr. Reyes";
             }
-        } elseif (in_array($year, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'])) {
-            $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Section A'");
-            $countQuery->bind_param("s", $year);
-            $countQuery->execute();
-            $countQuery->bind_result($secACount);
-            $countQuery->fetch();
-            $countQuery->close();
+        } elseif (in_array($normalizedYear, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'], true)) {
+            $secACount = sumSectionCount($conn, $yearVariants, 'Section A');
 
             if ($secACount < 30) {
                 $section = "Section A";
@@ -97,13 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
                 $section = "Section B";
                 $adviser = "Mr. Dela Cruz";
             }
-        } elseif (in_array($year, ['Grade 7','Grade 8','Grade 9','Grade 10'])) {
-            $countQuery = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = 'Section A'");
-            $countQuery->bind_param("s", $year);
-            $countQuery->execute();
-            $countQuery->bind_result($secACount);
-            $countQuery->fetch();
-            $countQuery->close();
+        } elseif (in_array($normalizedYear, ['Grade 7','Grade 8','Grade 9','Grade 10'], true)) {
+            $secACount = sumSectionCount($conn, $yearVariants, 'Section A');
 
             if ($secACount < 40) {
                 $section = "Section A";
@@ -112,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
                 $section = "Section B";
                 $adviser = "Mr. Lopez";
             }
-        } elseif (in_array($year, ['Grade 11','Grade 12'])) {
+        } elseif (in_array($normalizedYear, ['Grade 11','Grade 12'], true)) {
             $section = $strand . " - Section 1";
             switch($strand) {
                 case "ABM": $adviser = "Sir Mendoza"; break;

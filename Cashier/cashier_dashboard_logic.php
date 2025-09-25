@@ -28,6 +28,272 @@ function cashier_dashboard_consume_flash(): array
 }
 
 /**
+ * Canonical map of tuition plan codes to human readable labels.
+ *
+ * @return array<string,string>
+ */
+function cashier_dashboard_plan_labels(): array
+{
+    return [
+        'annually'    => 'Annually',
+        'cash'        => 'Cash',
+        'semi_annual' => 'Semi-Annual',
+        'quarterly'   => 'Quarterly',
+        'monthly'     => 'Monthly',
+    ];
+}
+
+/**
+ * Provide a consistent ordering weight for display rows per plan.
+ */
+function cashier_dashboard_plan_order(string $plan): int
+{
+    static $order = [
+        'annually'    => 0,
+        'cash'        => 1,
+        'semi_annual' => 2,
+        'quarterly'   => 3,
+        'monthly'     => 4,
+    ];
+
+    $normalized = strtolower(trim($plan));
+    return $order[$normalized] ?? 99;
+}
+
+/**
+ * Default note templates for each payment plan.
+ *
+ * @return array<int,string>
+ */
+function cashier_dashboard_default_plan_notes(string $plan): array
+{
+    switch (strtolower(trim($plan))) {
+        case 'monthly':
+            return [
+                'Next Payment July 5',
+                'Next Payment August 5',
+                'Next Payment September 5',
+                'Next Payment October 5',
+                'Next Payment November 5',
+                'Next Payment December 5',
+                'Next Payment January 5',
+                'Next Payment February 5',
+                'Next Payment March 5',
+            ];
+        case 'quarterly':
+            return [
+                'Next Payment September 5',
+                'Next Payment December 5',
+                'Next Payment March 5',
+            ];
+        case 'semi_annual':
+            return ['Next Payment December 5'];
+        default:
+            return [];
+    }
+}
+
+/**
+ * Check if the given table exists in the active database.
+ */
+function cashier_dashboard_table_exists(mysqli $conn, string $table): bool
+{
+    $stmt = $conn->prepare('SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1');
+    if (!$stmt) {
+        return false;
+    }
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
+    $stmt->store_result();
+    $exists = $stmt->num_rows > 0;
+    $stmt->close();
+
+    return $exists;
+}
+
+/**
+ * Normalise user-supplied amount text into a float.
+ */
+function cashier_dashboard_parse_amount(string $input): ?float
+{
+    $sanitised = str_replace(['₱', ',', ' '], '', trim($input));
+    if ($sanitised === '') {
+        return null;
+    }
+    if (!is_numeric($sanitised)) {
+        return null;
+    }
+
+    return round((float) $sanitised, 2);
+}
+
+/**
+ * Convert textarea input into an array of payment breakdown rows.
+ * Each line accepts "amount|note" or just "amount".
+ *
+ * @return array<int,array{amount:float,note:string}>
+ */
+function cashier_dashboard_parse_next_payments(string $raw): array
+{
+    $lines = preg_split('/\r\n|\r|\n/', trim($raw));
+    if (!$lines) {
+        return [];
+    }
+
+    $entries = [];
+    foreach ($lines as $line) {
+        $line = trim((string) $line);
+        if ($line === '') {
+            continue;
+        }
+
+        $parts = explode('|', $line, 2);
+        $amount = cashier_dashboard_parse_amount($parts[0]);
+        if ($amount === null) {
+            continue;
+        }
+
+        $note = isset($parts[1]) ? trim((string) $parts[1]) : '';
+        $entries[] = ['amount' => $amount, 'note' => $note];
+    }
+
+    return $entries;
+}
+
+/**
+ * Locate an existing tuition fee package or create a new record if missing.
+ *
+ * @return int|null The package identifier or null on failure.
+ */
+function cashier_dashboard_upsert_fee_package(
+    mysqli $conn,
+    string $school_year,
+    string $student_type,
+    string $pricing_category,
+    string $grade_level,
+    float $entrance_fee,
+    float $miscellaneous_fee,
+    float $tuition_fee,
+    float $monthly_payment,
+    float $total_upon_enrollment
+): ?int {
+    $select = $conn->prepare('
+        SELECT id
+        FROM tuition_fees
+        WHERE school_year = ?
+          AND student_type = ?
+          AND pricing_category = ?
+          AND grade_level = ?
+        LIMIT 1
+    ');
+    if (!$select) {
+        return null;
+    }
+    $select->bind_param('ssss', $school_year, $student_type, $pricing_category, $grade_level);
+    $select->execute();
+    $select->bind_result($existingId);
+    $found = $select->fetch();
+    $select->close();
+
+    if ($found) {
+        $update = $conn->prepare('
+            UPDATE tuition_fees
+               SET entrance_fee = ?,
+                   miscellaneous_fee = ?,
+                   tuition_fee = ?,
+                   monthly_payment = ?,
+                   total_upon_enrollment = ?,
+                   updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?
+        ');
+        if (!$update) {
+            return null;
+        }
+        $update->bind_param('dddddi', $entrance_fee, $miscellaneous_fee, $tuition_fee, $monthly_payment, $total_upon_enrollment, $existingId);
+        $update->execute();
+        $update->close();
+
+        return (int) $existingId;
+    }
+
+    $insert = $conn->prepare('
+        INSERT INTO tuition_fees
+            (school_year, student_type, pricing_category, grade_level, entrance_fee, miscellaneous_fee, tuition_fee, monthly_payment, total_upon_enrollment)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ');
+    if (!$insert) {
+        return null;
+    }
+    $insert->bind_param('ssssddddd', $school_year, $student_type, $pricing_category, $grade_level, $entrance_fee, $miscellaneous_fee, $tuition_fee, $monthly_payment, $total_upon_enrollment);
+    $ok = $insert->execute();
+    $newId = $ok ? (int) $insert->insert_id : null;
+    $insert->close();
+
+    return $newId;
+}
+
+/**
+ * Retrieve all tuition fee packages and their plan breakdowns for dashboard listing.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function cashier_dashboard_fetch_tuition_packages(mysqli $conn): array
+{
+    $packages = [];
+
+    $result = $conn->query('SELECT * FROM tuition_fees ORDER BY school_year DESC, grade_level ASC');
+    if ($result) {
+        while ($row = $result->fetch_assoc()) {
+            $row['plans'] = [];
+            $packages[(int) $row['id']] = $row;
+        }
+        $result->close();
+    }
+
+    if (!$packages) {
+        return [];
+    }
+
+    $ids = implode(',', array_map('intval', array_keys($packages)));
+    if ($ids === '') {
+        return array_values($packages);
+    }
+
+    if (!cashier_dashboard_table_exists($conn, 'tuition_fee_plans')) {
+        return array_values($packages);
+    }
+
+    $plansSql = "SELECT * FROM tuition_fee_plans WHERE tuition_fee_id IN ($ids) ORDER BY tuition_fee_id ASC, display_order ASC, plan_type ASC";
+    $planResult = $conn->query($plansSql);
+    if ($planResult) {
+        while ($plan = $planResult->fetch_assoc()) {
+            $feeId = (int) $plan['tuition_fee_id'];
+            if (!isset($packages[$feeId])) {
+                continue;
+            }
+            $plan['decoded_breakdown'] = [];
+            if (!empty($plan['next_payment_breakdown'])) {
+                $decoded = json_decode($plan['next_payment_breakdown'], true);
+                if (is_array($decoded)) {
+                    $plan['decoded_breakdown'] = $decoded;
+                }
+            }
+            $plan['decoded_base'] = [];
+            if (!empty($plan['base_snapshot'])) {
+                $baseDecoded = json_decode($plan['base_snapshot'], true);
+                if (is_array($baseDecoded)) {
+                    $plan['decoded_base'] = $baseDecoded;
+                }
+            }
+            $packages[$feeId]['plans'][] = $plan;
+        }
+        $planResult->close();
+    }
+
+    return array_values($packages);
+}
+
+/**
  * Handle the onsite payment submission form.
  *
  * @return string|null Returns the redirect URL when a submission occurs, otherwise null.
@@ -189,42 +455,164 @@ function cashier_dashboard_handle_tuition_fee_form(mysqli $conn): ?string
     }
 
     $school_year = trim((string) ($_POST['school_year'] ?? ''));
-    $student_type = trim((string) ($_POST['student_type'] ?? ''));
-    $year = trim((string) ($_POST['year'] ?? ''));
-    $entrance_fee = floatval($_POST['entrance_fee'] ?? 0);
-    $miscellaneous_fee = floatval($_POST['miscellaneous_fee'] ?? 0);
-    $tuition_fee = floatval($_POST['tuition_fee'] ?? 0);
-    $total_upon_enrollment = floatval($_POST['total_upon_enrollment'] ?? 0);
+    $student_type = 'all';
+    $pricing_category = strtolower(trim((string) ($_POST['pricing_category'] ?? 'regular')));
+    $grade_level = trim((string) ($_POST['year'] ?? ''));
+    $plan_type_raw = strtolower(trim((string) ($_POST['payment_schedule'] ?? '')));
+    $plan_type = str_replace('-', '_', $plan_type_raw);
+    $plan_labels = cashier_dashboard_plan_labels();
 
-    if ($school_year !== '' && $student_type !== '' && $year !== '') {
-        $stmt = $conn->prepare('INSERT INTO tuition_fees (school_year, student_type, grade_level, entrance_fee, miscellaneous_fee, tuition_fee, total_upon_enrollment)
-            VALUES (?, ?, ?, ?, ?, ?, ?)');
-        if ($stmt) {
-            $stmt->bind_param(
-                'sssdddd',
-                $school_year,
-                $student_type,
-                $year,
-                $entrance_fee,
-                $miscellaneous_fee,
-                $tuition_fee,
-                $total_upon_enrollment
-            );
+    $entrance_fee = (float) ($_POST['entrance_fee'] ?? 0);
+    $miscellaneous_fee = (float) ($_POST['miscellaneous_fee'] ?? 0);
+    $tuition_fee = (float) ($_POST['tuition_fee'] ?? 0);
+    $due_upon_enrollment = (float) ($_POST['total_upon_enrollment'] ?? 0);
+    $plan_notes = trim((string) ($_POST['plan_notes'] ?? ''));
+    $next_payments_raw = (string) ($_POST['next_payments'] ?? '');
+    $next_payments = cashier_dashboard_parse_next_payments($next_payments_raw);
 
-            if ($stmt->execute()) {
-                $_SESSION['cashier_flash'] = 'Tuition fee saved successfully.';
-                $_SESSION['cashier_flash_type'] = 'success';
-            } else {
-                $_SESSION['cashier_flash'] = 'Failed to save tuition fee. Please try again.';
-                $_SESSION['cashier_flash_type'] = 'error';
+    $autoNotes = cashier_dashboard_default_plan_notes($plan_type);
+    if (!empty($autoNotes)) {
+        if (count($next_payments) === 1 && trim($next_payments[0]['note']) === '') {
+            $amountSingle = (float) $next_payments[0]['amount'];
+            $next_payments = array_map(static function (string $note) use ($amountSingle): array {
+                return ['amount' => $amountSingle, 'note' => $note];
+            }, $autoNotes);
+        } elseif (!empty($next_payments)) {
+            foreach ($next_payments as $idx => &$entry) {
+                $entryNote = isset($entry['note']) ? trim((string) $entry['note']) : '';
+                if ($entryNote === '' && isset($autoNotes[$idx])) {
+                    $entry['note'] = $autoNotes[$idx];
+                }
             }
-            $stmt->close();
-        } else {
-            $_SESSION['cashier_flash'] = 'Failed to prepare tuition statement.';
-            $_SESSION['cashier_flash_type'] = 'error';
+            unset($entry);
         }
-    } else {
-        $_SESSION['cashier_flash'] = 'Please complete the required tuition fields.';
+    }
+
+    $recurringAmount = null;
+    foreach ($next_payments as $entry) {
+        $amount = isset($entry['amount']) ? (float) $entry['amount'] : 0.0;
+        if ($amount > 0.009) {
+            $recurringAmount = $amount;
+            break;
+        }
+    }
+
+    if ($recurringAmount !== null) {
+        foreach ($next_payments as &$entry) {
+            $amount = isset($entry['amount']) ? (float) $entry['amount'] : 0.0;
+            if ($amount <= 0.009) {
+                $entry['amount'] = $recurringAmount;
+            }
+        }
+        unset($entry);
+    }
+
+    $requiredFields = [$school_year, $student_type, $grade_level, $plan_type];
+    $hasEmpty = false;
+    foreach ($requiredFields as $value) {
+        if ($value === '') {
+            $hasEmpty = true;
+            break;
+        }
+    }
+
+    if ($hasEmpty || !isset($plan_labels[$plan_type])) {
+        $_SESSION['cashier_flash'] = 'Please complete all required tuition fields and choose a valid payment plan.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return 'cashier_dashboard.php#fees';
+    }
+
+    if ($entrance_fee < 0 || $miscellaneous_fee < 0 || $tuition_fee < 0 || $due_upon_enrollment < 0) {
+        $_SESSION['cashier_flash'] = 'Fee amounts cannot be negative.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return 'cashier_dashboard.php#fees';
+    }
+
+    $package_total = $entrance_fee + $miscellaneous_fee + $tuition_fee;
+    $monthly_payment = 0.0;
+    if ($plan_type === 'monthly') {
+        if (!empty($next_payments)) {
+            $monthly_payment = (float) $next_payments[0]['amount'];
+        } elseif ($due_upon_enrollment > ($entrance_fee + $miscellaneous_fee)) {
+            $monthly_payment = $due_upon_enrollment - ($entrance_fee + $miscellaneous_fee);
+        }
+    }
+
+    $next_payments_json = $next_payments ? json_encode($next_payments, JSON_THROW_ON_ERROR) : null;
+
+    $display_order = cashier_dashboard_plan_order($plan_type);
+    $base_snapshot = null;
+    try {
+        $base_snapshot = json_encode([
+            'entrance_fee' => $entrance_fee,
+            'miscellaneous_fee' => $miscellaneous_fee,
+            'tuition_fee' => $tuition_fee,
+            'total_program_cost' => $package_total,
+        ], JSON_THROW_ON_ERROR);
+    } catch (Throwable $e) {
+        $base_snapshot = null;
+    }
+
+    $conn->begin_transaction();
+
+    try {
+        $packageId = cashier_dashboard_upsert_fee_package(
+            $conn,
+            $school_year,
+            $student_type,
+            $pricing_category,
+            $grade_level,
+            $entrance_fee,
+            $miscellaneous_fee,
+            $tuition_fee,
+            $monthly_payment,
+            $package_total
+        );
+
+        if (!$packageId) {
+            throw new RuntimeException('Unable to save base tuition package.');
+        }
+
+        $stmt = $conn->prepare('
+            INSERT INTO tuition_fee_plans (tuition_fee_id, plan_type, due_upon_enrollment, next_payment_breakdown, notes, base_snapshot, display_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE
+                due_upon_enrollment = VALUES(due_upon_enrollment),
+                next_payment_breakdown = VALUES(next_payment_breakdown),
+                notes = VALUES(notes),
+                base_snapshot = VALUES(base_snapshot),
+                display_order = VALUES(display_order),
+                updated_at = CURRENT_TIMESTAMP
+        ');
+
+        if (!$stmt) {
+            throw new RuntimeException('Failed to prepare plan statement.');
+        }
+
+        $stmt->bind_param(
+            'isdsssi',
+            $packageId,
+            $plan_type,
+            $due_upon_enrollment,
+            $next_payments_json,
+            $plan_notes,
+            $base_snapshot,
+            $display_order
+        );
+
+        if (!$stmt->execute()) {
+            $stmt->close();
+            throw new RuntimeException('Failed to save tuition plan details.');
+        }
+        $stmt->close();
+
+        $conn->commit();
+
+        $_SESSION['cashier_flash'] = 'Tuition plan saved successfully.';
+        $_SESSION['cashier_flash_type'] = 'success';
+    } catch (Throwable $e) {
+        $conn->rollback();
+        $_SESSION['cashier_flash'] = 'Unable to save tuition details: ' . $e->getMessage();
         $_SESSION['cashier_flash_type'] = 'error';
     }
 
@@ -234,9 +622,13 @@ function cashier_dashboard_handle_tuition_fee_form(mysqli $conn): ?string
 function cashier_previous_grade_label(string $current): ?string
 {
     static $map = [
-        'Kinder 1' => 'Preschool',
-        'Kinder 2' => 'Kinder 1',
-        'Grade 1'  => 'Kinder 2',
+        'Pre-Prime 1 & 2' => 'Preschool',
+        'Pre-Prime 1' => 'Preschool',
+        'Pre-Prime 2' => 'Pre-Prime 1',
+        'Kindergarten' => 'Pre-Prime 2',
+        'Kinder 1' => 'Pre-Prime 2',
+        'Kinder 2' => 'Kindergarten',
+        'Grade 1'  => 'Kindergarten',
         'Grade 2'  => 'Grade 1',
         'Grade 3'  => 'Grade 2',
         'Grade 4'  => 'Grade 3',
@@ -258,17 +650,47 @@ function cashier_normalize_grade_key(string $label): string
     return strtolower(str_replace([' ', '-', '_'], '', $label));
 }
 
+/**
+ * Provide alternate normalized grade keys for backward compatibility.
+ *
+ * @return array<int,string>
+ */
+function cashier_grade_synonyms(string $normalized): array
+{
+    $normalized = strtolower($normalized);
+    if ($normalized === 'preprime1') {
+        return ['preprime1', 'preprime12'];
+    }
+    if ($normalized === 'preprime2') {
+        return ['preprime2', 'preprime12'];
+    }
+    if ($normalized === 'preprime12') {
+        return ['preprime12', 'preprime1', 'preprime2'];
+    }
+
+    static $kindergartenSet = ['kindergarten', 'kinder1', 'kinder2'];
+    if (in_array($normalized, $kindergartenSet, true)) {
+        return $kindergartenSet;
+    }
+
+    return [$normalized];
+}
+
 function cashier_fetch_fee(mysqli $conn, string $normalizedGrade, array $typeCandidates): ?array
 {
     $sql = "SELECT * FROM tuition_fees WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? AND LOWER(student_type) = ? ORDER BY school_year DESC LIMIT 1";
-    foreach ($typeCandidates as $candidateType) {
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param('ss', $normalizedGrade, $candidateType);
-        $stmt->execute();
-        $fee = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($fee) {
-            return $fee;
+    $gradeCandidates = cashier_grade_synonyms($normalizedGrade);
+
+    foreach ($gradeCandidates as $gradeKey) {
+        foreach ($typeCandidates as $candidateType) {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param('ss', $gradeKey, $candidateType);
+            $stmt->execute();
+            $fee = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($fee) {
+                return $fee;
+            }
         }
     }
     return null;
@@ -367,12 +789,12 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
             $gradeLevel = $result['year'];
             $studentType = strtolower($result['student_type'] ?? 'new');
             $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
-            $typeCandidates = array_values(array_unique([$studentType, 'new', 'old']));
+            $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
 
             $fee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates);
 
             $grade_key = cashier_normalize_grade_key($gradeLevel);
-            $no_previous = ($studentType === 'new') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','grade1'], true);
+            $no_previous = ($studentType === 'new') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','kindergarten','kg','grade1'], true);
 
             $previous_label = $no_previous ? null : cashier_previous_grade_label($gradeLevel);
             $previous_fee = null;

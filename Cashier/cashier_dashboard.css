@@ -500,3 +500,83 @@ a:hover {
   opacity: 0.7;
   cursor: not-allowed;
 }
+
+.tuition-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.tuition-field-grid.full > div {
+  grid-column: 1 / -1;
+}
+
+.tuition-field-grid input,
+.tuition-field-grid select,
+.tuition-field-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.tuition-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #5d6d6f;
+}
+
+.tuition-matrix-wrapper {
+  margin-top: 24px;
+  overflow-x: auto;
+}
+
+.tuition-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.tuition-matrix-table th,
+.tuition-matrix-table td {
+  border: 1px solid #d1d8d5;
+  padding: 12px;
+  vertical-align: top;
+}
+
+.tuition-matrix-table thead {
+  background: #145a32;
+  color: #ffffff;
+}
+
+.tuition-plan-list {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.tuition-plan-breakdown {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+  padding-left: 12px;
+  border-left: 3px solid rgba(20, 90, 50, 0.15);
+}
+
+.tuition-plan-note {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: #455551;
+}
+
+.tuition-empty {
+  margin-top: 18px;
+  color: #5d6d6f;
+}
+
+.tuition-table-title {
+  margin-top: 28px;
+  margin-bottom: 12px;
+}

@@ -15,12 +15,20 @@ function uniqueOptions(array $options): array {
     return $clean;
 }
 
-function sectionSuggestions(string $year, string $strand): array {
+function normalizeEarlyYear(string $year): string {
     $year = trim($year);
+    if (in_array($year, ['Kinder 1', 'Kinder 2'], true)) {
+        return 'Kindergarten';
+    }
+    return $year;
+}
+
+function sectionSuggestions(string $year, string $strand): array {
+    $year = normalizeEarlyYear($year);
     $strand = trim($strand);
     $suggestions = [];
 
-    if (in_array($year, ['Kinder 1', 'Kinder 2'], true)) {
+    if (in_array($year, ['Pre-Prime 1', 'Pre-Prime 2', 'Kindergarten'], true)) {
         $suggestions = ['Hershey', 'Kisses'];
     } elseif (in_array($year, ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'], true)) {
         $suggestions = ['Section A', 'Section B'];
@@ -41,11 +49,11 @@ function sectionSuggestions(string $year, string $strand): array {
 }
 
 function adviserSuggestions(string $year, string $strand): array {
-    $year = trim($year);
+    $year = normalizeEarlyYear($year);
     $strand = trim($strand);
     $suggestions = [];
 
-    if (in_array($year, ['Kinder 1', 'Kinder 2'], true)) {
+    if (in_array($year, ['Pre-Prime 1', 'Pre-Prime 2', 'Kindergarten'], true)) {
         $suggestions = ['Ms. Cruz', 'Mr. Reyes'];
     } elseif (in_array($year, ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'], true)) {
         $suggestions = ['Ms. Santos', 'Mr. Dela Cruz'];

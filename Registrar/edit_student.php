@@ -171,24 +171,31 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <select name="year" required>
                 <?php
                 $grades = [
-                    'k1' => 'Kinder 1',
-                    'k2' => 'Kinder 2',
-                    'g1' => 'Grade 1',
-                    'g2' => 'Grade 2',
-                    'g3' => 'Grade 3',
-                    'g4' => 'Grade 4',
-                    'g5' => 'Grade 5',
-                    'g6' => 'Grade 6',
-                    'g7' => 'Grade 7',
-                    'g8' => 'Grade 8',
-                    'g9' => 'Grade 9',
-                    'g10' => 'Grade 10',
-                    'g11' => 'Grade 11',
-                    'g12' => 'Grade 12',
+                    'Pre-Prime 1',
+                    'Pre-Prime 2',
+                    'Kindergarten',
+                    'Grade 1',
+                    'Grade 2',
+                    'Grade 3',
+                    'Grade 4',
+                    'Grade 5',
+                    'Grade 6',
+                    'Grade 7',
+                    'Grade 8',
+                    'Grade 9',
+                    'Grade 10',
+                    'Grade 11',
+                    'Grade 12'
                 ];
-                foreach ($grades as $code => $label) {
-                    $selected = $student['year'] == $code ? 'selected' : '';
-                    echo "<option value='$code' $selected>$label</option>";
+
+                $currentYear = $student['year'];
+                if (in_array($currentYear, ['Kinder 1', 'Kinder 2'], true)) {
+                    $currentYear = 'Kindergarten';
+                }
+
+                foreach ($grades as $label) {
+                    $selected = $currentYear === $label ? 'selected' : '';
+                    echo "<option value='$label' $selected>$label</option>";
                 }
                 ?>
             </select>

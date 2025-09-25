@@ -48,7 +48,14 @@ if ($student_type === 'old') {
 
     function nextGrade($grade) {
         $map = [
-            "Kinder 1"=>"Kinder 2","Kinder 2"=>"Grade 1","Grade 1"=>"Grade 2","Grade 2"=>"Grade 3",
+            "Preschool" => "Pre-Prime 1",
+            "Pre-Prime 1"=>"Pre-Prime 2",
+            "Pre-Prime 2"=>"Kindergarten",
+            "Pre-Prime 1 & 2"=>"Kindergarten",
+            "Kindergarten"=>"Grade 1",
+            "Kinder 1"=>"Kindergarten",
+            "Kinder 2"=>"Grade 1",
+            "Grade 1"=>"Grade 2","Grade 2"=>"Grade 3",
             "Grade 3"=>"Grade 4","Grade 4"=>"Grade 5","Grade 5"=>"Grade 6","Grade 6"=>"Grade 7",
             "Grade 7"=>"Grade 8","Grade 8"=>"Grade 9","Grade 9"=>"Grade 10","Grade 10"=>"Grade 11",
             "Grade 11"=>"Grade 12","Grade 12"=>"Grade 12"

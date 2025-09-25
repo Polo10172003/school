@@ -49,29 +49,61 @@ $sql = "SELECT * FROM tuition_fees
         ORDER BY school_year DESC LIMIT 1";
 $fee = null;
 $lower_type = strtolower($student_type);
-$typeCandidates = [$lower_type, 'new', 'old'];
+$typeCandidates = [$lower_type, 'new', 'old', 'all'];
 $typeCandidates = array_values(array_unique($typeCandidates));
 
-foreach ($typeCandidates as $candidateType) {
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("ss", $normalized_year, $candidateType);
-    $stmt->execute();
-    $fee = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if ($fee) {
-        break;
+function gradeSynonyms(string $normalized): array
+{
+    $normalized = strtolower($normalized);
+    if ($normalized === 'preprime1') {
+        return ['preprime1', 'preprime12'];
+    }
+    if ($normalized === 'preprime2') {
+        return ['preprime2', 'preprime12'];
+    }
+    if ($normalized === 'preprime12') {
+        return ['preprime12', 'preprime1', 'preprime2'];
+    }
+    $kindergartenSet = ['kindergarten', 'kinder1', 'kinder2'];
+    if (in_array($normalized, $kindergartenSet, true)) {
+        return $kindergartenSet;
+    }
+    return [$normalized];
+}
+
+foreach (gradeSynonyms($normalized_year) as $gradeKey) {
+    foreach ($typeCandidates as $candidateType) {
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ss", $gradeKey, $candidateType);
+        $stmt->execute();
+        $fee = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ($fee) {
+            break 2;
+        }
     }
 }
 
 function previousGradeLabel($current)
 {
     $map = [
-        'kinder 1' => 'Preschool',
-        'kinder1' => 'Preschool',
-        'kinder 2' => 'Kinder 1',
-        'kinder2' => 'Kinder 1',
-        'grade 1'  => 'Kinder 2',
-        'grade1'   => 'Kinder 2',
+        'pre-prime 1 & 2' => 'Preschool',
+        'preprime1&2' => 'Preschool',
+        'preprime12' => 'Preschool',
+        'pre-prime 1' => 'Preschool',
+        'preprime1' => 'Preschool',
+        'pre prime 1' => 'Preschool',
+        'pre-prime 2' => 'Pre-Prime 1',
+        'preprime2' => 'Pre-Prime 1',
+        'pre prime 2' => 'Pre-Prime 1',
+        'kindergarten' => 'Pre-Prime 2',
+        'kinder' => 'Pre-Prime 2',
+        'kinder 1' => 'Pre-Prime 2',
+        'kinder1' => 'Pre-Prime 2',
+        'kinder 2' => 'Kindergarten',
+        'kinder2' => 'Kindergarten',
+        'grade 1'  => 'Kindergarten',
+        'grade1'   => 'Kindergarten',
         'grade 2'  => 'Grade 1',
         'grade2'   => 'Grade 1',
         'grade 3'  => 'Grade 2',
@@ -110,19 +142,21 @@ function previousGradeLabel($current)
 
 $previous_grade_label = previousGradeLabel($year);
 $grade_key = strtolower(str_replace(' ', '', $year));
-$no_previous = ($lower_type === 'new') || in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'grade1']);
+$no_previous = ($lower_type === 'new') || in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kindergarten', 'kg', 'grade1']);
 
 $previous_fee = null;
 if (!$no_previous && $previous_grade_label) {
     $normalized_prev = strtolower(str_replace(' ', '', $previous_grade_label));
-    foreach ($typeCandidates as $candidateType) {
-        $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ss", $normalized_prev, $candidateType);
-        $stmt->execute();
-        $previous_fee = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($previous_fee) {
-            break;
+    foreach (gradeSynonyms($normalized_prev) as $gradeKeyPrev) {
+        foreach ($typeCandidates as $candidateType) {
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $gradeKeyPrev, $candidateType);
+            $stmt->execute();
+            $previous_fee = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($previous_fee) {
+                break 2;
+            }
         }
     }
 } else {

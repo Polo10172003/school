@@ -4,8 +4,12 @@ include __DIR__ . '/../db_connection.php';
 // Promotion map
 function nextYear($year) {
     $map = [
-        "Preschool" => "Kinder 1",
-        "Kinder 1"  => "Kinder 2",
+        "Preschool" => "Pre-Prime 1",
+        "Pre-Prime 1"  => "Pre-Prime 2",
+        "Pre-Prime 2"  => "Kindergarten",
+        "Pre-Prime 1 & 2" => "Kindergarten",
+        "Kindergarten"  => "Grade 1",
+        "Kinder 1"  => "Kindergarten",
         "Kinder 2"  => "Grade 1",
         "Grade 1"   => "Grade 2",
         "Grade 2"   => "Grade 3",

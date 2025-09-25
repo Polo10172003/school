@@ -253,14 +253,17 @@
 
     let result = total;
     switch (scheduleSelect.value) {
-      case 'semi-annually':
-        result = total / 2;
+      case 'cash':
+        result = entrance * 0.9 + misc + tuition;
+        break;
+      case 'semi_annual':
+        result = entrance + misc + tuition / 2;
         break;
       case 'quarterly':
-        result = total / 4;
+        result = entrance + misc / 4 + tuition / 4;
         break;
       case 'monthly':
-        result = total / 12;
+        result = entrance + misc / 4 + tuition / 10;
         break;
       default:
         result = total;

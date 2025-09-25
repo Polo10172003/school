@@ -126,10 +126,10 @@ CREATE TABLE `subjects_schedule` (
 --
 
 INSERT INTO `subjects_schedule` (`id`, `grade_level`, `subject_name`, `subject_time`) VALUES
-(1, 'Kinder 1', 'Mathematics', '05:33:00'),
-(2, 'Kinder 1', 'Science', '07:33:00'),
+(1, 'Kindergarten', 'Mathematics', '05:33:00'),
+(2, 'Kindergarten', 'Science', '07:33:00'),
 (3, 'preschool', 'GMRC', '07:30:00'),
-(4, 'Kinder 1', 'PE', '08:07:00');
+(4, 'Kindergarten', 'PE', '08:07:00');
 
 -- --------------------------------------------------------
 

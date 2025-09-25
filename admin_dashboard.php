@@ -215,22 +215,32 @@
 
       <label for="grades">Send To:</label>
       <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:10px;">
-        <label><input type="checkbox" name="grades[]" value="everyone"> Everyone</label>
-        <label><input type="checkbox" name="grades[]" value="preschool"> Pre-School</label>
-        <label><input type="checkbox" name="grades[]" value="k1"> Kinder-1</label>
-        <label><input type="checkbox" name="grades[]" value="k2"> Kinder-2</label>
-        <label><input type="checkbox" name="grades[]" value="g1"> Grade-1</label>
-        <label><input type="checkbox" name="grades[]" value="g2"> Grade-2</label>
-        <label><input type="checkbox" name="grades[]" value="g3"> Grade-3</label>
-        <label><input type="checkbox" name="grades[]" value="g4"> Grade-4</label>
-        <label><input type="checkbox" name="grades[]" value="g5"> Grade-5</label>
-        <label><input type="checkbox" name="grades[]" value="g6"> Grade-6</label>
-        <label><input type="checkbox" name="grades[]" value="g7"> Grade-7</label>
-        <label><input type="checkbox" name="grades[]" value="g8"> Grade-8</label>
-        <label><input type="checkbox" name="grades[]" value="g9"> Grade-9</label>
-        <label><input type="checkbox" name="grades[]" value="g10"> Grade-10</label>
-        <label><input type="checkbox" name="grades[]" value="g11"> Grade-11</label>
-        <label><input type="checkbox" name="grades[]" value="g12"> Grade-12</label>
+        <?php
+        $audienceOptions = [
+            'everyone'  => 'Everyone',
+            'preschool' => 'Pre-School',
+            'pp1'       => 'Pre-Prime 1',
+            'pp2'       => 'Pre-Prime 2',
+            'pp12'      => 'Pre-Prime 1 & 2',
+            'kg'        => 'Kindergarten',
+            'g1'        => 'Grade-1',
+            'g2'        => 'Grade-2',
+            'g3'        => 'Grade-3',
+            'g4'        => 'Grade-4',
+            'g5'        => 'Grade-5',
+            'g6'        => 'Grade-6',
+            'g7'        => 'Grade-7',
+            'g8'        => 'Grade-8',
+            'g9'        => 'Grade-9',
+            'g10'       => 'Grade-10',
+            'g11'       => 'Grade-11',
+            'g12'       => 'Grade-12',
+        ];
+
+        foreach ($audienceOptions as $code => $label) {
+            echo "<label><input type=\"checkbox\" name=\"grades[]\" value=\"$code\"> $label</label>";
+        }
+        ?>
       </div>
       <input type="submit" value="Send Announcement">
     </form>
@@ -260,20 +270,37 @@
   <?php
 include('db_connection.php');
 
+function normalizeEarlyGrade(string $grade): string {
+    $grade = trim($grade);
+    if (in_array($grade, ['Kinder 1', 'Kinder 2'], true)) {
+        return 'Kindergarten';
+    }
+    return $grade;
+}
+
+function gradeSynonyms(string $grade): array {
+    $normalized = normalizeEarlyGrade($grade);
+    if ($normalized === 'Kindergarten') {
+        return ['Kindergarten', 'Kinder 1', 'Kinder 2'];
+    }
+    return [$normalized];
+}
+
 // Helper function for section counts
 function getSectionCounts($conn, $grade) {
     $sections = [];
+    $normalizedGrade = normalizeEarlyGrade($grade);
 
-    if (in_array($grade, ['Kinder 1','Kinder 2'])) {
+    if (in_array($normalizedGrade, ['Pre-Prime 1','Pre-Prime 2','Kindergarten'], true)) {
         $sections = ["Hershey" => ["count" => 0, "max" => 20],
                      "Kisses"  => ["count" => 0, "max" => 20]];
-    } elseif (in_array($grade, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'])) {
+    } elseif (in_array($normalizedGrade, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'], true)) {
         $sections = ["Section A" => ["count" => 0, "max" => 30],
                      "Section B" => ["count" => 0, "max" => 30]];
-    } elseif (in_array($grade, ['Grade 7','Grade 8','Grade 9','Grade 10'])) {
+    } elseif (in_array($normalizedGrade, ['Grade 7','Grade 8','Grade 9','Grade 10'], true)) {
         $sections = ["Section A" => ["count" => 0, "max" => 40],
                      "Section B" => ["count" => 0, "max" => 40]];
-    } elseif (in_array($grade, ['Grade 11','Grade 12'])) {
+    } elseif (in_array($normalizedGrade, ['Grade 11','Grade 12'], true)) {
         $sections = ["ABM - Section 1"   => ["count" => 0, "max" => 50],
                      "GAS - Section 1"   => ["count" => 0, "max" => 50],
                      "HUMMS - Section 1" => ["count" => 0, "max" => 50],
@@ -281,13 +308,19 @@ function getSectionCounts($conn, $grade) {
                      "TVL - Section 1"   => ["count" => 0, "max" => 50]];
     }
 
+    $gradeVariants = gradeSynonyms($grade);
+
     foreach ($sections as $sec => $data) {
-        $stmt = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = ?");
-        $stmt->bind_param("ss", $grade, $sec);
-        $stmt->execute();
-        $stmt->bind_result($count);
-        $stmt->fetch();
-        $stmt->close();
+        $count = 0;
+        foreach ($gradeVariants as $variant) {
+            $stmt = $conn->prepare("SELECT COUNT(*) FROM students_registration WHERE year = ? AND section = ?");
+            $stmt->bind_param("ss", $variant, $sec);
+            $stmt->execute();
+            $stmt->bind_result($partial);
+            $stmt->fetch();
+            $stmt->close();
+            $count += (int) $partial;
+        }
 
         $sections[$sec]['count'] = $count;
     }
@@ -303,9 +336,19 @@ $params = [];
 $types  = "";
 
 if (!empty($grade_filter)) {
-    $sql .= " AND year = ?";
-    $params[] = $grade_filter;
-    $types   .= "s";
+    $variants = gradeSynonyms($grade_filter);
+    if (count($variants) === 1) {
+        $sql .= " AND year = ?";
+        $params[] = $variants[0];
+        $types   .= "s";
+    } else {
+        $placeholders = implode(',', array_fill(0, count($variants), '?'));
+        $sql .= " AND year IN ($placeholders)";
+        foreach ($variants as $variant) {
+            $params[] = $variant;
+            $types   .= "s";
+        }
+    }
 }
 if (!empty($section_filter)) {
     $sql .= " AND section = ?";
@@ -330,7 +373,7 @@ $result = $stmt->get_result();
         <select name="grade" id="gradeSelect" onchange="this.form.submit()">
           <option value="">All</option>
           <?php 
-          $grades = ["Kinder 1","Kinder 2","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
+          $grades = ["Pre-Prime 1","Pre-Prime 2","Kindergarten","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
                      "Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"];
           foreach ($grades as $g) {
               $sel = ($_GET['grade'] ?? '') === $g ? "selected" : "";

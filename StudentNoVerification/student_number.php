@@ -11,8 +11,12 @@ $message = "";
 function normalizeYear($year) {
     $map = [
         "preschool" => "Preschool",
-        "k1" => "Kinder 1", "kinder 1" => "Kinder 1",
-        "k2" => "Kinder 2", "kinder 2" => "Kinder 2",
+        "preprime1" => "Pre-Prime 1", "pre-prime 1" => "Pre-Prime 1", "pre prime 1" => "Pre-Prime 1",
+        "preprime2" => "Pre-Prime 2", "pre-prime 2" => "Pre-Prime 2", "pre prime 2" => "Pre-Prime 2",
+        "preprime12" => "Pre-Prime 1 & 2",
+        "k1" => "Kindergarten", "kinder 1" => "Kindergarten",
+        "k2" => "Kindergarten", "kinder 2" => "Kindergarten",
+        "kindergarten" => "Kindergarten",
     ];
     $y = strtolower(trim((string)$year));
     if (isset($map[$y])) return $map[$y];
@@ -27,7 +31,7 @@ function normalizeYear($year) {
  */
 function displayYear($year, $status) {
     $grades = [
-        "Preschool","Kinder 1","Kinder 2",
+        "Preschool","Pre-Prime 1","Pre-Prime 2","Pre-Prime 1 & 2","Kindergarten",
         "Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
         "Grade 7","Grade 8","Grade 9","Grade 10",
         "Grade 11","Grade 12"

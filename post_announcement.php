@@ -135,8 +135,10 @@ tinymce.init({
       <select name="grades[]" multiple required>
           <option value="everyone">Everyone</option>
           <option value="preschool">Pre-School</option>
-          <option value="k1">Kinder-1</option>
-          <option value="k2">Kinder-2</option>
+          <option value="pp1">Pre-Prime 1</option>
+          <option value="pp2">Pre-Prime 2</option>
+          <option value="pp12">Pre-Prime 1 &amp; 2</option>
+          <option value="kg">Kindergarten</option>
           <option value="g1">Grade-1</option>
           <option value="g2">Grade-2</option>
           <option value="g3">Grade-3</option>

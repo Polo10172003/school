@@ -28,58 +28,78 @@ if (!$gradeLevel) {
 
 function map_grade_code($label)
 {
-    $key = strtolower(str_replace([' ', '-'], '', $label));
-    switch ($key) {
-        case 'preschool':
-            return 'preschool';
-        case 'kinder1':
-        case 'k1':
-            return 'k1';
-        case 'kinder2':
-        case 'k2':
-            return 'k2';
-        case 'grade1':
-        case 'g1':
-            return 'g1';
-        case 'grade2':
-        case 'g2':
-            return 'g2';
-        case 'grade3':
-        case 'g3':
-            return 'g3';
-        case 'grade4':
-        case 'g4':
-            return 'g4';
-        case 'grade5':
-        case 'g5':
-            return 'g5';
-        case 'grade6':
-        case 'g6':
-            return 'g6';
-        case 'grade7':
-        case 'g7':
-            return 'g7';
-        case 'grade8':
-        case 'g8':
-            return 'g8';
-        case 'grade9':
-        case 'g9':
-            return 'g9';
-        case 'grade10':
-        case 'g10':
-            return 'g10';
-        case 'grade11':
-        case 'g11':
-            return 'g11';
-        case 'grade12':
-        case 'g12':
-            return 'g12';
-        default:
-            return '';
+    $normalized = strtolower(trim((string) $label));
+    $normalized = str_replace(['-', '_'], ' ', $normalized);
+    $normalized = preg_replace('/\s+/', ' ', $normalized);
+
+    $map = [
+        'preschool'      => ['preschool'],
+        'preprime1'      => ['pp1'],
+        'pre prime 1'    => ['pp1'],
+        'pre-prime 1'    => ['pp1'],
+        'preprime2'      => ['pp2'],
+        'pre prime 2'    => ['pp2'],
+        'pre-prime 2'    => ['pp2'],
+        'preprime12'     => ['pp12'],
+        'pre prime 12'   => ['pp12'],
+        'pre-prime 12'   => ['pp12'],
+        'preprime 1 & 2' => ['pp12'],
+        'kinder 1'       => ['kg', 'k1'],
+        'kinder1'        => ['kg', 'k1'],
+        'k1'             => ['kg', 'k1'],
+        'kinder 2'       => ['kg', 'k2'],
+        'kinder2'        => ['kg', 'k2'],
+        'k2'             => ['kg', 'k2'],
+        'kindergarten'   => ['kg', 'k1', 'k2'],
+        'kinder'         => ['kg', 'k1', 'k2'],
+        'kg'             => ['kg', 'k1', 'k2'],
+        'grade 1'        => ['g1'],
+        'grade1'         => ['g1'],
+        'g1'             => ['g1'],
+        'grade 2'        => ['g2'],
+        'grade2'         => ['g2'],
+        'g2'             => ['g2'],
+        'grade 3'        => ['g3'],
+        'grade3'         => ['g3'],
+        'g3'             => ['g3'],
+        'grade 4'        => ['g4'],
+        'grade4'         => ['g4'],
+        'g4'             => ['g4'],
+        'grade 5'        => ['g5'],
+        'grade5'         => ['g5'],
+        'g5'             => ['g5'],
+        'grade 6'        => ['g6'],
+        'grade6'         => ['g6'],
+        'g6'             => ['g6'],
+        'grade 7'        => ['g7'],
+        'grade7'         => ['g7'],
+        'g7'             => ['g7'],
+        'grade 8'        => ['g8'],
+        'grade8'         => ['g8'],
+        'g8'             => ['g8'],
+        'grade 9'        => ['g9'],
+        'grade9'         => ['g9'],
+        'g9'             => ['g9'],
+        'grade 10'       => ['g10'],
+        'grade10'        => ['g10'],
+        'g10'            => ['g10'],
+        'grade 11'       => ['g11'],
+        'grade11'        => ['g11'],
+        'g11'            => ['g11'],
+        'grade 12'       => ['g12'],
+        'grade12'        => ['g12'],
+        'g12'            => ['g12'],
+    ];
+
+    if (isset($map[$normalized])) {
+        return $map[$normalized];
     }
+
+    $compacted = str_replace(' ', '', $normalized);
+    return $map[$compacted] ?? [];
 }
 
-$gradeCode = map_grade_code($gradeLevel);
+$gradeCodes = map_grade_code($gradeLevel);
 
 $conn->query("CREATE TABLE IF NOT EXISTS student_announcements (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -97,8 +117,10 @@ if ($result) {
         $scope = $row['target_scope'];
         $audiences = array_filter(array_map('trim', explode(',', $scope)));
         $should_include = in_array('everyone', $audiences, true);
-        if (!$should_include && $gradeCode !== '') {
-            $should_include = in_array($gradeCode, $audiences, true);
+        if (!$should_include && !empty($gradeCodes)) {
+            if (count(array_intersect($gradeCodes, $audiences)) > 0) {
+                $should_include = true;
+            }
         }
         if ($should_include) {
             $items[] = [

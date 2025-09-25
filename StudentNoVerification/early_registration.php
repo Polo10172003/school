@@ -96,8 +96,9 @@ include '../includes/header.php';
                 <label for="yearlevel">Year Level</label>
                 <select id="yearlevel" name="yearlevel" required>
                     <option value="">Select Year Level</option>
-                    <option value="Kinder 1" <?= $yearlevel=='Kinder 1'?'selected':''; ?>>Kinder 1</option>
-                    <option value="Kinder 2" <?= $yearlevel=='Kinder 2'?'selected':''; ?>>Kinder 2</option>
+                    <option value="Pre-Prime 1" <?= $yearlevel=='Pre-Prime 1'?'selected':''; ?>>Pre-Prime 1</option>
+                    <option value="Pre-Prime 2" <?= $yearlevel=='Pre-Prime 2'?'selected':''; ?>>Pre-Prime 2</option>
+                    <option value="Kindergarten" <?= $yearlevel=='Kindergarten'?'selected':''; ?>>Kindergarten</option>
                     <option value="Grade 1" <?= $yearlevel=='Grade 1'?'selected':''; ?>>Grade 1</option>
                     <option value="Grade 2" <?= $yearlevel=='Grade 2'?'selected':''; ?>>Grade 2</option>
                     <option value="Grade 3" <?= $yearlevel=='Grade 3'?'selected':''; ?>>Grade 3</option>
