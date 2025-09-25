@@ -70,7 +70,6 @@ function cashier_dashboard_default_plan_notes(string $plan): array
     switch (strtolower(trim($plan))) {
         case 'monthly':
             return [
-                'Next Payment July 5',
                 'Next Payment August 5',
                 'Next Payment September 5',
                 'Next Payment October 5',

@@ -407,7 +407,7 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                             $fetchedRows[$row['id']] = $row;
                         }
                     }
-                    $stmt->close();
+                    // $stmt->close(); // Removed duplicate close, will close after all processing
 
                     if (!empty($fetchedRows)) {
                         usort($fetchedRows, static function ($a, $b) {
@@ -478,7 +478,6 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                                     $defaultNotes = [];
                                     if ($planKey === 'monthly') {
                                         $defaultNotes = [
-                                            'Next Payment July 5',
                                             'Next Payment August 5',
                                             'Next Payment September 5',
                                             'Next Payment October 5',
@@ -533,9 +532,23 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                                 continue;
                             }
 
-                            $planKeys = array_keys($plansData);
-                            $defaultPlanKey = $planKeys[0];
-                            $defaultPlan = $plansData[$defaultPlanKey];
+                            // Always show all plan types, even if missing from DB
+                            $allPlanKeys = array_keys($planLabels);
+                            $defaultPlanKey = $allPlanKeys[0];
+                            $defaultPlan = $plansData[$defaultPlanKey] ?? [
+                                'label' => $planLabels[$defaultPlanKey],
+                                'due' => 0,
+                                'entries' => [],
+                                'notes' => '',
+                                'base' => [
+                                    'entrance_fee' => 0,
+                                    'miscellaneous_fee' => 0,
+                                    'tuition_fee' => 0,
+                                    'due_total' => 0,
+                                    'overall_total' => 0,
+                                    'entrance_note' => '',
+                                ],
+                            ];
 
                             $gradeLabel = $gradeOptions[$row['grade_level']] ?? ucwords(str_replace('_', ' ', $row['grade_level']));
                             $gradeNormalizedDisplay = strtolower(str_replace([' ', '_'], '', $row['grade_level']));
@@ -566,7 +579,22 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
 
                                 <div class="card-body px-4 pb-4">
                                     <div class="plan-tab-group mb-3" role="tablist">
-                                        <?php foreach ($plansData as $planKey => $planConfig): ?>
+                                        <?php foreach ($allPlanKeys as $planKey):
+                                            $planConfig = $plansData[$planKey] ?? [
+                                                'label' => $planLabels[$planKey],
+                                                'due' => 0,
+                                                'entries' => [],
+                                                'notes' => '',
+                                                'base' => [
+                                                    'entrance_fee' => 0,
+                                                    'miscellaneous_fee' => 0,
+                                                    'tuition_fee' => 0,
+                                                    'due_total' => 0,
+                                                    'overall_total' => 0,
+                                                    'entrance_note' => '',
+                                                ],
+                                            ];
+                                        ?>
                                             <button type="button"
                                                     class="plan-tab <?= $planKey === $defaultPlanKey ? 'active' : '' ?>"
                                                     data-plan-trigger="<?= htmlspecialchars($planKey) ?>"
@@ -578,23 +606,41 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                                         <?php endforeach; ?>
                                     </div>
 
-                                    <?php foreach ($plansData as $planKey => $planConfig):
+                                    <?php foreach ($allPlanKeys as $planKey):
+                                        $planConfig = $plansData[$planKey] ?? [
+                                            'label' => $planLabels[$planKey],
+                                            'due' => 0,
+                                            'entries' => [],
+                                            'notes' => '',
+                                            'base' => [
+                                                'entrance_fee' => 0,
+                                                'miscellaneous_fee' => 0,
+                                                'tuition_fee' => 0,
+                                                'due_total' => 0,
+                                                'overall_total' => 0,
+                                                'entrance_note' => '',
+                                            ],
+                                        ];
                                         $base = $planConfig['base'];
                                         $entries = $planConfig['entries'];
-                                        ?>
+                                    ?>
                                         <div class="plan-panel <?= $planKey === $defaultPlanKey ? 'active' : '' ?>" data-plan-panel="<?= htmlspecialchars($planKey) ?>">
                                             <div class="row g-3">
                                                 <div class="col-12 col-lg-6">
                                                     <div class="plan-panel-card">
                                                         <h4 class="fw-semibold mb-2">What you pay today</h4>
-                                                        <p class="mb-1"><strong>Entrance Fee:</strong> ₱<?= number_format($base['entrance_fee'], 2) ?>
-                                                            <?php if (!empty($base['entrance_note'])): ?>
-                                                                <span class="text-success">(<?= htmlspecialchars($base['entrance_note']) ?>)</span>
-                                                            <?php endif; ?>
-                                                        </p>
-                                                        <p class="mb-1"><strong>Miscellaneous Fee:</strong> ₱<?= number_format($base['miscellaneous_fee'], 2) ?></p>
-                                                        <p class="mb-1"><strong>Tuition Portion:</strong> ₱<?= number_format($base['tuition_fee'], 2) ?></p>
-                                                        <p class="mb-0 mt-2"><strong>Due upon enrollment:</strong> ₱<?= number_format($base['due_total'], 2) ?></p>
+                                                        <?php if ($planConfig['due'] > 0): ?>
+                                                            <p class="mb-1"><strong>Entrance Fee:</strong> ₱<?= number_format($base['entrance_fee'], 2) ?>
+                                                                <?php if (!empty($base['entrance_note'])): ?>
+                                                                    <span class="text-success">(<?= htmlspecialchars($base['entrance_note']) ?>)</span>
+                                                                <?php endif; ?>
+                                                            </p>
+                                                            <p class="mb-1"><strong>Miscellaneous Fee:</strong> ₱<?= number_format($base['miscellaneous_fee'], 2) ?></p>
+                                                            <p class="mb-1"><strong>Tuition Portion:</strong> ₱<?= number_format($base['tuition_fee'], 2) ?></p>
+                                                            <p class="mb-0 mt-2"><strong>Due upon enrollment:</strong> ₱<?= number_format($base['due_total'], 2) ?></p>
+                                                        <?php else: ?>
+                                                            <p class="mb-0">No breakdown available for this plan.</p>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                                 <div class="col-12 col-lg-6">
@@ -602,8 +648,10 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                                                         <h4 class="fw-semibold mb-2">Remaining balance</h4>
                                                         <?php if (!empty($entries)): ?>
                                                             <p class="mb-1">Future payments total: ₱<?= number_format($base['overall_total'] - $base['due_total'], 2) ?></p>
-                                                        <?php else: ?>
+                                                        <?php elseif ($planConfig['due'] > 0): ?>
                                                             <p class="mb-1">No remaining payments after enrollment.</p>
+                                                        <?php else: ?>
+                                                            <p class="mb-1">No breakdown available for this plan.</p>
                                                         <?php endif; ?>
                                                         <p class="mb-0"><strong>Overall program cost:</strong> ₱<?= number_format($base['overall_total'], 2) ?></p>
                                                     </div>
@@ -628,9 +676,13 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                                                                     <td><?= $entry['note'] !== '' ? htmlspecialchars($entry['note']) : '—' ?></td>
                                                                 </tr>
                                                             <?php endforeach; ?>
-                                                        <?php else: ?>
+                                                        <?php elseif ($planConfig['due'] > 0): ?>
                                                             <tr>
                                                                 <td colspan="3" class="text-center">No future payments recorded for this plan.</td>
+                                                            </tr>
+                                                        <?php else: ?>
+                                                            <tr>
+                                                                <td colspan="3" class="text-center">No breakdown available for this plan.</td>
                                                             </tr>
                                                         <?php endif; ?>
                                                     </tbody>
