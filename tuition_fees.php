@@ -26,6 +26,12 @@ $pricingOptions = [
     'other' => 'Other / Custom',
 ];
 
+$escOnlyGrades = ['grade7', 'grade8', 'grade9', 'grade10', 'grade11', 'grade12'];
+$pricingOptionsList = [];
+foreach ($pricingOptions as $value => $label) {
+    $pricingOptionsList[] = ['value' => $value, 'label' => $label];
+}
+
 $planLabels = [
     'annually' => 'Annually',
     'cash' => 'Cash',
@@ -56,14 +62,19 @@ function tuition_grade_synonyms(string $normalized): array
 $schoolYearInput = isset($_GET['school_year']) ? htmlspecialchars((string) $_GET['school_year']) : '';
 $selectedGrade = $_GET['year'] ?? '';
 $selectedType = $_GET['student_type'] ?? 'all';
-$selectedPricing = $_GET['pricing_category'] ?? 'regular';
+$selectedPricingInput = $_GET['pricing_category'] ?? 'regular';
 
 if (!array_key_exists($selectedGrade, $gradeOptions)) {
     $selectedGrade = 'preprime1';
 }
-if (!array_key_exists($selectedPricing, $pricingOptions)) {
-    $selectedPricing = 'regular';
+$restrictPricingToEsc = in_array($selectedGrade, $escOnlyGrades, true);
+
+if (!array_key_exists($selectedPricingInput, $pricingOptions)) {
+    $selectedPricingInput = 'regular';
 }
+
+$selectedPricing = $restrictPricingToEsc ? 'esc' : $selectedPricingInput;
+$pricingOptionsForDisplay = $restrictPricingToEsc ? ['esc' => $pricingOptions['esc']] : $pricingOptions;
 
 $studentTypeOptions = [
     'all' => 'All Students',
@@ -363,7 +374,7 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
                         <div class="col-md-4 col-lg-3">
                             <label for="pricing_category" class="form-label">Pricing Variant</label>
                             <select name="pricing_category" id="pricing_category" class="form-select">
-                                <?php foreach ($pricingOptions as $value => $label): ?>
+                                <?php foreach ($pricingOptionsForDisplay as $value => $label): ?>
                                     <option value="<?= htmlspecialchars($value) ?>" <?= $selectedPricing === $value ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
                                 <?php endforeach; ?>
                             </select>
@@ -715,6 +726,63 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const gradeSelect = document.getElementById('year');
+            const pricingSelect = document.getElementById('pricing_category');
+            const escOnlyGrades = new Set(<?= json_encode($escOnlyGrades) ?>);
+            const pricingVariants = <?= json_encode($pricingOptionsList) ?>;
+            let lastFreeSelection = 'regular';
+
+            const renderPricingOptions = () => {
+                if (!gradeSelect || !pricingSelect) {
+                    return;
+                }
+
+                const requiresEsc = escOnlyGrades.has(gradeSelect.value);
+                let currentSelection = pricingSelect.value || 'regular';
+
+                if (!requiresEsc && currentSelection !== 'esc') {
+                    lastFreeSelection = currentSelection;
+                }
+
+                if (requiresEsc) {
+                    currentSelection = 'esc';
+                } else if (currentSelection === 'esc') {
+                    currentSelection = lastFreeSelection || 'regular';
+                }
+
+                pricingSelect.innerHTML = '';
+                const variantsToRender = requiresEsc
+                    ? pricingVariants.filter((option) => option.value === 'esc')
+                    : pricingVariants;
+
+                variantsToRender.forEach(({ value, label }) => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    option.textContent = label;
+                    option.selected = value === currentSelection;
+                    pricingSelect.appendChild(option);
+                });
+
+                if (!requiresEsc && pricingSelect.value !== 'esc') {
+                    lastFreeSelection = pricingSelect.value;
+                }
+            };
+
+            if (gradeSelect && pricingSelect) {
+                if (pricingSelect.value && pricingSelect.value !== 'esc') {
+                    lastFreeSelection = pricingSelect.value;
+                }
+
+                gradeSelect.addEventListener('change', renderPricingOptions);
+                pricingSelect.addEventListener('change', () => {
+                    if (!escOnlyGrades.has(gradeSelect.value) && pricingSelect.value !== 'esc') {
+                        lastFreeSelection = pricingSelect.value;
+                    }
+                });
+
+                renderPricingOptions();
+            }
+
             document.querySelectorAll('[data-plan-container]').forEach(function (container) {
                 const tabs = Array.from(container.querySelectorAll('[data-plan-trigger]'));
                 const panels = Array.from(container.querySelectorAll('[data-plan-panel]'));

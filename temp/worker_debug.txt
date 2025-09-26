@@ -88,3 +88,21 @@ Array
     [4] => JHON BERN
     [5] => VITTO
 )
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 59
+    [2] => New
+    [3] => victoriopolo03@gmail.com
+    [4] => POLO EMMANUELLE
+    [5] => VICTORIO
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 60
+    [2] => New
+    [3] => victoriopolo03@gmail.com
+    [4] => POLO EMMANUELLE
+    [5] => VICTORIO
+)

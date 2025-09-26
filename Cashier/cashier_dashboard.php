@@ -127,6 +127,57 @@ $gradeOptions = [
                         <?php
                             $views = $snapshot['views'] ?? ['current' => $snapshot];
                             $hasMultipleViews = isset($snapshot['views']) && count($snapshot['views']) > 1;
+                            $primaryView = $views['current'] ?? reset($views);
+                            $primaryPlanTabs = $primaryView['plan_tabs'] ?? [];
+                            $primaryActivePlan = $primaryView['active_plan'] ?? null;
+                            $primaryPlanMeta = null;
+                            foreach ($primaryPlanTabs as $tabCandidate) {
+                                if (!empty($tabCandidate['available']) && $tabCandidate['plan_type'] === $primaryActivePlan) {
+                                    $primaryPlanMeta = $tabCandidate;
+                                    break;
+                                }
+                            }
+                            if ($primaryPlanMeta === null) {
+                                foreach ($primaryPlanTabs as $tabCandidate) {
+                                    if (!empty($tabCandidate['available'])) {
+                                        $primaryPlanMeta = $tabCandidate;
+                                        $primaryActivePlan = $tabCandidate['plan_type'];
+                                        break;
+                                    }
+                                }
+                            }
+
+                            $primarySummary = $primaryPlanMeta['summary'] ?? null;
+                            $primaryNextRow = $primarySummary['next_due_row'] ?? null;
+                            $defaultAmount = '';
+                            $amountHintText = '';
+                            if ($primaryNextRow) {
+                                $nextAmountRaw = null;
+                                if (isset($primaryNextRow['amount_outstanding'])) {
+                                    $nextAmountRaw = (float) $primaryNextRow['amount_outstanding'];
+                                } elseif (isset($primaryNextRow['amount'])) {
+                                    $nextAmountRaw = (float) $primaryNextRow['amount'];
+                                }
+                                if ($nextAmountRaw !== null && $nextAmountRaw > 0.0) {
+                                    $defaultAmount = number_format($nextAmountRaw, 2, '.', '');
+                                    $hintParts = [];
+                                    if (!empty($primaryNextRow['due_date'])) {
+                                        $hintParts[] = 'Due ' . $primaryNextRow['due_date'];
+                                    }
+                                    if (!empty($primaryNextRow['label'])) {
+                                        $hintParts[] = $primaryNextRow['label'];
+                                    }
+                                    if (!empty($primaryNextRow['note']) && (!isset($primaryNextRow['label']) || $primaryNextRow['note'] !== $primaryNextRow['label'])) {
+                                        $hintParts[] = $primaryNextRow['note'];
+                                    }
+                                    $hintParts[] = '₱' . number_format($nextAmountRaw, 2);
+                                    $amountHintText = implode(' • ', array_filter(array_unique($hintParts)));
+                                }
+                            }
+                            if ($amountHintText === '' && !empty($primaryPlanMeta['label'])) {
+                                $amountHintText = 'Selected plan: ' . $primaryPlanMeta['label'];
+                            }
+                            $primaryPlanContext = $primaryView['plan_context'] ?? null;
                         ?>
 
                         <?php if ($hasMultipleViews): ?>
@@ -150,19 +201,50 @@ $gradeOptions = [
                             $viewPlanLabel = $viewData['plan_label'] ?? null;
                             $viewNextDue = $viewData['next_due_row'] ?? null;
                             $viewAlert = $viewData['alert'] ?? null;
-                            $viewScheduleRows = $viewData['schedule_rows'] ?? [];
+                            $planTabs = $viewData['plan_tabs'] ?? [];
+                            $planOptions = cashier_dashboard_plan_labels();
+                            $activePlanKey = $viewData['active_plan'] ?? null;
+                            $viewScheduleRows = [];
                             $viewScheduleMessage = $viewData['schedule_message'] ?? 'No schedule information available.';
                             $viewPendingRows = $viewData['pending_rows'] ?? [];
                             $viewPendingMessage = $viewData['pending_message'] ?? 'No pending payments for this grade.';
                             $viewHistoryRows = $viewData['history_rows'] ?? [];
                             $viewHistoryMessage = $viewData['history_message'] ?? 'No payments recorded yet for this grade.';
                             $viewYearTotal = $viewData['current_year_total'] ?? 0;
+
+                            $nextDueParts = [];
+                            if (!empty($viewNextDue)) {
+                                if (!empty($viewNextDue['due_date'])) {
+                                    $label = 'Next due on ' . $viewNextDue['due_date'];
+                                    if (isset($viewNextDue['amount']) || isset($viewNextDue['amount_outstanding'])) {
+                                        $amountRaw = (float) ($viewNextDue['amount_outstanding'] ?? $viewNextDue['amount'] ?? 0);
+                                        if ($amountRaw > 0) {
+                                            $label .= ' • ₱' . number_format($amountRaw, 2);
+                                        }
+                                    }
+                                    $nextDueParts[] = $label;
+                                } else {
+                                    if (!empty($viewNextDue['label'])) {
+                                        $nextDueParts[] = $viewNextDue['label'];
+                                    }
+                                    if (!empty($viewNextDue['note']) && (!isset($viewNextDue['label']) || $viewNextDue['note'] !== $viewNextDue['label'])) {
+                                        $nextDueParts[] = $viewNextDue['note'];
+                                    }
+                                    if (isset($viewNextDue['amount_outstanding'])) {
+                                        $amountRaw = (float) $viewNextDue['amount_outstanding'];
+                                        if ($amountRaw > 0) {
+                                            $nextDueParts[] = '₱' . number_format($amountRaw, 2);
+                                        }
+                                    }
+                                }
+                            }
+                            $nextDueDisplay = implode(' • ', array_filter($nextDueParts));
                         ?>
                         <div class="cashier-view" data-student="<?= $s['id'] ?>" data-view="<?= htmlspecialchars($viewKey) ?>" style="<?= $isDefaultView ? '' : 'display:none;' ?>">
                             <div class="search-summary-tiles" style="display:flex; flex-wrap:wrap; gap:12px;">
                                 <div class="summary-tile-sm">
                                     <span class="label">Remaining Balance</span>
-                                    <strong>₱<?= number_format($viewRemaining, 2) ?></strong>
+                                    <strong data-plan-bind="remaining">₱<?= number_format($viewRemaining, 2) ?></strong>
                                 </div>
                                 <div class="summary-tile-sm">
                                     <span class="label">Total Paid</span>
@@ -174,7 +256,7 @@ $gradeOptions = [
                                 </div>
                                 <div class="summary-tile-sm">
                                     <span class="label">Tuition Package</span>
-                                    <strong>₱<?= number_format($viewYearTotal, 2) ?></strong>
+                                    <strong data-plan-bind="total">₱<?= number_format($viewYearTotal, 2) ?></strong>
                                 </div>
                             </div>
 
@@ -184,18 +266,175 @@ $gradeOptions = [
                                 </div>
                             <?php endif; ?>
 
-                            <div class="search-subsection">
+                            <div class="search-subsection" data-plan-container>
                                 <h4>Upcoming Tuition Schedule</h4>
-                                <?php if (!empty($viewPlanLabel) || $viewNextDue): ?>
-                                    <p style="margin:0 0 10px; color:#5d6d6f; font-size:0.9rem;">
-                                        <?php if ($viewPlanLabel): ?>Plan: <strong><?= htmlspecialchars($viewPlanLabel) ?></strong><?php endif; ?>
-                                        <?php if ($viewNextDue): ?>
-                                            <span>• Next due on <strong><?= htmlspecialchars($viewNextDue['due_date']) ?></strong></span>
-                                        <?php endif; ?>
-                                    </p>
-                                <?php endif; ?>
+                                <?php
+                                    $planAvailability = [];
+                                    foreach ($planTabs as $planTabInfo) {
+                                        $planAvailability[$planTabInfo['plan_type']] = !empty($planTabInfo['available']);
+                                    }
+                                ?>
+                                <div class="mb-3">
+                                    <label for="payment-plan-select-<?= $s['id'] ?>" class="form-label">Choose Payment Plan:</label>
+                                    <select id="payment-plan-select-<?= $s['id'] ?>" class="form-select payment-plan-select" data-student="<?= $s['id'] ?>">
+                                        <?php foreach ($planOptions as $planType => $planLabel):
+                                            $isSelected = $planType === $activePlanKey;
+                                            $isEnabled = !empty($planAvailability[$planType]);
+                                        ?>
+                                            <option value="<?= htmlspecialchars($planType) ?>" <?= $isSelected ? 'selected' : '' ?> <?= $isEnabled ? '' : 'disabled' ?>><?= htmlspecialchars($planLabel) ?><?= $isEnabled ? '' : ' (Unavailable)' ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <p style="margin:0 0 10px; color:#5d6d6f; font-size:0.9rem;" data-plan-wrapper="summary"<?= ($viewPlanLabel || $nextDueDisplay !== '') ? '' : ' hidden' ?>>
+                                    <span data-plan-bind="label" style="font-weight:600; color:#145A32;"></span>
+                                    <span data-plan-bind="next-wrapper" style="display:none;">
+                                        <span data-plan-bind="next-prefix"></span>
+                                        <span data-plan-bind="next-text"></span>
+                                    </span>
+                                </p>
 
-                                <?php if (!empty($viewScheduleRows)): ?>
+                                <p class="cashier-schedule-message" data-plan-bind="schedule-message" style="margin:0 0 14px; color:#5d6d6f; font-size:0.9rem;">
+                                    <?= htmlspecialchars($viewScheduleMessage) ?>
+                                </p>
+
+                                <?php if (!empty($planTabs)): ?>
+                                    <div class="plan-tab-group mb-3" role="tablist" data-plan-tablist>
+                                        <?php foreach ($planTabs as $tabData):
+                                            $planType = $tabData['plan_type'];
+                                            $planLabel = $tabData['label'];
+                                            $dueAmount = (float) ($tabData['due'] ?? 0);
+                                            $isAvailable = !empty($tabData['available']);
+                                            $isActive = $planType === $activePlanKey;
+                                        ?>
+                                            <button type="button"
+                                                class="plan-tab<?= $isActive ? ' active' : '' ?>"
+                                                data-plan-trigger="<?= htmlspecialchars($planType) ?>"
+                                                <?= $isAvailable ? '' : 'disabled' ?>
+                                            >
+                                                <span class="plan-tab__label"><?= htmlspecialchars($planLabel) ?></span>
+                                                <span class="plan-tab__amount">
+                                                    <?= $isAvailable ? '₱' . number_format($dueAmount, 2) : 'Unavailable' ?>
+                                                </span>
+                                            </button>
+                                        <?php endforeach; ?>
+                                    </div>
+
+                                    <div class="cashier-plan-panels">
+                                        <?php foreach ($planTabs as $tabData):
+                                            $planType = $tabData['plan_type'];
+                                            $planLabel = $tabData['label'];
+                                            $dueAmount = (float) ($tabData['due'] ?? 0);
+                                            $isAvailable = !empty($tabData['available']);
+                                            $entries = $tabData['entries'] ?? [];
+                                            $base = $tabData['base'] ?? [];
+                                            $notes = $tabData['notes'] ?? '';
+                                            $futureTotal = ($base['overall_total'] ?? 0) - ($base['due_total'] ?? 0);
+                                            if ($futureTotal < 0) {
+                                                $futureTotal = 0;
+                                            }
+                                            $isActive = $planType === $activePlanKey;
+                                        ?>
+                                            <div class="plan-panel<?= $isActive ? ' active' : '' ?>" data-plan-panel="<?= htmlspecialchars($planType) ?>">
+                                                <div class="row g-3">
+                                                    <div class="col-12 col-lg-6">
+                                                        <div class="plan-panel-card">
+                                                            <h4 class="fw-semibold mb-2">What you pay today</h4>
+                                                            <?php if ($isAvailable && $dueAmount > 0): ?>
+                                                                <p class="mb-1"><strong>Entrance Fee:</strong> ₱<?= number_format($base['entrance_fee'] ?? 0, 2) ?>
+                                                                    <?php if (!empty($base['entrance_note'])): ?>
+                                                                        <span class="text-success">(<?= htmlspecialchars($base['entrance_note']) ?>)</span>
+                                                                    <?php endif; ?>
+                                                                </p>
+                                                                <p class="mb-1"><strong>Miscellaneous Fee:</strong> ₱<?= number_format($base['miscellaneous_fee'] ?? 0, 2) ?></p>
+                                                                <p class="mb-1"><strong>Tuition Portion:</strong> ₱<?= number_format($base['tuition_fee'] ?? 0, 2) ?></p>
+                                                                <p class="mb-0 mt-2"><strong>Due upon enrollment:</strong> ₱<?= number_format($base['due_total'] ?? 0, 2) ?></p>
+                                                            <?php else: ?>
+                                                                <p class="mb-0">No breakdown available for this plan.</p>
+                                                            <?php endif; ?>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-12 col-lg-6">
+                                                        <div class="plan-panel-card">
+                                                            <h4 class="fw-semibold mb-2">Remaining balance</h4>
+                                                            <?php if ($isAvailable && !empty($entries)): ?>
+                                                                <p class="mb-1">Future payments total: ₱<?= number_format($futureTotal, 2) ?></p>
+                                                            <?php elseif ($isAvailable && $dueAmount > 0): ?>
+                                                                <p class="mb-1">No remaining payments after enrollment.</p>
+                                                            <?php else: ?>
+                                                                <p class="mb-1">No breakdown available for this plan.</p>
+                                                            <?php endif; ?>
+                                                            <p class="mb-0"><strong>Overall program cost:</strong> ₱<?= number_format($base['overall_total'] ?? 0, 2) ?></p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="table-fees table-responsive mt-4">
+                                                    <table class="table table-bordered align-middle">
+                                                        <thead class="table-success text-center">
+                                                            <tr>
+                                                                <th scope="col">Schedule</th>
+                                                                <th scope="col">Amount</th>
+                                                                <th scope="col">Notes</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            <?php if ($isAvailable && !empty($entries)): ?>
+                                                                <?php foreach ($entries as $entry): ?>
+                                                                    <tr>
+                                                                        <td><?= htmlspecialchars($planLabel) ?></td>
+                                                                        <td>₱<?= number_format((float) $entry['amount'], 2) ?></td>
+                                                                        <td><?= $entry['note'] !== '' ? htmlspecialchars($entry['note']) : '—' ?></td>
+                                                                    </tr>
+                                                                <?php endforeach; ?>
+                                                            <?php elseif ($isAvailable && $dueAmount > 0): ?>
+                                                                <tr>
+                                                                    <td colspan="3" class="text-center">No future payments recorded for this plan.</td>
+                                                                </tr>
+                                                            <?php else: ?>
+                                                                <tr>
+                                                                    <td colspan="3" class="text-center">No breakdown available for this plan.</td>
+                                                                </tr>
+                                                            <?php endif; ?>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                <?php if ($isAvailable && $notes !== ''): ?>
+                                                    <div class="plan-panel-note">
+                                                        <strong>Notes:</strong> <?= nl2br(htmlspecialchars($notes)) ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+
+                                    <?php foreach ($planTabs as $tabData):
+                                        if (empty($tabData['available'])) {
+                                            continue;
+                                        }
+                                        $planKey = $tabData['plan_type'];
+                                        $summary = $tabData['summary'] ?? [];
+                                        $nextRow = $summary['next_due_row'] ?? [];
+                                        $nextAmountRaw = '';
+                                        if (isset($nextRow['amount_outstanding'])) {
+                                            $nextAmountRaw = number_format((float) $nextRow['amount_outstanding'], 2, '.', '');
+                                        } elseif (isset($nextRow['amount'])) {
+                                            $nextAmountRaw = number_format((float) $nextRow['amount'], 2, '.', '');
+                                        }
+                                    ?>
+                                        <div class="cashier-plan-meta" hidden data-plan-meta data-plan="<?= htmlspecialchars($planKey) ?>"
+                                            data-remaining="<?= number_format((float) ($summary['remaining_with_previous'] ?? $previous_outstanding), 2, '.', '') ?>"
+                                            data-total="<?= number_format((float) ($summary['plan_total'] ?? 0.0), 2, '.', '') ?>"
+                                            data-plan-label="<?= htmlspecialchars($tabData['label'], ENT_QUOTES) ?>"
+                                            data-next-label="<?= htmlspecialchars($nextRow['label'] ?? '', ENT_QUOTES) ?>"
+                                            data-next-note="<?= htmlspecialchars($nextRow['note'] ?? '', ENT_QUOTES) ?>"
+                                            data-next-amount="<?= $nextAmountRaw ?>"
+                                            data-next-due="<?= htmlspecialchars($nextRow['due_date'] ?? '', ENT_QUOTES) ?>"
+                                            data-schedule-message="<?= htmlspecialchars($summary['schedule_message'] ?? '', ENT_QUOTES) ?>"
+                                            data-plan-due="<?= number_format((float) $tabData['due'], 2, '.', '') ?>"
+                                        ></div>
+                                    <?php endforeach; ?>
+                                <?php elseif (!empty($viewScheduleRows)): ?>
                                     <table class="search-table">
                                         <thead>
                                             <tr>
@@ -212,36 +451,36 @@ $gradeOptions = [
                                                     $rowClass = 'next-due';
                                                 }
 
-                                                $displayAmount = '';
-                                                if (array_key_exists('amount_outstanding', $row)) {
-                                                    $originalRaw = (float) ($row['amount_original'] ?? 0);
-                                                    $outstandingRaw = (float) ($row['amount_outstanding'] ?? 0);
-                                                    $original = round($originalRaw, 2);
-                                                    $outstanding = round($outstandingRaw, 2);
+                                                $dueLabel = isset($row['due_date']) && $row['due_date'] !== ''
+                                                    ? $row['due_date']
+                                                    : ($row['label'] ?? '—');
 
-                                                    if ($outstanding <= 0.009) {
-                                                        $displayAmount = '<span class="text-success fw-semibold">Paid</span>';
-                                                        if ($original > 0) {
-                                                            $displayAmount .= ' <span class="text-muted">(₱' . number_format($original, 2) . ')</span>';
-                                                        }
-                                                    } elseif ($original > $outstanding + 0.009) {
-                                                        $displayAmount = '₱' . number_format($outstanding, 2) . ' <span class="text-muted" style="font-size:0.82rem;">of ₱' . number_format($original, 2) . ' remaining</span>';
-                                                    } else {
-                                                        $displayAmount = '₱' . number_format($outstanding, 2);
-                                                    }
+                                                $amountOriginal = isset($row['amount_original'])
+                                                    ? (float) $row['amount_original']
+                                                    : (float) ($row['amount'] ?? 0);
+                                                $amountOutstanding = isset($row['amount_outstanding'])
+                                                    ? (float) $row['amount_outstanding']
+                                                    : $amountOriginal;
+
+                                                if ($amountOutstanding <= 0.009 && $amountOriginal > $amountOutstanding + 0.009) {
+                                                    $displayAmount = '<span class="text-success fw-semibold">Paid</span>';
+                                                    $displayAmount .= ' <span class="text-muted">(₱' . number_format($amountOriginal, 2) . ')</span>';
+                                                } elseif ($amountOriginal > $amountOutstanding + 0.009 && $amountOutstanding > 0.009) {
+                                                    $displayAmount = '₱' . number_format($amountOutstanding, 2)
+                                                        . ' <span class="text-muted" style="font-size:0.82rem;">of ₱'
+                                                        . number_format($amountOriginal, 2)
+                                                        . ' remaining</span>';
                                                 } else {
-                                                    $displayAmount = '₱' . number_format((float) ($row['amount'] ?? 0), 2);
+                                                    $displayAmount = '₱' . number_format($amountOutstanding > 0 ? $amountOutstanding : $amountOriginal, 2);
                                                 }
                                             ?>
                                                 <tr class="<?= $rowClass ?>">
-                                                    <td><?= htmlspecialchars($row['due_date']) ?></td>
+                                                    <td><?= htmlspecialchars($dueLabel) ?></td>
                                                     <td class="text-end"><?= $displayAmount ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
-                                <?php else: ?>
-                                    <p style="margin:16px 0 0; color:#5d6d6f;"><?= htmlspecialchars($viewScheduleMessage) ?></p>
                                 <?php endif; ?>
                             </div>
 
@@ -281,37 +520,76 @@ $gradeOptions = [
                                     <table class="search-table">
                                         <thead>
                                             <tr>
-                                                <th>Date</th>
-                                                <th>Method</th>
-                                                <th class="text-end">Amount Applied</th>
-                                                <th>Reference</th>
-                                                <th>Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($viewHistoryRows as $history_row):
-                                                $historyAmount = (float) ($history_row['applied_amount'] ?? $history_row['amount'] ?? 0);
-                                                $historySource = (float) ($history_row['source_amount'] ?? $historyAmount);
-                                                $isPartial = !empty($history_row['is_partial']) && $historySource > 0 && abs($historyAmount - $historySource) > 0.009;
-                                                $referenceVal = $history_row['reference_number'] ?? $history_row['or_number'] ?? null;
-                                                $dateDisplay = $history_row['payment_date'] ?? ($history_row['created_at'] ?? '--');
-                                                $statusLabel = ucfirst(strtolower((string) ($history_row['payment_status'] ?? 'Paid')));
-                                            ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($dateDisplay) ?></td>
-                                                    <td><?= htmlspecialchars(ucfirst((string) ($history_row['payment_type'] ?? 'N/A'))) ?></td>
-                                                    <td class="text-end">
-                                                        ₱<?= number_format($historyAmount, 2) ?>
-                                                        <?php if ($isPartial): ?>
-                                                            <div style="color:#7a8a84; font-size:0.8rem;">From ₱<?= number_format($historySource, 2) ?></div>
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td><?= htmlspecialchars($referenceVal ?: 'N/A') ?></td>
-                                                    <td><span style="color:#1e8449; font-weight:600;"><?= htmlspecialchars($statusLabel) ?></span></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
+                                                <!-- Script moved to end of file for best practice -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-plan-container]').forEach(function (container) {
+                const tabs = Array.from(container.querySelectorAll('[data-plan-trigger]'));
+                const panels = Array.from(container.querySelectorAll('[data-plan-panel]'));
+                const select = container.querySelector('.payment-plan-select');
+                const totalEl = container.querySelector('[data-plan-selected-total]');
+                const labelEl = container.querySelector('[data-plan-selected-label]');
+
+                function activatePlan(target) {
+                    tabs.forEach(function (btn) {
+                        btn.classList.toggle('active', btn.getAttribute('data-plan-trigger') === target);
+                    });
+                    panels.forEach(function (panel) {
+                        panel.classList.toggle('active', panel.getAttribute('data-plan-panel') === target);
+                    });
+                    // Update summary label and next due info
+                    const meta = container.querySelector('[data-plan-meta][data-plan="' + target + '"]');
+                    if (meta) {
+                        // Update label
+                        const labelSpan = container.querySelector('[data-plan-bind="label"]');
+                        if (labelSpan) labelSpan.textContent = meta.getAttribute('data-plan-label') || '';
+                        // Hide next due info for cash plan
+                        const nextWrapper = container.querySelector('[data-plan-bind="next-wrapper"]');
+                        const nextTextSpan = container.querySelector('[data-plan-bind="next-text"]');
+                        if (nextWrapper && nextTextSpan) {
+                            if (select.value === 'cash') {
+                                nextWrapper.style.display = 'none';
+                                nextTextSpan.textContent = '';
+                            } else {
+                                let nextDue = '';
+                                if (meta.getAttribute('data-next-due')) {
+                                    nextDue = 'Next due on ' + meta.getAttribute('data-next-due');
+                                }
+                                if (meta.getAttribute('data-next-amount') && parseFloat(meta.getAttribute('data-next-amount')) > 0) {
+                                    nextDue += ' • ₱' + meta.getAttribute('data-next-amount');
+                                }
+                                nextTextSpan.textContent = nextDue;
+                                nextWrapper.style.display = nextDue ? '' : 'none';
+                            }
+                        }
+                        // Update schedule message
+                        const scheduleMsg = container.querySelector('[data-plan-bind="schedule-message"]');
+                        if (scheduleMsg) {
+                            scheduleMsg.textContent = meta.getAttribute('data-schedule-message') || '';
+                        }
+                    }
+                }
+
+                tabs.forEach(function (tab) {
+                    tab.addEventListener('click', function () {
+                        const target = tab.getAttribute('data-plan-trigger');
+                        if (select) {
+                            select.value = target;
+                        }
+                        activatePlan(target);
+                    });
+                });
+
+                if (select) {
+                    select.addEventListener('change', function () {
+                        activatePlan(select.value);
+                    });
+                    // Activate initial plan on load
+                    activatePlan(select.value);
+                }
+            });
+        });
+    </script>
                                 <?php else: ?>
                                     <p style="margin:0; color:#5d6d6f;"><?= htmlspecialchars($viewHistoryMessage) ?></p>
                                 <?php endif; ?>
@@ -328,6 +606,12 @@ $gradeOptions = [
                             <input type="hidden" name="lastname" value="<?= htmlspecialchars($s['lastname']) ?>">
                             <input type="hidden" name="payment_status" value="paid">
                             <input type="hidden" name="search_name" value="<?= htmlspecialchars($searchQuery) ?>">
+                            <input type="hidden" name="payment_plan" data-plan-field="plan" value="<?= htmlspecialchars($primaryActivePlan ?? '') ?>">
+                            <input type="hidden" name="tuition_fee_id" value="<?= $primaryPlanContext['tuition_fee_id'] ?? '' ?>">
+                            <input type="hidden" name="plan_school_year" value="<?= htmlspecialchars($primaryPlanContext['school_year'] ?? '') ?>">
+                            <input type="hidden" name="plan_grade_level" value="<?= htmlspecialchars($primaryPlanContext['grade_level'] ?? '') ?>">
+                            <input type="hidden" name="plan_pricing_category" value="<?= htmlspecialchars($primaryPlanContext['pricing_category'] ?? '') ?>">
+                            <input type="hidden" name="plan_student_type" value="<?= htmlspecialchars($primaryPlanContext['student_type'] ?? '') ?>">
 
                             <div class="form-grid">
                                 <div>
@@ -339,10 +623,10 @@ $gradeOptions = [
                                 </div>
                                 <div>
                                     <label>Amount (₱)</label>
-                                    <input type="number" name="amount" step="0.01" min="0" required value="<?= $snapshot && $snapshot['next_due_row'] ? number_format($snapshot['next_due_row']['amount'], 2, '.', '') : '' ?>">
-                                    <?php if ($snapshot && $snapshot['next_due_row']): ?>
-                                        <small style="display:block; color:#5d6d6f;">Next due on <?= htmlspecialchars($snapshot['next_due_row']['due_date']) ?> for ₱<?= number_format($snapshot['next_due_row']['amount'], 2) ?></small>
-                                    <?php endif; ?>
+                                    <input type="number" name="amount" step="0.01" min="0" required value="<?= htmlspecialchars($defaultAmount) ?>" data-plan-field="amount">
+                                    <small data-plan-bind="amount-hint" style="display:<?= $amountHintText !== '' ? 'block' : 'none' ?>; color:#5d6d6f;">
+                                        <?= htmlspecialchars($amountHintText) ?>
+                                    </small>
                                 </div>
                                 <div id="modal-fields-<?= $s['id'] ?>" class="payment-fields-group">
                                     <div class="cash-field">
@@ -356,7 +640,9 @@ $gradeOptions = [
                                 </div>
                             </div>
 
-                            <button type="submit" class="record-btn">Record Payment</button>
+                            <button type="submit" class="record-btn" data-plan-bind="submit-button">
+                                <?= $primaryPlanMeta && !empty($primaryPlanMeta['label']) ? 'Record Payment (' . htmlspecialchars($primaryPlanMeta['label']) . ')' : 'Record Payment' ?>
+                            </button>
                         </form>
                     </div>
                 </li>

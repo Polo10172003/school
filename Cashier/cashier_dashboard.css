@@ -199,6 +199,75 @@ a:hover {
   font-weight: bold;
 }
 
+.cashier-plan-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.plan-tab-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.plan-tab {
+  border: 1px solid rgba(20, 90, 50, 0.15);
+  background: #fff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+  transition: all 0.2s ease;
+}
+
+.plan-tab:hover,
+.plan-tab:focus {
+  border-color: #0b5d1e;
+  background: rgba(20, 90, 50, 0.12);
+  box-shadow: 0 12px 22px rgba(12, 68, 49, 0.12);
+  outline: none;
+}
+
+.plan-tab.active {
+  border-color: #145A32;
+  background: rgba(20, 90, 50, 0.08);
+  box-shadow: 0 10px 20px rgba(12, 68, 49, 0.12);
+}
+
+.plan-tab__label {
+  font-weight: 600;
+  color: #145A32;
+}
+
+.plan-tab__amount {
+  font-size: 0.9rem;
+  color: #2f3e46;
+}
+
+.cashier-plan-panels .plan-panel {
+  display: none;
+}
+
+.cashier-plan-panels .plan-panel.active {
+  display: block;
+}
+
+.plan-tab[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  pointer-events: none;
+  box-shadow: none;
+}
+
+.cashier-plan-table th,
+.cashier-plan-table td {
+  vertical-align: top;
+}
+
 .pending {
   color: #e74c3c;
   font-weight: bold;
