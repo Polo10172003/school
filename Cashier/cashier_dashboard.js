@@ -243,15 +243,17 @@
     };
 
     document.querySelectorAll('[data-plan-container]').forEach((container) => {
-      const tabs = Array.from(container.querySelectorAll('.plan-tab'));
-      if (!tabs.length) {
-        return;
-      }
-
+      const dropdown = container.querySelector('.payment-plan-select');
       const panels = new Map();
       container.querySelectorAll('[data-plan-panel]').forEach((panel) => {
         panels.set(panel.dataset.planPanel, panel);
       });
+      if (!dropdown || panels.size === 0) {
+        return;
+      }
+
+
+      
 
       const metas = new Map();
       container.querySelectorAll('.cashier-plan-meta').forEach((meta) => {
@@ -277,187 +279,39 @@
       const hintEl = form ? form.querySelector('[data-plan-bind="amount-hint"]') : null;
       const submitBtn = form ? form.querySelector('[data-plan-bind="submit-button"]') : null;
 
-      const setActivePlan = (planKey) => {
-        const activeTab = tabs.find((tab) => tab.dataset.planTrigger === planKey && !tab.disabled) || null;
-        const meta = planKey ? metas.get(planKey) : null;
+      
 
-        tabs.forEach((tab) => {
-          const isActive = tab === activeTab;
-          tab.classList.toggle('active', isActive);
-        });
+const setActivePlan = (planKey) => {
+  const normalizedKey = String(planKey).toLowerCase().replace(/-/g, '_');
+  panels.forEach((panel, key) => {
+    const normKey = key.toLowerCase().replace(/-/g, '_');
+    const isActive = normKey === normalizedKey;
+    panel.classList.toggle('active', isActive);
+    panel.style.display = isActive ? '' : 'none';
+  });
+};
 
-        panels.forEach((panel, key) => {
-          const isActive = key === planKey && activeTab;
-          panel.classList.toggle('active', isActive);
-          panel.style.display = isActive ? '' : 'none';
-        });
 
-        if (totalDisplay) {
-          if (activeTab) {
-            totalDisplay.textContent = activeTab.dataset.planDue || '₱0.00';
-          } else {
-            totalDisplay.textContent = '₱0.00';
-          }
-        }
+// initialize
+setActivePlan(dropdown.value);
 
-        if (labelDisplay) {
-          if (activeTab) {
-            labelDisplay.textContent = activeTab.dataset.planLabel || 'Select a plan to see details.';
-          } else {
-            labelDisplay.textContent = 'Select a plan to see details.';
-          }
-        }
+// update on change
+dropdown.addEventListener('change', () => {
+  setActivePlan(dropdown.value);
+});
 
-        if (!meta || !activeTab) {
-          if (remainingEl) {
-            remainingEl.textContent = '₱0.00';
-          }
-          if (totalEl) {
-            totalEl.textContent = '₱0.00';
-          }
-          if (labelEl) {
-            labelEl.textContent = '';
-          }
-          if (nextWrapper) {
-            nextWrapper.style.display = 'none';
-          }
-          if (summaryWrapper) {
-            summaryWrapper.hidden = true;
-          }
-          if (messageEl) {
-            messageEl.textContent = 'Choose a plan to see the schedule.';
-          }
-          if (planInput) {
-            planInput.value = '';
-          }
-          if (amountInput) {
-            amountInput.value = '';
-          }
-          if (hintEl) {
-            hintEl.textContent = '';
-            hintEl.style.display = 'none';
-          }
-          if (submitBtn) {
-            submitBtn.textContent = 'Record Payment';
-          }
-          return;
-        }
 
-        if (remainingEl) {
-          remainingEl.textContent = `₱${formatCurrency(meta.dataset.remaining || '0')}`;
-        }
+// initialize
+setActivePlan(dropdown.value);
 
-        if (totalEl) {
-          totalEl.textContent = `₱${formatCurrency(meta.dataset.total || '0')}`;
-        }
-
-        if (labelEl) {
-          labelEl.textContent = meta.dataset.planLabel || '';
-        }
-
-        const nextLabel = meta.dataset.nextLabel || '';
-        const nextNote = meta.dataset.nextNote || '';
-        const nextDue = meta.dataset.nextDue || '';
-        const nextAmountRaw = meta.dataset.nextAmount && meta.dataset.nextAmount !== '' ? Number(meta.dataset.nextAmount) : null;
-
-        const nextParts = [];
-        if (nextDue) {
-          nextParts.push(`Due ${nextDue}`);
-        }
-        if (nextLabel) {
-          nextParts.push(nextLabel);
-        }
-        if (nextNote && nextNote !== nextLabel) {
-          nextParts.push(nextNote);
-        }
-        if (Number.isFinite(nextAmountRaw) && nextAmountRaw > 0) {
-          nextParts.push(`₱${formatCurrency(nextAmountRaw)}`);
-        }
-
-        const nextText = nextParts.join(' • ');
-        if (nextWrapper) {
-          if (nextText) {
-            nextWrapper.style.display = '';
-            if (nextTextEl) {
-              nextTextEl.textContent = nextText;
-            }
-            if (nextPrefix) {
-              const hasLabel = !!(labelEl && labelEl.textContent.trim().length);
-              nextPrefix.textContent = hasLabel ? '• ' : '';
-            }
-          } else {
-            nextWrapper.style.display = 'none';
-          }
-        }
-
-        if (summaryWrapper) {
-          const labelHasText = labelEl ? labelEl.textContent.trim().length > 0 : false;
-          const nextVisible = nextWrapper ? nextWrapper.style.display !== 'none' : false;
-          summaryWrapper.hidden = !(labelHasText || nextVisible);
-        }
-
-        if (messageEl) {
-          const message = meta.dataset.scheduleMessage || 'No schedule information available.';
-          messageEl.textContent = message;
-        }
-
-        if (planInput) {
-          planInput.value = planKey;
-        }
-
-        const hintParts = [];
-        if (nextDue) {
-          hintParts.push(`Due ${nextDue}`);
-        }
-        if (nextLabel) {
-          hintParts.push(nextLabel);
-        }
-        if (nextNote && nextNote !== nextLabel) {
-          hintParts.push(nextNote);
-        }
-        if (Number.isFinite(nextAmountRaw) && nextAmountRaw > 0) {
-          hintParts.push(`₱${formatCurrency(nextAmountRaw)}`);
-        }
-
-        const hintText = hintParts.length > 0
-          ? hintParts.join(' • ')
-          : (meta.dataset.planLabel ? `Selected plan: ${meta.dataset.planLabel}` : '');
-
-        if (hintEl) {
-          hintEl.textContent = hintText;
-          hintEl.style.display = hintText ? 'block' : 'none';
-        }
-
-        if (submitBtn) {
-          const label = meta.dataset.planLabel || '';
-          submitBtn.textContent = label ? `Record Payment (${label})` : 'Record Payment';
-        }
-
-        if (amountInput && Number.isFinite(nextAmountRaw) && nextAmountRaw > 0) {
-          amountInput.value = nextAmountRaw.toFixed(2);
-        }
-      };
-
-      tabs.forEach((tab) => {
-        tab.addEventListener('click', () => {
-          if (tab.disabled) {
-            return;
-          }
-          setActivePlan(tab.dataset.planTrigger);
-        });
-      });
-
-      const initialTab = tabs.find((tab) => tab.classList.contains('active') && !tab.disabled)
-        || tabs.find((tab) => !tab.disabled)
-        || null;
-
-      if (initialTab) {
-        setActivePlan(initialTab.dataset.planTrigger);
-      } else {
-        setActivePlan('');
-      }
+// update on change
+dropdown.addEventListener('change', () => {
+  setActivePlan(dropdown.value);
+});
     });
   };
+    
+    
 
   document.addEventListener('DOMContentLoaded', () => {
     bindPaymentModal();
@@ -498,7 +352,7 @@
       default:
         result = total;
     }
-
+  
     display.value = result.toFixed(2);
   };
 })();

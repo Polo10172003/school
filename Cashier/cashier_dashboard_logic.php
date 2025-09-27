@@ -871,6 +871,84 @@ function cashier_fetch_plans_for_fee(mysqli $conn, int $feeId): array
 
     return $plans;
 }
+/**
+ * Build a unified plan breakdown for a given tuition fee package.
+ * Mirrors tuition_fees.php logic but reusable in cashier dashboard.
+ *
+ * @return array<string,array>
+ */
+function cashier_dashboard_fetch_student_plans(mysqli $conn, int $feeId): array
+{
+    $plansData = [];
+    $labelMap = cashier_dashboard_plan_labels();
+
+    $stmt = $conn->prepare('SELECT plan_type, due_upon_enrollment, next_payment_breakdown, notes, base_snapshot, display_order 
+                            FROM tuition_fee_plans 
+                            WHERE tuition_fee_id = ? 
+                            ORDER BY display_order ASC, plan_type ASC');
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param('i', $feeId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    while ($row = $result->fetch_assoc()) {
+        $planKey = strtolower(trim((string)$row['plan_type']));
+        $planKey = str_replace([' ', '-'], '_', $planKey);
+
+        $label = $labelMap[$planKey] ?? ucwords(str_replace('_', ' ', $planKey));
+        $due   = (float)($row['due_upon_enrollment'] ?? 0);
+
+        // decode breakdown entries
+        $entries = [];
+        if (!empty($row['next_payment_breakdown'])) {
+            $decoded = json_decode($row['next_payment_breakdown'], true);
+            if (is_array($decoded)) {
+                foreach ($decoded as $entry) {
+                    if (!isset($entry['amount'])) continue;
+                    $entries[] = [
+                        'amount' => (float)$entry['amount'],
+                        'note'   => trim((string)($entry['note'] ?? '')),
+                    ];
+                }
+            }
+        }
+
+        // decode base snapshot
+        $baseSnapshot = [];
+        if (!empty($row['base_snapshot'])) {
+            $decodedBase = json_decode($row['base_snapshot'], true);
+            if (is_array($decodedBase)) {
+                $baseSnapshot = $decodedBase;
+            }
+        }
+
+        $baseEntrance = $baseSnapshot['entrance_fee'] ?? 0.0;
+        $baseMisc     = $baseSnapshot['miscellaneous_fee'] ?? 0.0;
+        $baseTuition  = $baseSnapshot['tuition_fee'] ?? 0.0;
+        $futureTotal  = array_sum(array_column($entries, 'amount'));
+        $overallTotal = $due + $futureTotal;
+
+        $plansData[$planKey] = [
+            'label'   => $label,
+            'due'     => $due,
+            'entries' => $entries,
+            'notes'   => trim((string)($row['notes'] ?? '')),
+            'base'    => [
+                'entrance_fee'   => (float)$baseEntrance,
+                'miscellaneous_fee' => (float)$baseMisc,
+                'tuition_fee'    => (float)$baseTuition,
+                'due_total'      => $due,
+                'overall_total'  => $overallTotal,
+            ],
+        ];
+    }
+
+    $stmt->close();
+    return $plansData;
+}
 
 function cashier_dashboard_build_plan_summaries(array $fee, float $currentPaid, float $previousOutstanding): array
 {
@@ -1139,114 +1217,60 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
         $current_year_total = 0.0;
         $plan_label_display = '';
         $plan_options = [];
-        $plan_tabs = [];
-        $active_plan_key = null;
-        $schedule_message = 'No tuition fee configuration found yet for this year.';
+$plan_tabs = [];
+$active_plan_key = null;
+$schedule_message = 'No tuition fee configuration found yet for this year.';
 
-        if ($fee) {
-            $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
-            $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int) $fee['id']);
-            $planLabels = cashier_dashboard_plan_labels();
-            $planSummaryMap = [];
-            foreach ($plan_options as $summaryOption) {
-                $planSummaryMap[$summaryOption['plan_type']] = $summaryOption;
-            }
+if ($fee) {
+    // Reuse tuition_fees breakdown logic
+    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
 
-            $planRecords = $fee['plans'] ?? [];
-            $availablePlanTypes = [];
+    // Build dropdown options (summary view)
+    $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
 
-            foreach ($planLabels as $planType => $label) {
-                $matchingPlan = null;
-                foreach ($planRecords as $planRecord) {
-                    if (($planRecord['plan_type'] ?? '') === $planType) {
-                        $matchingPlan = $planRecord;
-                        break;
-                    }
-                }
+    // Determine active plan (stored or fallback)
+    $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int)$fee['id']);
+    $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
 
-                $available = $matchingPlan !== null;
-                $planDue = $available ? (float) ($matchingPlan['due_upon_enrollment'] ?? 0.0) : 0.0;
-                $entries = $available ? ($matchingPlan['entries'] ?? []) : [];
-                $notes = $available ? ($matchingPlan['notes'] ?? '') : '';
-
-                $baseSnapshot = $available && isset($matchingPlan['base_snapshot']) && is_array($matchingPlan['base_snapshot'])
-                    ? $matchingPlan['base_snapshot']
-                    : [];
-
-                $baseEntrance = $available && isset($baseSnapshot['entrance_fee'])
-                    ? (float) $baseSnapshot['entrance_fee']
-                    : (float) $fee['entrance_fee'];
-                $baseMisc = $available && isset($baseSnapshot['miscellaneous_fee'])
-                    ? (float) $baseSnapshot['miscellaneous_fee']
-                    : (float) $fee['miscellaneous_fee'];
-                $baseTuition = $available && isset($baseSnapshot['tuition_fee'])
-                    ? (float) $baseSnapshot['tuition_fee']
-                    : (float) $fee['tuition_fee'];
-
-                $futureTotal = 0.0;
-                foreach ($entries as $entry) {
-                    $futureTotal += (float) ($entry['amount'] ?? 0.0);
-                }
-
-                $overallTotal = $planDue + $futureTotal;
-
-                $entranceNote = '';
-                if ($available) {
-                    $originalEntrance = (float) $fee['entrance_fee'];
-                    $pricingCategory = strtolower((string) $fee['pricing_category']);
-                    $entranceDiff = $originalEntrance - $baseEntrance;
-                    if ($planType === 'cash' && $pricingCategory === 'regular' && $originalEntrance > 0.009 && $entranceDiff > 0.009) {
-                        $percent = round(($entranceDiff / $originalEntrance) * 100);
-                        if ($percent > 0) {
-                            $entranceNote = $percent . '% discount applied';
-                        }
-                    }
-                }
-
-                if ($available) {
-                    $availablePlanTypes[] = $planType;
-                }
-
-                $planTabs[] = [
-                    'plan_type' => $planType,
-                    'label' => $label,
-                    'available' => $available,
-                    'due' => $planDue,
-                    'entries' => $entries,
-                    'notes' => $notes,
-                    'base' => [
-                        'entrance_fee' => $available ? $baseEntrance : 0.0,
-                        'miscellaneous_fee' => $available ? $baseMisc : 0.0,
-                        'tuition_fee' => $available ? $baseTuition : 0.0,
-                        'due_total' => $available ? $planDue : 0.0,
-                        'overall_total' => $available ? $overallTotal : 0.0,
-                        'entrance_note' => $entranceNote,
-                    ],
-                    'summary' => $planSummaryMap[$planType] ?? null,
-                ];
-            }
-
-            $active_plan_key = $stored_plan;
-            if ($active_plan_key === null || !in_array($active_plan_key, $availablePlanTypes, true)) {
-                $active_plan_key = null;
-                foreach ($planTabs as $tab) {
-                    if (!empty($tab['available'])) {
-                        $active_plan_key = $tab['plan_type'];
-                        break;
-                    }
+    // Adapt plansData into tab-like records for dashboard view
+    foreach ($plansData as $planType => $plan) {
+        // Deduct paid amounts from breakdown entries
+        $entries = $plan['entries'];
+        $paidAmounts = $paid;
+        foreach ($entries as $i => $entry) {
+            $entryAmount = (float)($entry['amount'] ?? 0);
+            $remaining = $entryAmount;
+            foreach ($paidAmounts as $j => $payment) {
+                if ($remaining > 0 && abs($payment['amount'] - $entryAmount) < 0.01 && strtolower($payment['payment_status']) === 'paid') {
+                    $remaining -= $payment['amount'];
+                    $paidAmounts[$j]['amount'] = 0; // Mark as used
                 }
             }
-
-            if ($active_plan_key !== null && isset($planSummaryMap[$active_plan_key])) {
-                $activeSummary = $planSummaryMap[$active_plan_key];
-                $plan_label_display = $activeSummary['label'] ?? '';
-                $remaining_balance = $activeSummary['remaining_with_previous'] ?? $previous_outstanding;
-                $current_year_total = $activeSummary['plan_total'] ?? 0.0;
-                $schedule_rows = $activeSummary['schedule_rows'] ?? [];
-                $next_due_row = $activeSummary['next_due_row'] ?? null;
-                $schedule_message = $activeSummary['schedule_message'] ?? 'Upcoming dues listed below.';
-            }
+            $entries[$i]['amount_outstanding'] = max($remaining, 0);
+            $entries[$i]['paid'] = ($remaining <= 0.01);
         }
+        $plan_tabs[] = [
+            'plan_type' => $planType,
+            'label'     => $plan['label'],
+            'due'       => $plan['due'],
+            'entries'   => $entries,
+            'notes'     => $plan['notes'],
+            'base'      => $plan['base'],
+            'summary'   => null, // optional: map plan_options here if needed
+        ];
+    }
+
+    // Apply active plan summary if available
+    if ($active_plan_key && ($summary = current(array_filter($plan_options, fn($o) => $o['plan_type'] === $active_plan_key)))) {
+        $plan_label_display = $summary['label'] ?? '';
+        $remaining_balance  = $summary['remaining_with_previous'] ?? $previous_outstanding;
+        $current_year_total = $summary['plan_total'] ?? 0.0;
+        $schedule_rows      = $summary['schedule_rows'] ?? [];
+        $next_due_row       = $summary['next_due_row'] ?? null;
+        $schedule_message   = $summary['schedule_message'] ?? 'Upcoming dues listed below.';
+    }
+}
+
 
         $pending_total = array_sum(array_map('floatval', array_column($pending, 'amount')));
 
