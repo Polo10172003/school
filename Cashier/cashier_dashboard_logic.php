@@ -43,6 +43,16 @@ function cashier_dashboard_plan_labels(): array
     ];
 }
 
+function cashier_dashboard_pricing_labels(): array
+{
+    return [
+        'regular' => 'Regular Students',
+        'fwc'     => 'FWC Member',
+        'esc'     => 'ESC / Government Subsidy',
+        'other'   => 'Other / Custom',
+    ];
+}
+
 /**
  * Provide a consistent ordering weight for display rows per plan.
  */
@@ -142,7 +152,7 @@ function cashier_dashboard_ensure_plan_selection_table(mysqli $conn): bool
     return true;
 }
 
-function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tuitionFeeId): ?string
+function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tuitionFeeId): ?array
 {
     $studentIdInt = (int) $studentId;
 
@@ -154,17 +164,24 @@ function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tu
         return null;
     }
 
-    $stmt = $conn->prepare('SELECT plan_type FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT plan_type, pricing_category FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ? LIMIT 1');
     if (!$stmt) {
         return null;
     }
     $stmt->bind_param('ii', $studentIdInt, $tuitionFeeId);
     $stmt->execute();
-    $stmt->bind_result($planType);
+    $stmt->bind_result($planType, $pricingCategory);
     $found = $stmt->fetch();
     $stmt->close();
 
-    return $found ? strtolower((string) $planType) : null;
+    if (!$found) {
+        return null;
+    }
+
+    return [
+        'plan_type' => strtolower((string) $planType),
+        'pricing_category' => strtolower((string) ($pricingCategory ?? '')),
+    ];
 }
 
 function cashier_dashboard_save_plan_selection(mysqli $conn, $studentId, int $tuitionFeeId, string $planType, array $context): void
@@ -385,7 +402,7 @@ function cashier_dashboard_fetch_tuition_packages(mysqli $conn): array
  *
  * @return array{valid:bool, message:string, suggested_amount:float|null}
  */
-function cashier_dashboard_validate_payment(mysqli $conn, $studentIdRaw, float $amount, string $paymentType): array
+function cashier_dashboard_validate_payment(mysqli $conn, $studentIdRaw, float $amount, string $paymentType, ?string $pricingCategory = null): array
 {
     $studentId = (int) $studentIdRaw;
 
@@ -443,9 +460,17 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
         'tuition_fee_id'    => (int) ($_POST['tuition_fee_id'] ?? 0),
         'school_year'       => trim((string) ($_POST['plan_school_year'] ?? '')),
         'grade_level'       => trim((string) ($_POST['plan_grade_level'] ?? '')),
-        'pricing_category'  => trim((string) ($_POST['plan_pricing_category'] ?? '')),
+        'pricing_category'  => strtolower(trim((string) ($_POST['plan_pricing_category'] ?? ''))),
         'student_type'      => trim((string) ($_POST['plan_student_type'] ?? '')),
     ];
+
+    $pricing_variant_post = isset($_POST['pricing_variant']) ? strtolower(trim((string) $_POST['pricing_variant'])) : '';
+    if ($pricing_variant_post !== '') {
+        $plan_context['pricing_category'] = $pricing_variant_post;
+    }
+    if ($plan_context['pricing_category'] === '') {
+        $plan_context['pricing_category'] = 'regular';
+    }
 
     if ($or_number === '') $or_number = null;
     if ($reference_number === '') $reference_number = null;
@@ -461,7 +486,7 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
         error_log('[cashier] validation failed: missing reference number');
         $message = 'Reference number is required for non-cash payments.';
     } else {
-        $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type);
+        $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type, $plan_context['pricing_category']);
         if (!$validation['valid']) {
             error_log('[cashier] amount validation failed: ' . $validation['message']);
             $message = $validation['message'];
@@ -843,15 +868,28 @@ function cashier_grade_synonyms(string $normalized): array
     return [$normalized];
 }
 
-function cashier_fetch_fee(mysqli $conn, string $normalizedGrade, array $typeCandidates): ?array
+function cashier_fetch_fee(mysqli $conn, string $normalizedGrade, array $typeCandidates, ?string $pricingCategory = null): ?array
 {
-    $sql = "SELECT * FROM tuition_fees WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? AND LOWER(student_type) = ? ORDER BY school_year DESC LIMIT 1";
+    $sql = "SELECT * FROM tuition_fees WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? AND LOWER(student_type) = ?";
+    $hasPricing = $pricingCategory !== null && $pricingCategory !== '';
+    if ($hasPricing) {
+        $sql .= " AND LOWER(pricing_category) = ?";
+    }
+    $sql .= " ORDER BY school_year DESC LIMIT 1";
     $gradeCandidates = cashier_grade_synonyms($normalizedGrade);
+    $pricingLower = $hasPricing ? strtolower(trim((string) $pricingCategory)) : null;
 
     foreach ($gradeCandidates as $gradeKey) {
         foreach ($typeCandidates as $candidateType) {
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param('ss', $gradeKey, $candidateType);
+            if (!$stmt) {
+                continue;
+            }
+            if ($hasPricing) {
+                $stmt->bind_param('sss', $gradeKey, $candidateType, $pricingLower);
+            } else {
+                $stmt->bind_param('ss', $gradeKey, $candidateType);
+            }
             $stmt->execute();
             $fee = $stmt->get_result()->fetch_assoc();
             $stmt->close();
@@ -1207,6 +1245,9 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
         $searchQuery = '';
     }
 
+    $requestedPricingVariant = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
+    $requestedPricingStudent = isset($_GET['pricing_student']) ? (int) $_GET['pricing_student'] : null;
+
     if ($searchQuery !== '') {
         $search_name_like = "%" . $conn->real_escape_string($searchQuery) . "%";
         $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE lastname LIKE ? ORDER BY lastname');
@@ -1229,384 +1270,17 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
     if (!empty($search_results)) {
         foreach ($search_results as $result) {
             $studentId = (int) $result['id'];
-            $gradeLevel = $result['year'];
-            $studentType = strtolower($result['student_type'] ?? 'new');
-            $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
-            $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
-
-            $fee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates);
-
-            $grade_key = cashier_normalize_grade_key($gradeLevel);
-            $no_previous = ($studentType === 'new') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','kindergarten','kg','grade1'], true);
-
-            $previous_label = $no_previous ? null : cashier_previous_grade_label($gradeLevel);
-            $previous_fee = null;
-            if ($previous_label) {
-                $normalizedPrev = cashier_normalize_grade_key($previous_label);
-                $previous_fee = cashier_fetch_fee($conn, $normalizedPrev, $typeCandidates);
-            }
-
-        $payments_stmt = $conn->prepare('SELECT payment_type, amount, payment_status, payment_date, created_at FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
- $studentIdStr = (string) $studentId;
-    $payments_stmt->bind_param('s', $studentIdStr);
-            $payments_stmt->execute();
-        $payments_res = $payments_stmt->get_result();
-        $paid = [];
-        $pending = [];
-            while ($row = $payments_res->fetch_assoc()) {
-            $row['amount'] = (float) ($row['amount'] ?? 0);
-            if (empty($row['payment_date']) && !empty($row['created_at'])) {
-                $row['payment_date'] = substr($row['created_at'], 0, 10);
-            }
-
-            if (strtolower($row['payment_status']) === 'paid') {
-                $paid[] = $row;
-            } else {
-                $pending[] = $row;
+            $snapshot = cashier_dashboard_build_student_financial($conn, $studentId, [
+                'student_row' => $result,
+                'pricing_variant' => $requestedPricingVariant,
+                'pricing_student' => $requestedPricingStudent,
+            ]);
+            if ($snapshot) {
+                $search_financial[$studentId] = $snapshot;
             }
         }
-            $payments_stmt->close();
-
-            $previous_grade_total = 0.0;
-            if ($previous_fee) {
-                $previous_grade_total = (float) $previous_fee['entrance_fee'] + (float) $previous_fee['miscellaneous_fee'] + (float) $previous_fee['tuition_fee'];
-            }
-
-            $total_paid = array_sum(array_map('floatval', array_column($paid, 'amount')));
-
-            $previous_paid_applied = 0.0;
-            $previous_outstanding = 0.0;
-            if ($previous_fee) {
-                $previous_paid_applied = min($total_paid, $previous_grade_total);
-                $previous_outstanding = max($previous_grade_total - $total_paid, 0.0);
-            }
-
-            $current_paid_amount = max($total_paid - $previous_paid_applied, 0.0);
-
-        $schedule_rows = [];
-        $next_due_row = null;
-        $remaining_balance = $previous_outstanding;
-        $current_year_total = 0.0;
-        $plan_label_display = '';
-        $plan_options = [];
-$plan_tabs = [];
-$active_plan_key = null;
-$schedule_message = 'No tuition fee configuration found yet for this year.';
-
-if ($fee) {
-    // Reuse tuition_fees breakdown logic
-    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
-
-    // Build dropdown options (summary view)
-    $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
-
-    // Determine active plan (stored or fallback)
-    $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int)$fee['id']);
-    $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
-
-    // Adapt plansData into tab-like records for dashboard view
-    foreach ($plansData as $planType => $plan) {
-        // Properly allocate payments to plan entries in chronological order
-        $entries = $plan['entries'];
-        $totalPaidAmount = $current_paid_amount;
-        $remainingPaid = $totalPaidAmount;
-        
-        // Sort payments chronologically (oldest first) for proper allocation
-        $sortedPaid = $paid;
-        usort($sortedPaid, function($a, $b) {
-            $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
-            $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
-            return strcmp($timeA, $timeB);
-        });
-        
-        // Track which payments have been allocated
-        $allocatedPayments = [];
-        
-        // First, allocate to "due upon enrollment" (entrance + misc + first installment)
-        $dueUponEnrollment = (float)($plan['due'] ?? 0);
-        $allocatedToEnrollment = 0;  // 👈 Always define it first
-
-        if ($dueUponEnrollment > 0 && $remainingPaid > 0) {
-            $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
-            $remainingPaid -= $allocatedToEnrollment;
-            
-            // Mark payments as allocated
-            $tempRemaining = $allocatedToEnrollment;
-            foreach ($sortedPaid as $payment) {
-                if ($tempRemaining <= 0) break;
-                $paymentAmount = (float)($payment['amount'] ?? 0);
-                if ($paymentAmount > 0) {
-                    $allocatedAmount = min($tempRemaining, $paymentAmount);
-                    $allocatedPayments[] = [
-                        'payment_id' => $payment['id'] ?? null,
-                        'amount' => $allocatedAmount,
-                        'allocated_to' => 'enrollment',
-                        'payment_date' => $payment['payment_date'] ?? $payment['created_at'] ?? '',
-                        'payment_type' => $payment['payment_type'] ?? ''
-                    ];
-                    $tempRemaining -= $allocatedAmount;
-                }
-            }
-        }
-        $entries_unified = [];
-
-        if ($dueUponEnrollment > 0) {
-            $entries_unified[] = [
-                'label'              => ucfirst($planType) . ' (Enrollment)',
-                'amount'             => $dueUponEnrollment,
-                'amount_original'    => $dueUponEnrollment,
-                'applied'            => $allocatedToEnrollment,
-                'amount_outstanding' => max($dueUponEnrollment - $allocatedToEnrollment, 0),
-                'paid'               => ($allocatedToEnrollment >= $dueUponEnrollment),
-                'note'               => 'Due upon enrollment',
-            ];
-        }
-
-        foreach ($entries as $i => $entry) {
-            $entryAmount = (float) ($entry['amount'] ?? 0);
-            $remaining   = $entryAmount;
-
-            if ($remainingPaid > 0 && $entryAmount > 0) {
-                $allocatedToEntry = min($remainingPaid, $entryAmount);
-                $remaining -= $allocatedToEntry;
-                $remainingPaid -= $allocatedToEntry;
-
-                $tempRemaining = $allocatedToEntry;
-                foreach ($sortedPaid as $payment) {
-                    if ($tempRemaining <= 0) {
-                        break;
-                    }
-                    $paymentAmount = (float) ($payment['amount'] ?? 0);
-                    if ($paymentAmount <= 0) {
-                        continue;
-                    }
-                    $allocatedAmount = min($tempRemaining, $paymentAmount);
-                    $allocatedPayments[] = [
-                        'payment_id'   => $payment['id'] ?? null,
-                        'amount'       => $allocatedAmount,
-                        'allocated_to' => 'monthly_' . $i,
-                        'payment_date' => $payment['payment_date'] ?? $payment['created_at'] ?? '',
-                        'payment_type' => $payment['payment_type'] ?? '',
-                    ];
-                    $tempRemaining -= $allocatedAmount;
-                }
-            }
-
-            $entries_unified[] = [
-                'label'              => $entry['label'] ?? ('Monthly'),
-                'amount'             => $entryAmount,
-                'amount_original'    => $entryAmount,
-                'applied'            => $entryAmount - $remaining,
-                'amount_outstanding' => max($remaining, 0),
-                'paid'               => ($remaining <= 0.01),
-                'note'               => $entry['note'] ?? '',
-            ];
-        }
-
-        $entries = $entries_unified;
-
-        $plan_tabs[] = [
-            'plan_type' => $planType,
-            'label'     => $plan['label'],
-            'due'       => $plan['due'],
-            'entries'   => $entries,
-            'notes'     => $plan['notes'],
-            'base'      => $plan['base'],
-            'summary'   => null, // optional: map plan_options here if needed
-        ];
     }
 
-    // Apply active plan summary if available
-    if ($active_plan_key && ($summary = current(array_filter($plan_options, fn($o) => $o['plan_type'] === $active_plan_key)))) {
-        $plan_label_display = $summary['label'] ?? '';
-        $remaining_balance  = $summary['remaining_with_previous'] ?? $previous_outstanding;
-        $current_year_total = $summary['plan_total'] ?? 0.0;
-        $schedule_rows      = $summary['schedule_rows'] ?? [];
-        $next_due_row       = $summary['next_due_row'] ?? null;
-        $schedule_message   = $summary['schedule_message'] ?? 'Upcoming dues listed below.';
-    }
-}
-
-
-        $pending_total = array_sum(array_map('floatval', array_column($pending, 'amount')));
-
-        $pending_display = [];
-        foreach ($pending as $entry) {
-            $entry['payment_type_display'] = $entry['payment_type'] ?? 'Pending';
-            $pending_display[] = $entry;
-        }
-            if ($previous_label && $previous_outstanding > 0 && empty($pending_display)) {
-                $pending_display[] = [
-                    'payment_type_display' => 'Past Due for ' . $previous_label,
-                    'amount' => $previous_outstanding,
-                    'payment_status' => 'Past Due',
-                    'payment_date' => 'Previous School Year',
-                    'reference_number' => null,
-                    'or_number' => null,
-                    'is_placeholder' => true,
-                ];
-            }
-
-        $paid_chronological = $paid;
-        usort($paid_chronological, function (array $a, array $b) {
-            $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
-            $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
-            return strcmp((string) $timeA, (string) $timeB);
-        });
-
-        $remaining_prev_allocation = $previous_paid_applied;
-        $remaining_current_allocation = $current_paid_amount;
-        $paid_history_previous = [];
-        $paid_history_current = [];
-
-        foreach ($paid_chronological as $entry) {
-            $amount_remaining = (float) ($entry['amount'] ?? 0);
-            $original_amount = $amount_remaining;
-
-            if ($remaining_prev_allocation > 0) {
-                $apply_prev = min($amount_remaining, $remaining_prev_allocation);
-                if ($apply_prev > 0) {
-                    $record = $entry;
-                    $record['applied_amount'] = $apply_prev;
-                    $record['source_amount'] = $original_amount;
-                    $record['applied_to'] = $previous_label;
-                    $record['is_partial'] = $apply_prev < $original_amount;
-                    $paid_history_previous[] = $record;
-                    $remaining_prev_allocation -= $apply_prev;
-                    $amount_remaining -= $apply_prev;
-                }
-            }
-
-            if ($amount_remaining > 0) {
-                $record = $entry;
-                $record['applied_amount'] = $amount_remaining;
-                $record['source_amount'] = $original_amount;
-                $record['applied_to'] = $result['year'];
-                $record['is_partial'] = $amount_remaining < $original_amount;
-                $paid_history_current[] = $record;
-                $remaining_current_allocation = max($remaining_current_allocation - $amount_remaining, 0);
-            }
-        }
-
-        $historySort = static function (&$list) {
-            usort($list, function (array $a, array $b) {
-                $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
-                $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
-                return strcmp((string) $timeB, (string) $timeA);
-            });
-        };
-
-        $historySort($paid_history_previous);
-        $historySort($paid_history_current);
-
-        $previous_schedule_rows = [];
-        if ($previous_fee) {
-            $prev_schedule = cashier_generate_schedule($previous_fee, 'quarterly');
-            $prev_paid_remaining = $previous_paid_applied;
-            foreach ($prev_schedule as $prevDue) {
-                $due_original = (float) $prevDue['Amount'];
-                $due_outstanding = $due_original;
-                if ($prev_paid_remaining > 0) {
-                    $deduct = min($prev_paid_remaining, $due_outstanding);
-                    $due_outstanding -= $deduct;
-                    $prev_paid_remaining -= $deduct;
-                }
-                $previous_schedule_rows[] = [
-                    'due_date' => $prevDue['Due Date'],
-                    'amount_original' => $due_original,
-                    'amount_outstanding' => $due_outstanding,
-                    'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
-                ];
-            }
-        }
-
-        $previous_pending_rows = [];
-        if ($previous_outstanding > 0) {
-            $previous_pending_rows[] = [
-                'payment_type_display' => 'Past Due for ' . $previous_label,
-                'amount' => $previous_outstanding,
-                'payment_status' => 'Past Due',
-                'payment_date' => 'Previous School Year',
-                'reference_number' => null,
-                'or_number' => null,
-                'is_placeholder' => true,
-            ];
-        }
-
-        $current_view = [
-            'key' => 'current',
-            'label' => $result['year'] . ' (Current)',
-            'remaining_balance' => $remaining_balance,
-            'total_paid' => $total_paid,
-            'pending_total' => $pending_total,
-            'plan_label' => $plan_label_display,
-            'next_due_row' => $next_due_row,
-            'alert' => $previous_outstanding > 0 ? [
-                'grade' => $previous_label,
-                'amount' => $previous_outstanding,
-            ] : null,
-            'schedule_rows' => $schedule_rows,
-            'schedule_message' => $schedule_message,
-            'pending_rows' => $pending_display,
-            'pending_message' => 'No pending payments right now.',
-            'history_rows' => $paid_history_current,
-            'history_message' => 'No payments recorded yet for this grade.',
-            'current_year_total' => $current_year_total,
-            'has_previous_outstanding' => $previous_outstanding > 0,
-            'previous_grade_label' => $previous_label,
-            'previous_outstanding' => $previous_outstanding,
-            'is_default' => true,
-            'plan_options' => $plan_options,
-            'plan_tabs' => $plan_tabs,
-            'active_plan' => $active_plan_key,
-            'stored_plan' => $stored_plan,
-            'plan_context' => $fee ? [
-                'tuition_fee_id' => (int) $fee['id'],
-                'school_year' => (string) $fee['school_year'],
-                'grade_level' => (string) $fee['grade_level'],
-                'pricing_category' => (string) $fee['pricing_category'],
-                'student_type' => (string) $fee['student_type'],
-            ] : null,
-        ];
-
-        $views = ['current' => $current_view];
-
-        if ($previous_label && ($previous_fee || $previous_outstanding > 0 || !empty($paid_history_previous))) {
-            $views['previous'] = [
-                'key' => 'previous',
-                'label' => 'Previous - ' . $previous_label,
-                'remaining_balance' => $previous_outstanding,
-                'total_paid' => $previous_paid_applied,
-                'pending_total' => $previous_outstanding,
-                'plan_label' => $previous_fee ? 'Past Year Summary' : null,
-                'next_due_row' => null,
-                'alert' => null,
-                'schedule_rows' => $previous_schedule_rows,
-                'schedule_message' => $previous_fee
-                    ? ($previous_outstanding > 0
-                        ? 'Outstanding balance carried over from ' . $previous_label . '.'
-                        : 'No outstanding balance for this grade.')
-                    : 'No tuition fee record saved for ' . $previous_label . ', but payments are retained below.',
-                'pending_rows' => $previous_pending_rows,
-                'pending_message' => $previous_outstanding > 0
-                    ? 'Pending balance remains from ' . $previous_label . '.'
-                    : 'No pending payments for this grade.',
-                'history_rows' => $paid_history_previous,
-                'history_message' => 'No payments recorded yet for ' . $previous_label . '.',
-                'current_year_total' => $previous_grade_total,
-                'has_previous_outstanding' => $previous_outstanding > 0,
-                'is_default' => false,
-            ];
-        }
-
-        $current_summary = $current_view;
-        $current_summary['views'] = $views;
-        $current_summary['default_view_key'] = 'current';
-        $current_summary['has_previous_view'] = isset($views['previous']);
-
-        $search_financial[$studentId] = $current_summary;
-    }
-}
 
     return [
         'results' => $search_results,
@@ -1620,6 +1294,424 @@ if ($fee) {
 /**
  * Fetch payment records for the listing section while honoring optional filters from the query string.
  */
+
+function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId, array $options = []): ?array
+{
+    $studentRow = $options['student_row'] ?? null;
+    if (!$studentRow) {
+        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE id = ? LIMIT 1');
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('i', $studentId);
+        $stmt->execute();
+        $studentRow = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+    }
+
+    if (!$studentRow) {
+        return null;
+    }
+
+    $gradeLevel = $studentRow['year'];
+    $studentType = strtolower($studentRow['student_type'] ?? 'new');
+    $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
+    $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
+
+    $requestedPricingVariant = isset($options['pricing_variant']) ? strtolower(trim((string) $options['pricing_variant'])) : null;
+    $requestedPricingStudent = isset($options['pricing_student']) ? (int) $options['pricing_student'] : null;
+
+    $pricingLabels = cashier_dashboard_pricing_labels();
+    $availablePricing = [];
+    foreach ($pricingLabels as $pricingKey => $_label) {
+        $candidateFee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates, $pricingKey);
+        if ($candidateFee) {
+            $key = strtolower((string) ($candidateFee['pricing_category'] ?? $pricingKey));
+            $candidateFee['pricing_category'] = $key;
+            $availablePricing[$key] = $candidateFee;
+        }
+    }
+
+    $storedPlanType = null;
+    $storedPricingKey = null;
+    foreach ($availablePricing as $pricingKey => $feeCandidate) {
+        $selectionRow = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int) $feeCandidate['id']);
+        if ($selectionRow) {
+            $storedPlanType = $selectionRow['plan_type'] ?? null;
+            $storedPricingKey = $selectionRow['pricing_category'] ?: $pricingKey;
+            break;
+        }
+    }
+
+    $enrollmentStatus = strtolower($studentRow['enrollment_status'] ?? '');
+    $canChoosePricing = ($enrollmentStatus !== 'enrolled') || empty($storedPricingKey);
+
+    $selectedPricing = null;
+    if ($canChoosePricing && $requestedPricingStudent && $requestedPricingStudent === $studentId && $requestedPricingVariant && isset($availablePricing[$requestedPricingVariant])) {
+        $selectedPricing = $requestedPricingVariant;
+    } elseif ($storedPricingKey && isset($availablePricing[$storedPricingKey])) {
+        $selectedPricing = $storedPricingKey;
+    } elseif (!empty($availablePricing)) {
+        $selectedPricing = array_key_first($availablePricing);
+    }
+
+    $fee = ($selectedPricing !== null && isset($availablePricing[$selectedPricing])) ? $availablePricing[$selectedPricing] : (empty($availablePricing) ? null : reset($availablePricing));
+    if ($fee) {
+        $fee['pricing_category'] = strtolower((string) ($selectedPricing ?? $fee['pricing_category'] ?? 'regular'));
+        $selectedPricing = $fee['pricing_category'];
+    }
+
+    $stored_plan = ($storedPlanType && $storedPricingKey && $selectedPricing === $storedPricingKey) ? $storedPlanType : null;
+
+    $studentIdStr = (string) $studentId;
+    $payments_stmt = $conn->prepare('SELECT payment_type, amount, payment_status, payment_date, created_at FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
+    $payments_stmt->bind_param('s', $studentIdStr);
+    $payments_stmt->execute();
+    $payments_res = $payments_stmt->get_result();
+    $paid = [];
+    $pending = [];
+    while ($row = $payments_res->fetch_assoc()) {
+        $row['amount'] = (float) ($row['amount'] ?? 0);
+        if (empty($row['payment_date']) && !empty($row['created_at'])) {
+            $row['payment_date'] = substr($row['created_at'], 0, 10);
+        }
+        if (strtolower($row['payment_status']) === 'paid') {
+            $paid[] = $row;
+        } else {
+            $pending[] = $row;
+        }
+    }
+    $payments_stmt->close();
+
+    $previous_label = null;
+    $previous_fee = null;
+    $grade_key = cashier_normalize_grade_key($gradeLevel);
+    $no_previous = ($studentType === 'new') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','kindergarten','kg','grade1'], true);
+    if (!$no_previous) {
+        $previous_label = cashier_previous_grade_label($gradeLevel);
+        if ($previous_label) {
+            $normalizedPrev = cashier_normalize_grade_key($previous_label);
+            $previous_fee = cashier_fetch_fee($conn, $normalizedPrev, $typeCandidates);
+        }
+    }
+
+    $previous_grade_total = 0.0;
+    if ($previous_fee) {
+        $previous_grade_total = (float) $previous_fee['entrance_fee'] + (float) $previous_fee['miscellaneous_fee'] + (float) $previous_fee['tuition_fee'];
+    }
+
+    $total_paid = array_sum(array_map('floatval', array_column($paid, 'amount')));
+    $previous_paid_applied = 0.0;
+    $previous_outstanding = 0.0;
+    if ($previous_fee) {
+        $previous_paid_applied = min($total_paid, $previous_grade_total);
+        $previous_outstanding = max($previous_grade_total - $total_paid, 0.0);
+    }
+
+    $current_paid_amount = max($total_paid - $previous_paid_applied, 0.0);
+    $current_paid_remaining = $current_paid_amount;
+
+    $plan_tabs = [];
+    $plan_options = [];
+    $active_plan_key = null;
+    $schedule_rows = [];
+    $next_due_row = null;
+    $remaining_balance = $previous_outstanding;
+    $current_year_total = 0.0;
+    $plan_label_display = '';
+    $schedule_message = 'No tuition fee configuration found yet for this year.';
+
+    if ($fee) {
+        $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
+        if (!empty($plansData)) {
+            $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
+            $active_plan_key = ($stored_plan && isset($plansData[$stored_plan])) ? $stored_plan : array_key_first($plansData);
+
+            foreach ($plansData as $planType => $plan) {
+                $entries = $plan['entries'];
+                $remainingPaid = $current_paid_amount;
+                $sortedPaid = $paid;
+                usort($sortedPaid, function($a, $b) {
+                    $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+                    $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+                    return strcmp($timeA, $timeB);
+                });
+                $allocatedPayments = [];
+                $dueUponEnrollment = (float)($plan['due'] ?? 0);
+                $allocatedToEnrollment = 0;
+                if ($dueUponEnrollment > 0 && $remainingPaid > 0) {
+                    $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
+                    $remainingPaid -= $allocatedToEnrollment;
+                    $tempRemaining = $allocatedToEnrollment;
+                    foreach ($sortedPaid as $payment) {
+                        if ($tempRemaining <= 0) break;
+                        $paymentAmount = (float)($payment['amount'] ?? 0);
+                        if ($paymentAmount > 0) {
+                            $allocatedAmount = min($tempRemaining, $paymentAmount);
+                            $allocatedPayments[] = [
+                                'payment_id' => $payment['id'] ?? null,
+                                'amount' => $allocatedAmount,
+                                'allocated_to' => 'enrollment',
+                                'payment_date' => $payment['payment_date'] ?? $payment['created_at'] ?? '',
+                                'payment_type' => $payment['payment_type'] ?? ''
+                            ];
+                            $tempRemaining -= $allocatedAmount;
+                        }
+                    }
+                }
+
+                $entries_unified = [];
+                if ($dueUponEnrollment > 0) {
+                    $entries_unified[] = [
+                        'label'              => ucfirst($planType) . ' (Enrollment)',
+                        'amount'             => $dueUponEnrollment,
+                        'amount_original'    => $dueUponEnrollment,
+                        'applied'            => $allocatedToEnrollment,
+                        'amount_outstanding' => max($dueUponEnrollment - $allocatedToEnrollment, 0),
+                        'paid'               => ($allocatedToEnrollment >= $dueUponEnrollment),
+                        'note'               => 'Due upon enrollment',
+                    ];
+                }
+
+                foreach ($entries as $i => $entry) {
+                    $entryAmount = (float) ($entry['amount'] ?? 0);
+                    $remaining = $entryAmount;
+                    if ($remainingPaid > 0 && $entryAmount > 0) {
+                        $allocatedToEntry = min($remainingPaid, $entryAmount);
+                        $remaining -= $allocatedToEntry;
+                        $remainingPaid -= $allocatedToEntry;
+                        $tempRemaining = $allocatedToEntry;
+                        foreach ($sortedPaid as $payment) {
+                            if ($tempRemaining <= 0) break;
+                            $paymentAmount = (float) ($payment['amount'] ?? 0);
+                            if ($paymentAmount <= 0) continue;
+                            $allocatedAmount = min($tempRemaining, $paymentAmount);
+                            $allocatedPayments[] = [
+                                'payment_id'   => $payment['id'] ?? null,
+                                'amount'       => $allocatedAmount,
+                                'allocated_to' => 'monthly_' . $i,
+                                'payment_date' => $payment['payment_date'] ?? $payment['created_at'] ?? '',
+                                'payment_type' => $payment['payment_type'] ?? '',
+                            ];
+                            $tempRemaining -= $allocatedAmount;
+                        }
+                    }
+                    $entries_unified[] = [
+                        'label'              => $entry['label'] ?? ('Monthly'),
+                        'amount'             => $entryAmount,
+                        'amount_original'    => $entryAmount,
+                        'applied'            => $entryAmount - $remaining,
+                        'amount_outstanding' => max($remaining, 0),
+                        'paid'               => ($remaining <= 0.01),
+                        'note'               => $entry['note'] ?? '',
+                    ];
+                }
+
+                $plan_tabs[] = [
+                    'plan_type' => $planType,
+                    'label'     => $plan['label'],
+                    'due'       => $plan['due'],
+                    'entries'   => $entries_unified,
+                    'notes'     => $plan['notes'],
+                    'base'      => $plan['base'],
+                    'summary'   => null,
+                ];
+            }
+
+            if ($active_plan_key && ($summary = current(array_filter($plan_options, fn($o) => $o['plan_type'] === $active_plan_key)))) {
+                $plan_label_display = $summary['label'] ?? '';
+                $remaining_balance  = $summary['remaining_with_previous'] ?? $previous_outstanding;
+                $current_year_total = $summary['plan_total'] ?? 0.0;
+                $schedule_rows      = $summary['schedule_rows'] ?? [];
+                $next_due_row       = $summary['next_due_row'] ?? null;
+                $schedule_message   = $summary['schedule_message'] ?? 'Upcoming dues listed below.';
+            }
+        }
+    }
+
+    $selectedPricing = $selectedPricing ?? 'regular';
+
+    $pending_total = array_sum(array_map('floatval', array_column($pending, 'amount')));
+    $pending_display = [];
+    foreach ($pending as $entry) {
+        $entry['payment_type_display'] = $entry['payment_type'] ?? 'Pending';
+        $pending_display[] = $entry;
+    }
+    if ($previous_label && $previous_outstanding > 0 && empty($pending_display)) {
+        $pending_display[] = [
+            'payment_type_display' => 'Past Due for ' . $previous_label,
+            'amount' => $previous_outstanding,
+            'payment_status' => 'Past Due',
+            'payment_date' => 'Previous School Year',
+            'reference_number' => null,
+            'or_number' => null,
+            'is_placeholder' => true,
+        ];
+    }
+
+    $paid_chronological = $paid;
+    usort($paid_chronological, function (array $a, array $b) {
+        $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+        $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+        return strcmp((string) $timeA, (string) $timeB);
+    });
+
+    $remaining_prev_allocation = $previous_paid_applied;
+    $remaining_current_allocation = $current_paid_amount;
+    $paid_history_previous = [];
+    $paid_history_current = [];
+
+    foreach ($paid_chronological as $entry) {
+        $amount_remaining = (float) ($entry['amount'] ?? 0);
+        $original_amount = $amount_remaining;
+
+        if ($remaining_prev_allocation > 0) {
+            $apply_prev = min($amount_remaining, $remaining_prev_allocation);
+            if ($apply_prev > 0) {
+                $record = $entry;
+                $record['applied_amount'] = $apply_prev;
+                $record['source_amount'] = $original_amount;
+                $record['applied_to'] = $previous_label;
+                $record['is_partial'] = $apply_prev < $original_amount;
+                $paid_history_previous[] = $record;
+                $remaining_prev_allocation -= $apply_prev;
+                $amount_remaining -= $apply_prev;
+            }
+        }
+
+        if ($amount_remaining > 0) {
+            $record = $entry;
+            $record['applied_amount'] = $amount_remaining;
+            $record['source_amount'] = $original_amount;
+            $record['applied_to'] = $studentRow['year'];
+            $record['is_partial'] = $amount_remaining < $original_amount;
+            $paid_history_current[] = $record;
+            $remaining_current_allocation = max($remaining_current_allocation - $amount_remaining, 0);
+        }
+    }
+
+    $historySort = static function (&$list) {
+        usort($list, function (array $a, array $b) {
+            $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+            $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+            return strcmp((string) $timeB, (string) $timeA);
+        });
+    };
+
+    $historySort($paid_history_previous);
+    $historySort($paid_history_current);
+
+    $previous_schedule_rows = [];
+    if ($previous_fee) {
+        $prev_schedule = cashier_generate_schedule($previous_fee, 'quarterly');
+        $prev_paid_remaining = $previous_paid_applied;
+        foreach ($prev_schedule as $prevDue) {
+            $due_original = (float) $prevDue['Amount'];
+            $due_outstanding = $due_original;
+            if ($prev_paid_remaining > 0) {
+                $deduct = min($prev_paid_remaining, $due_outstanding);
+                $due_outstanding -= $deduct;
+                $prev_paid_remaining -= $deduct;
+            }
+            $previous_schedule_rows[] = [
+                'due_date' => $prevDue['Due Date'],
+                'amount_original' => $due_original,
+                'amount_outstanding' => $due_outstanding,
+                'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
+            ];
+        }
+    }
+
+    $previous_pending_rows = [];
+    if ($previous_outstanding > 0) {
+        $previous_pending_rows[] = [
+            'payment_type_display' => 'Past Due for ' . $previous_label,
+            'amount' => $previous_outstanding,
+            'payment_status' => 'Past Due',
+            'payment_date' => 'Previous School Year',
+            'reference_number' => null,
+            'or_number' => null,
+            'is_placeholder' => true,
+        ];
+    }
+
+    $current_view = [
+        'key' => 'current',
+        'label' => $studentRow['year'] . ' (Current)',
+        'remaining_balance' => $remaining_balance,
+        'total_paid' => $total_paid,
+        'pending_total' => $pending_total,
+        'plan_label' => $plan_label_display,
+        'pricing_variant' => $selectedPricing,
+        'next_due_row' => $next_due_row,
+        'alert' => $previous_outstanding > 0 ? [
+            'grade' => $previous_label,
+            'amount' => $previous_outstanding,
+        ] : null,
+        'schedule_rows' => $schedule_rows,
+        'schedule_message' => $schedule_message,
+        'pending_rows' => $pending_display,
+        'pending_message' => 'No pending payments right now.',
+        'history_rows' => $paid_history_current,
+        'history_message' => 'No payments recorded yet for this grade.',
+        'current_year_total' => $current_year_total,
+        'has_previous_outstanding' => $previous_outstanding > 0,
+        'previous_grade_label' => $previous_label,
+        'previous_outstanding' => $previous_outstanding,
+        'is_default' => true,
+        'plan_options' => $plan_options,
+        'plan_tabs' => $plan_tabs,
+        'active_plan' => $active_plan_key,
+        'stored_plan' => $stored_plan,
+        'stored_pricing' => $storedPricingKey,
+        'available_pricing' => array_keys($availablePricing),
+        'selected_pricing' => $selectedPricing ?? 'regular',
+        'pricing_locked' => (!$canChoosePricing && !empty($storedPricingKey)),
+        'plan_context' => $fee ? [
+            'tuition_fee_id' => (int) $fee['id'],
+            'school_year' => (string) $fee['school_year'],
+            'grade_level' => (string) $fee['grade_level'],
+            'pricing_category' => (string) $fee['pricing_category'],
+            'student_type' => (string) $fee['student_type'],
+        ] : null,
+    ];
+
+    $views = ['current' => $current_view];
+
+    if ($previous_label && ($previous_fee || $previous_outstanding > 0 || !empty($paid_history_previous))) {
+        $views['previous'] = [
+            'key' => 'previous',
+            'label' => 'Previous - ' . $previous_label,
+            'remaining_balance' => $previous_outstanding,
+            'total_paid' => $previous_paid_applied,
+            'pending_total' => $previous_outstanding,
+            'plan_label' => $previous_fee ? 'Past Year Summary' : null,
+            'pricing_variant' => $storedPricingKey,
+            'next_due_row' => null,
+            'alert' => null,
+            'schedule_rows' => $previous_schedule_rows,
+            'schedule_message' => $previous_fee
+                ? ($previous_outstanding > 0 ? 'Outstanding balance carried over from ' . $previous_label . '.' : 'No outstanding balance for this grade.')
+                : 'No tuition fee record saved for ' . $previous_label . ', but payments are retained below.',
+            'pending_rows' => $previous_pending_rows,
+            'pending_message' => $previous_outstanding > 0 ? 'Pending balance remains from ' . $previous_label . '.' : 'No pending payments for this grade.',
+            'history_rows' => $paid_history_previous,
+            'history_message' => 'No payments recorded yet for ' . $previous_label . '.',
+            'current_year_total' => $previous_grade_total,
+            'has_previous_outstanding' => $previous_outstanding > 0,
+            'is_default' => false,
+        ];
+    }
+
+    $current_summary = $current_view;
+    $current_summary['views'] = $views;
+    $current_summary['default_view_key'] = 'current';
+    $current_summary['has_previous_view'] = isset($views['previous']);
+
+    return $current_summary;
+}
+
+
 function cashier_dashboard_fetch_payments(mysqli $conn): mysqli_result
 {
     $filter_sql = 'WHERE 1=1';

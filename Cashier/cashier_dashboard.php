@@ -140,6 +140,12 @@ $gradeOptions = [
                           $planTabs = $primaryView['plan_tabs'] ?? [];
                           $activePlanKey = $primaryView['active_plan'] ?? null;
                           $storedPlanKey = $primaryView['stored_plan'] ?? null;
+                          $storedPricingKey = $primaryView['stored_pricing'] ?? null;
+                          $availablePricingOptions = $primaryView['available_pricing'] ?? array_keys($pricingCategories);
+                          if (empty($availablePricingOptions)) {
+                            $availablePricingOptions = array_keys($pricingCategories);
+                          }
+                          $selectedPricingKey = $primaryView['selected_pricing'] ?? ($primaryView['plan_context']['pricing_category'] ?? 'regular');
                           $next_due_row = $primaryView['next_due_row'] ?? null;
                         ?>
 
@@ -150,6 +156,7 @@ $gradeOptions = [
                 $canChoosePlan = $isPending || empty($storedPlanKey);
                 $previousOutstanding = (float)($primaryView['previous_outstanding'] ?? 0);
                 $previousLabel = $primaryView['previous_grade_label'] ?? '';
+                $pricingLocked = !empty($primaryView['pricing_locked']);
               ?>
               <?php if ($previousOutstanding > 0.009): ?>
                 <div style="margin-bottom:16px; padding:12px 16px; border-radius:10px; background:#fff0f0; border:1px solid rgba(220,53,69,0.35); color:#842029;">
@@ -285,7 +292,7 @@ $gradeOptions = [
                   <input type="hidden" name="tuition_fee_id" value="<?= $primaryView['plan_context']['tuition_fee_id'] ?? 0 ?>">
                   <input type="hidden" name="plan_school_year" value="<?= $primaryView['plan_context']['school_year'] ?? '' ?>">
                   <input type="hidden" name="plan_grade_level" value="<?= $primaryView['plan_context']['grade_level'] ?? '' ?>">
-                  <input type="hidden" name="plan_pricing_category" value="<?= $primaryView['plan_context']['pricing_category'] ?? '' ?>">
+                  <input type="hidden" name="plan_pricing_category" id="plan_pricing_category_<?= $s['id'] ?>" value="<?= htmlspecialchars($primaryView['plan_context']['pricing_category'] ?? 'regular') ?>">
                   <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
                   <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
 
@@ -295,6 +302,21 @@ $gradeOptions = [
                       <option value="Cash">Cash</option>
                       <option value="GCash">GCash</option>
                     </select>
+                  </div>
+
+                  <div>
+                    <label for="pricing_variant_<?= $s['id'] ?>">Pricing Variant:</label>
+                    <select name="pricing_variant" id="pricing_variant_<?= $s['id'] ?>" class="pricing-variant" data-student="<?= $s['id'] ?>" data-target="plan_pricing_category_<?= $s['id'] ?>" <?= $pricingLocked ? 'disabled' : '' ?>>
+                      <?php foreach ($availablePricingOptions as $value):
+                        $label = $pricingCategories[$value] ?? ucfirst($value);
+                        $isSelectedVariant = $value === $selectedPricingKey;
+                      ?>
+                        <option value="<?= htmlspecialchars($value) ?>" <?= $isSelectedVariant ? 'selected' : '' ?>><?= htmlspecialchars($label) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                    <?php if ($pricingLocked): ?>
+                      <div class="text-muted small mt-1">Locked to <?= htmlspecialchars($pricingCategories[$selectedPricingKey] ?? ucfirst($selectedPricingKey)) ?> for this grade.</div>
+                    <?php endif; ?>
                   </div>
 
                   <div>
@@ -578,6 +600,31 @@ document.addEventListener('DOMContentLoaded', function () {
         hiddenInput.value = select.value;
       });
     }
+  });
+
+  document.querySelectorAll('.pricing-variant').forEach(function(select) {
+    var targetId = select.getAttribute('data-target');
+    var hiddenInput = targetId ? document.getElementById(targetId) : null;
+    if (hiddenInput) {
+      hiddenInput.value = select.value;
+    }
+    select.addEventListener('change', function () {
+      if (select.disabled) {
+        return;
+      }
+      if (hiddenInput) {
+        hiddenInput.value = select.value;
+      }
+      var studentId = select.getAttribute('data-student') || '';
+      var url = new URL(window.location.href);
+      if (studentId) {
+        url.searchParams.set('pricing_student', studentId);
+      } else {
+        url.searchParams.delete('pricing_student');
+      }
+      url.searchParams.set('pricing_variant', select.value);
+      window.location.href = url.toString().split('#')[0] + '#record';
+    });
   });
 });
 </script>

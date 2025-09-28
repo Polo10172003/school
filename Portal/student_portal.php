@@ -279,264 +279,47 @@ if ($gender_normalized === 'male') {
     $avatar_variant = 'female';
 }
 
-        function generateScheduleFromDB($fee, $plan, $start_date = '2025-06-01')
-{
-    global $conn; // ensure DB connection is accessible
-    $schedule = [];
-
-    // Look up in tuition_fee_plans
-    $plan_sql = "SELECT due_upon_enrollment, next_payment_breakdown 
-                 FROM tuition_fee_plans 
-                 WHERE tuition_fee_id = ? AND plan_type = ? 
-                 ORDER BY created_at DESC LIMIT 1";
-    $stmt = $conn->prepare($plan_sql);
-    $stmt->bind_param("is", $fee['id'], $plan);
-    $stmt->execute();
-    $stmt->bind_result($due_upon, $breakdown_json);
-    if ($stmt->fetch()) {
-        // First row (due upon enrollment)
-        $schedule[] = [
-            'Due Date' => $start_date, // enrollment date
-            'Amount'   => (float)$due_upon,
-            'Notes'    => 'Due upon enrollment'
-        ];
-
-        // Breakdown rows from JSON
-        if ($breakdown_json) {
-            $breakdowns = json_decode($breakdown_json, true) ?: [];
-            foreach ($breakdowns as $entry) {
-                $schedule[] = [
-                    'Due Date' => $entry['note'] ?? '',  // you may store actual dates instead of notes
-                    'Amount'   => (float)$entry['amount'],
-                    'Notes'    => $entry['note'] ?? ''
-                ];
-            }
-        }
-    }
-    $stmt->close();
-
-    return $schedule;
-}
 
 
-$chosen_plan = null;
-// Fetch the student's chosen plan from student_plan_selections
-$plan_sql = "SELECT plan_type FROM student_plan_selections WHERE student_id = ? ORDER BY selected_at DESC LIMIT 1";
-$plan_stmt = $conn->prepare($plan_sql);
-$plan_stmt->bind_param("i", $student_id);
-$plan_stmt->execute();
-$plan_stmt->bind_result($chosen_plan_db);
-$plan_stmt->fetch();
-$plan_stmt->close();
+$pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
 
-$chosen_plan = $chosen_plan_db ?: null;
-// Fetch breakdown from tuition_fee_plans for chosen plan
-$breakdown_entries = [];
-if ($fee && $chosen_plan) {
-    $plan_sql = "SELECT next_payment_breakdown FROM tuition_fee_plans WHERE tuition_fee_id = ? AND plan_type = ? LIMIT 1";
-    $plan_stmt = $conn->prepare($plan_sql);
-    $plan_stmt->bind_param("is", $fee['id'], $chosen_plan);
-    $plan_stmt->execute();
-    $plan_stmt->bind_result($breakdown_json);
-    if ($plan_stmt->fetch() && $breakdown_json) {
-        $breakdown_entries = json_decode($breakdown_json, true) ?: [];
-    }
-    $plan_stmt->close();
-}
-$upcoming_rows = [];
-$first_unpaid_index = null;
-$upcoming_total = 0.0;
-
-if ($fee) {
-    // Use the improved payment allocation logic from cashier dashboard
-    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
-    
-    if (!empty($plansData)) {
-        // Get the active plan
-        $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $student_id, (int)$fee['id']);
-        $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
-        $activePlan = $plansData[$active_plan_key] ?? null;
-        
-        if ($activePlan) {
-            $remainingPaid = $current_paid_remaining;
-            $dueUponEnrollment = (float)($activePlan['due'] ?? 0);
-            
-            // Process enrollment payment
-            if ($dueUponEnrollment > 0) {
-                $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
-                $remainingPaid -= $allocatedToEnrollment;
-                
-                // Always add enrollment payment to show status
-                $upcoming_rows[] = [
-                    'index' => 0,
-                    'due_date' => 'Due upon enrollment (Date of enrollment)',
-                    'amount' => $dueUponEnrollment - $allocatedToEnrollment,
-                    'amount_original' => $dueUponEnrollment,
-                    'amount_outstanding' => $dueUponEnrollment - $allocatedToEnrollment,
-                    'is_next' => $first_unpaid_index === null && $allocatedToEnrollment < $dueUponEnrollment,
-                    'status' => $allocatedToEnrollment >= $dueUponEnrollment ? 'Paid' : ($allocatedToEnrollment > 0 ? 'Partial' : 'Pending')
-                ];
-                
-                if ($first_unpaid_index === null && $allocatedToEnrollment < $dueUponEnrollment) {
-                    $first_unpaid_index = 0;
-                }
-            }
-            
-            // Process future installments (if any)
-            $monthIndex = 1;
-            foreach ($activePlan['entries'] as $entry) {
-                $entryAmount = (float)($entry['amount'] ?? 0);
-                $note = $entry['note'] ?? "Next Payment";
-                
-                $allocatedToMonth = min($remainingPaid, $entryAmount);
-                $remainingPaid -= $allocatedToMonth;
-                
-                // Always add the installment to show status
-                $upcoming_rows[] = [
-                    'index' => $monthIndex,
-                    'due_date' => $note,
-                    'amount' => $entryAmount - $allocatedToMonth,
-                    'amount_original' => $entryAmount,
-                    'amount_outstanding' => $entryAmount - $allocatedToMonth,
-                    'is_next' => $first_unpaid_index === null && $allocatedToMonth < $entryAmount,
-                    'status' => $allocatedToMonth >= $entryAmount ? 'Paid' : ($allocatedToMonth > 0 ? 'Partial' : 'Pending')
-                ];
-                
-                if ($first_unpaid_index === null && $allocatedToMonth < $entryAmount) {
-                    $first_unpaid_index = $monthIndex;
-                }
-                
-                $monthIndex++;
-            }
-            
-            // Calculate total upcoming
-            foreach ($upcoming_rows as $row) {
-                $upcoming_total += $row['amount'];
-            }
-        }
-    }
-}
-
-$pending_display = [];
-foreach ($pending as $p) {
-    $p['payment_type_display'] = $p['payment_type'] ?? 'Pending';
-    $p['is_placeholder'] = false;
-    $pending_display[] = $p;
-}
-
-if ($previous_grade_label && $previous_outstanding > 0 && empty($pending_display)) {
-    $pending_display[] = [
-        'payment_type_display' => 'Past Due for ' . $previous_grade_label,
-        'amount' => $previous_outstanding,
-        'payment_status' => 'Past Due',
-        'payment_date' => 'Previous School Year',
-        'reference_number' => null,
-        'or_number' => null,
-        'is_placeholder' => true,
-    ];
-}
-
-$current_year_total = $fee
-    ? (float) $fee['entrance_fee'] + (float) $fee['miscellaneous_fee'] + (float) $fee['tuition_fee']
-    : 0.0;
-
-$remaining_balance = $previous_outstanding + $upcoming_total;
-$has_previous_outstanding = $previous_grade_label && $previous_outstanding > 0;
-$next_due_row = null;
-foreach ($upcoming_rows as $row) {
-    if (!empty($row['is_next'])) {
-        $next_due_row = $row;
-        break;
-    }
-}
-unset($row);
+$financial_snapshot = cashier_dashboard_build_student_financial($conn, (int) $student_id, [
+    'pricing_variant' => $pricing_variant_param,
+    'pricing_student' => $student_id,
+]);
 
 $finance_views = [];
-$finance_views[] = [
-    'key' => 'current',
-    'label' => $year,
-    'remaining_balance' => $remaining_balance,
-    'total_paid' => $total_paid,
-    'pending_total' => $pending_total,
-    'plan_label' => $chosen_plan ? ucfirst($chosen_plan) : null,
-    'next_due_row' => $next_due_row,
-    'alert' => $has_previous_outstanding ? [
-        'grade' => $previous_grade_label,
-        'amount' => $previous_outstanding,
-    ] : null,
-    'schedule_rows' => $upcoming_rows,
-    'schedule_message' => $fee
-        ? 'All your scheduled payments are covered at the moment.'
-        : 'Your tuition details will appear here once released by the registrar.',
-    'pending_rows' => $pending_display,
-    'pending_message' => 'No pending payments right now.',
-    'current_year_total' => $current_year_total,
-    'history_rows' => $paid_history_current,
-    'history_message' => 'Payments will appear here once recorded for this grade.',
-    'is_default' => true,
-];
+$available_pricing_options = array_keys(cashier_dashboard_pricing_labels());
+$selected_pricing_key = 'regular';
+$pricing_labels_map = cashier_dashboard_pricing_labels();
+$plan_tabs = [];
+$active_plan_key = null;
 
-if ($previous_grade_label && ($previous_fee || $previous_outstanding > 0 || $previous_paid_applied > 0)) {
-    $previous_schedule_rows = [];
-    if ($previous_fee) {
-        $prev_schedule = generateScheduleFromDB($previous_fee, 'quarterly');
-        $prev_paid_remaining = $previous_paid_applied;
-        foreach ($prev_schedule as $prevDue) {
-            $due_original = (float) $prevDue['Amount'];
-            $due_outstanding = $due_original;
-            if ($prev_paid_remaining > 0) {
-                $deduct = min($prev_paid_remaining, $due_outstanding);
-                $due_outstanding -= $deduct;
-                $prev_paid_remaining -= $deduct;
-            }
-            $previous_schedule_rows[] = [
-                'due_date' => $prevDue['Due Date'],
-                'amount_original' => $due_original,
-                'amount_outstanding' => $due_outstanding,
-                'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
-            ];
-        }
+if ($financial_snapshot) {
+    $finance_views = array_values($financial_snapshot['views'] ?? []);
+    $available_pricing_options = $financial_snapshot['available_pricing'] ?? $available_pricing_options;
+    if (empty($available_pricing_options)) {
+        $available_pricing_options = array_keys($pricing_labels_map);
     }
-
-    $previous_pending_rows = [];
-    if ($previous_outstanding > 0) {
-        $previous_pending_rows[] = [
-            'payment_type_display' => 'Past Due for ' . $previous_grade_label,
-            'amount' => $previous_outstanding,
-            'payment_status' => 'Past Due',
-            'payment_date' => 'Previous School Year',
-            'reference_number' => null,
-            'or_number' => null,
-            'is_placeholder' => true,
-        ];
-    }
-
-    $finance_views[] = [
-        'key' => 'previous',
-        'label' => 'Previous - ' . $previous_grade_label,
-        'remaining_balance' => $previous_outstanding,
-        'total_paid' => $previous_paid_applied,
-        'pending_total' => $previous_outstanding,
-        'plan_label' => $previous_fee ? 'Past Year Summary' : null,
-        'next_due_row' => null,
-        'alert' => null,
-        'schedule_rows' => $previous_schedule_rows,
-        'schedule_message' => $previous_fee
-            ? ($previous_outstanding > 0
-                ? 'Outstanding balance carried over from ' . $previous_grade_label . '.'
-                : 'No outstanding balance for this grade.')
-            : 'No tuition fee record was saved for ' . $previous_grade_label . ', but payment history is retained below.',
-        'pending_rows' => $previous_pending_rows,
-        'pending_message' => $previous_outstanding > 0
-            ? 'Pending balance remains from ' . $previous_grade_label . '.'
-            : 'No pending payments for this grade.',
-        'current_year_total' => $previous_grade_total,
-        'history_rows' => $paid_history_previous,
-        'history_message' => 'No payments were recorded for this grade yet.',
-        'is_default' => false,
-    ];
+    $selected_pricing_key = $financial_snapshot['selected_pricing'] ?? $selected_pricing_key;
+    $plan_tabs = $financial_snapshot['plan_tabs'] ?? [];
+    $active_plan_key = $financial_snapshot['active_plan'] ?? null;
+    $stored_pricing_key = $financial_snapshot['stored_pricing'] ?? null;
+} else {
+    $stored_pricing_key = null;
 }
 
+$selected_view_key = $_GET['finance_view'] ?? ($financial_snapshot['default_view_key'] ?? 'current');
+$available_view_keys = array_column($finance_views, 'key');
+if (!$selected_view_key || !in_array($selected_view_key, $available_view_keys, true)) {
+    $selected_view_key = $available_view_keys[0] ?? null;
+}
+foreach ($finance_views as &$finance_view_ref) {
+    $finance_view_ref['is_default'] = ($finance_view_ref['key'] === $selected_view_key);
+}
+unset($finance_view_ref);
+
+$has_multiple_views = count($finance_views) > 1;
 $selected_view_key = $_GET['finance_view'] ?? null;
 $available_view_keys = array_column($finance_views, 'key');
 
@@ -720,6 +503,8 @@ $has_multiple_views = count($finance_views) > 1;
                     $view_total_paid = $view['total_paid'];
                     $view_pending_total = $view['pending_total'];
                     $view_plan_label = $view['plan_label'];
+                    $view_pricing_variant = $view['pricing_variant'] ?? $selected_pricing_key;
+                    $view_pricing_label = $view_pricing_variant ? ($pricing_labels_map[$view_pricing_variant] ?? ucfirst($view_pricing_variant)) : null;
                     $view_next_due = $view['next_due_row'];
                     $view_alert = $view['alert'];
                     $view_schedule_rows = $view['schedule_rows'];
@@ -789,7 +574,8 @@ $has_multiple_views = count($finance_views) > 1;
                                     <?php if ($view_plan_label): ?>
                                         <div class="text-muted small">
                                             Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($view_plan_label); ?></strong>
-                                            <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['due_date']); ?></strong><?php endif; ?>
+                                            <?php if ($view_pricing_label): ?>· Pricing: <strong><?php echo htmlspecialchars($view_pricing_label); ?></strong><?php endif; ?>
+                                            <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['label'] ?? $view_next_due['due_date'] ?? ''); ?></strong><?php endif; ?>
                                         </div>
                                     <?php else: ?>
                                         <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
@@ -797,6 +583,7 @@ $has_multiple_views = count($finance_views) > 1;
                                 </div>
                                 <form action="Portal/choose_payment.php" method="GET" class="ms-lg-auto">
                                     <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
+                                    <input type="hidden" name="pricing_variant" value="<?php echo htmlspecialchars($selected_pricing_key); ?>">
                                     <button type="submit" class="btn btn-success fw-semibold">
                                         <i class="bi bi-credit-card me-2"></i>Pay Now
                                     </button>
@@ -816,8 +603,9 @@ $has_multiple_views = count($finance_views) > 1;
                                     <table class="table portal-table align-middle mb-0">
                                         <thead>
                                             <tr>
-                                                <th scope="col">Due Date</th>
-                                                <th scope="col" class="text-end">Amount Due</th>
+                                                <th scope="col">Schedule</th>
+                                                <th scope="col" class="text-end">Amount</th>
+                                                <th scope="col">Notes</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -848,8 +636,9 @@ $has_multiple_views = count($finance_views) > 1;
                                                 }
                                             ?>
                                                 <tr class="<?php echo $row_class; ?>">
-                                                    <td class="fw-semibold"><?php echo htmlspecialchars($row['due_date']); ?></td>
+                                                    <td class="fw-semibold"><?php echo htmlspecialchars($row['label'] ?? ($row['due_date'] ?? '')); ?></td>
                                                     <td class="text-end"><?php echo $display_amount; ?></td>
+                                                    <td><?php echo isset($row['note']) && $row['note'] !== '' ? htmlspecialchars($row['note']) : '—'; ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
