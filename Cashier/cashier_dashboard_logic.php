@@ -679,19 +679,17 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     $message = '';
     $saveSuccess = false;
     $savePlan = false;
+    $advice = '';
 
     if (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null || $or_number === '')) {
         $message = 'Official receipt number is required for cash payments.';
     } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null || $reference_number === '')) {
         $message = 'Reference number is required for non-cash payments.';
     } else {
-        // Validate payment amount and sequencing
+        // Validate payment amount and sequencing (advisory only; do not block saving)
         $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type);
-        if (!$validation['valid']) {
-            $message = $validation['message'];
-            if ($validation['suggested_amount'] !== null) {
-                $message .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
-            }
+        if (!$validation['valid'] && $validation['suggested_amount'] !== null) {
+            $advice = 'Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
         }
     }
 
@@ -759,7 +757,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             $upd->execute();
             $upd->close();
 
-            $message = 'Pending payment updated to Paid. Student enrolled.';
+            $message = 'Pending payment updated to Paid. Student enrolled.' . ($advice !== '' ? ' ' . $advice : '');
             $saveSuccess = true;
             $savePlan = true;
         } else {
@@ -785,7 +783,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 }
                 exec("$cmd > /dev/null 2>&1 &");
 
-                $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.';
+                $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.' . ($advice !== '' ? ' ' . $advice : '');
                 $saveSuccess = true;
                 $savePlan = true;
             } else {
