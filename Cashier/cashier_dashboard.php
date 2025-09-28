@@ -139,16 +139,30 @@ $gradeOptions = [
                           $primaryView = $views['current'] ?? reset($views);
                           $planTabs = $primaryView['plan_tabs'] ?? [];
                           $activePlanKey = $primaryView['active_plan'] ?? null;
+                          $storedPlanKey = $primaryView['stored_plan'] ?? null;
                           $next_due_row = $primaryView['next_due_row'] ?? null;
                         ?>
 
             <div class="search-subsection" data-plan-container style="margin-top:18px;">
               <h4 style="font-size:1.15rem; font-weight:600; color:#1976d2; margin-bottom:10px;">Upcoming Tuition Schedule</h4>
-              <?php $isPending = strtolower($s['enrollment_status'] ?? '') !== 'enrolled'; ?>
-              <?php if ($isPending): ?>
+              <?php
+                $isPending = strtolower($s['enrollment_status'] ?? '') !== 'enrolled';
+                $canChoosePlan = $isPending || empty($storedPlanKey);
+                $previousOutstanding = (float)($primaryView['previous_outstanding'] ?? 0);
+                $previousLabel = $primaryView['previous_grade_label'] ?? '';
+              ?>
+              <?php if ($previousOutstanding > 0.009): ?>
+                <div style="margin-bottom:16px; padding:12px 16px; border-radius:10px; background:#fff0f0; border:1px solid rgba(220,53,69,0.35); color:#842029;">
+                  <strong>Past Due:</strong>
+                  <?= $previousLabel !== '' ? htmlspecialchars($previousLabel) . ' • ' : '' ?>
+                  ₱<?= number_format($previousOutstanding, 2) ?> still outstanding.
+                </div>
+              <?php endif; ?>
+
+              <?php if ($canChoosePlan): ?>
                 <div class="mb-3" style="margin-bottom:18px;">
                   <label style="font-weight:500; color:#145A32;">Choose Payment Plan:</label>
-                  <select class="payment-plan-select" data-student="<?= $s['id'] ?>" style="padding:6px 12px; border-radius:8px; border:1px solid #cdd5d2; font-size:1rem; margin-left:8px;">
+                  <select class="payment-plan-select" data-student="<?= $s['id'] ?>" data-target="payment_plan_<?= $s['id'] ?>" style="padding:6px 12px; border-radius:8px; border:1px solid #cdd5d2; font-size:1rem; margin-left:8px;">
                     <?php foreach ($planOptions as $planType => $planLabel):
                       $isSelected = $planType === $activePlanKey;
                     ?>
@@ -179,50 +193,73 @@ $gradeOptions = [
                   if ($futureTotal < 0) $futureTotal = 0;
                 ?>
                 <div class="plan-panel<?= $isActive ? ' active' : '' ?>" data-plan-panel="<?= htmlspecialchars($planType) ?>" style="border:1px solid #e0e6ed; border-radius:12px; background:#fff; margin-bottom:18px; box-shadow:0 1px 4px rgba(0,0,0,0.03); padding:18px;">
-                  <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:10px;">
-                    <div style="flex:1; min-width:220px;">
-                      <div style="background:#e3f2fd; border-radius:8px; padding:12px 16px; margin-bottom:8px;">
-                        <h4 style="font-size:1.08rem; font-weight:600; color:#1976d2; margin-bottom:6px;">What you pay today</h4>
-                        <div style="font-size:1rem; color:#145A32;">
-                          <div><strong>Entrance Fee:</strong> ₱<?= number_format($base['entrance_fee'] ?? 0, 2) ?></div>
-                          <div><strong>Miscellaneous Fee:</strong> ₱<?= number_format($base['miscellaneous_fee'] ?? 0, 2) ?></div>
-                          <div><strong>Tuition Portion:</strong> ₱<?= number_format($base['tuition_fee'] ?? 0, 2) ?></div>
-                          <div><strong>Due upon enrollment:</strong> ₱<?= number_format($base['due_total'] ?? 0, 2) ?></div>
+                  <div style="display:flex; flex-wrap:wrap; gap:18px; margin-bottom:16px;">
+                    <div style="flex:1; min-width:240px; background:#e3f2fd; border-radius:10px; padding:16px;">
+                      <h4 style="font-size:1.05rem; font-weight:600; color:#1976d2; margin-bottom:10px;">What you pay today</h4>
+                      <dl style="margin:0; color:#145A32; font-size:0.98rem;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                          <dt style="margin:0; font-weight:600;">Entrance Fee</dt>
+                          <dd style="margin:0;">₱<?= number_format($base['entrance_fee'] ?? 0, 2) ?></dd>
                         </div>
-                      </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                          <dt style="margin:0; font-weight:600;">Miscellaneous Fee</dt>
+                          <dd style="margin:0;">₱<?= number_format($base['miscellaneous_fee'] ?? 0, 2) ?></dd>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                          <dt style="margin:0; font-weight:600;">Tuition Portion</dt>
+                          <dd style="margin:0;">₱<?= number_format($base['tuition_fee'] ?? 0, 2) ?></dd>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; margin-top:12px; border-top:1px dashed rgba(25,118,210,0.25); padding-top:10px; font-size:1.05rem;">
+                          <dt style="margin:0; font-weight:700;">Due upon enrollment</dt>
+                          <dd style="margin:0; font-weight:700;">₱<?= number_format($base['due_total'] ?? 0, 2) ?></dd>
+                        </div>
+                      </dl>
                     </div>
-                    <div style="flex:1; min-width:220px;">
-                      <div style="background:#f1f8e9; border-radius:8px; padding:12px 16px; margin-bottom:8px;">
-                        <h4 style="font-size:1.08rem; font-weight:600; color:#388e3c; margin-bottom:6px;">Remaining balance</h4>
-                        <div style="font-size:1rem; color:#145A32;">
-                          <div>Future payments total: ₱<?= number_format($futureTotal, 2) ?></div>
-                          <div><strong>Overall program cost:</strong> ₱<?= number_format($base['overall_total'] ?? 0, 2) ?></div>
+                    <div style="flex:1; min-width:240px; background:#f1f8e9; border-radius:10px; padding:16px;">
+                      <h4 style="font-size:1.05rem; font-weight:600; color:#388e3c; margin-bottom:10px;">Remaining balance</h4>
+                      <dl style="margin:0; color:#145A32; font-size:0.98rem;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                          <dt style="margin:0; font-weight:600;">Future payments total</dt>
+                          <dd style="margin:0;">₱<?= number_format($futureTotal, 2) ?></dd>
                         </div>
-                      </div>
+                        <div style="display:flex; justify-content:space-between; margin-top:12px; border-top:1px dashed rgba(56,142,60,0.25); padding-top:10px; font-size:1.05rem;">
+                          <dt style="margin:0; font-weight:700;">Overall program cost</dt>
+                          <dd style="margin:0; font-weight:700;">₱<?= number_format($base['overall_total'] ?? 0, 2) ?></dd>
+                        </div>
+                      </dl>
                     </div>
                   </div>
-                  <div class="table-fees" style="margin-top:10px;">
+
+                  <div class="table-fees" style="margin-top:8px;">
                     <table class="table table-bordered align-middle" style="background:#f8fafc;">
                       <thead class="table-success text-center">
                         <tr>
-                          <th>Schedule</th>
-                          <th>Amount</th>
+                          <th style="width:28%;">Schedule</th>
+                          <th style="width:36%;">Amount</th>
                           <th>Notes</th>
                         </tr>
                       </thead>
                       <tbody>
                         <?php if (!empty($entries)): ?>
                           <?php foreach ($entries as $entry): ?>
+                            <?php
+                              $originalAmount = (float)($entry['amount_original'] ?? 0);
+                              $appliedAmount = (float)($entry['applied'] ?? 0);
+                              $remainingAmount = max($originalAmount - $appliedAmount, 0);
+                              $isPaid = $appliedAmount >= ($originalAmount - 0.01);
+                              $isPartial = !$isPaid && $appliedAmount > 0.01;
+                            ?>
                             <tr>
                               <td><?= htmlspecialchars($entry['label'] ?? $planLabel) ?></td>
                               <td>
-                                <?php if (!empty($entry['paid']) && $entry['paid']): ?>
-                                  <span style="color:#388e3c;font-weight:600;">Paid</span>
-                                  <span class="text-muted" style="font-size:0.92rem;">(₱<?= number_format((float) $entry['amount'], 2) ?>)</span>
-                                <?php elseif (!empty($entry['amount_outstanding']) && $entry['amount_outstanding'] < $entry['amount'] && $entry['amount_outstanding'] > 0): ?>
-                                  ₱<?= number_format((float) $entry['amount_outstanding'], 2) ?> <span class="text-muted" style="font-size:0.92rem;">of ₱<?= number_format((float) $entry['amount'], 2) ?> remaining</span>
+                                <?php if ($isPaid): ?>
+                                  <span style="color:#2e7d32;font-weight:600;">Paid</span>
+                                  <span class="text-muted" style="font-size:0.92rem;">(₱<?= number_format($originalAmount, 2) ?>)</span>
+                                <?php elseif ($isPartial): ?>
+                                  <div>₱<?= number_format($remainingAmount, 2) ?> remaining</div>
+                                  <div class="text-muted" style="font-size:0.92rem;">Paid so far: ₱<?= number_format($appliedAmount, 2) ?></div>
                                 <?php else: ?>
-                                  ₱<?= number_format((float) $entry['amount'], 2) ?>
+                                  ₱<?= number_format($originalAmount, 2) ?>
                                 <?php endif; ?>
                               </td>
                               <td><?= $entry['note'] !== '' ? htmlspecialchars($entry['note']) : '—' ?></td>
@@ -239,52 +276,49 @@ $gradeOptions = [
                       <strong>Notes:</strong> <?= nl2br(htmlspecialchars($notes)) ?>
                     </div>
                   <?php endif; ?>
-
-                  <div class="cashier-payment-entry" data-student="<?= $s['id'] ?>">
-                  <h4>Record Payment</h4>
-                  <form method="POST" action="cashier_dashboard.php#record">
-                    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-                    <input type="hidden" name="tuition_fee_id" value="<?= $primaryView['plan_context']['tuition_fee_id'] ?? 0 ?>">
-                    <input type="hidden" name="plan_school_year" value="<?= $primaryView['plan_context']['school_year'] ?? '' ?>">
-                    <input type="hidden" name="plan_grade_level" value="<?= $primaryView['plan_context']['grade_level'] ?? '' ?>">
-                    <input type="hidden" name="plan_pricing_category" value="<?= $primaryView['plan_context']['pricing_category'] ?? '' ?>">
-                    <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
-                  <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
-
-                    <div>
-                      <label for="payment_mode_<?= $s['id'] ?>">Payment Mode:</label>
-                      <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
-                        <option value="Cash">Cash</option>
-                        <option value="GCash">GCash</option>
-                      </select>
-                    </div>
-
-                  
-
-                    <div>
-                      <label>Amount:</label>
-                      <input type="number" step="0.01" name="amount" required>
-                    </div>
-
-                      <div id="payment-fields-<?= $s['id'] ?>">
-                      <div class="cash-field">
-                        <label>Official Receipt #:</label>
-                        <input type="text" name="or_number">
-                      </div>
-                      <div class="gcash-field" style="display:none;">
-                        <label>Reference #:</label>
-                        <input type="text" name="reference_number">
-                      </div>
-                    </div>
-                    
-                    <button type="submit">💵 Submit Payment</button>
-                  </form>
-                </div>
                 </div>
                 <?php endforeach; ?>
+              <h4>Record Payment</h4>
+              <div class="cashier-payment-entry" data-student="<?= $s['id'] ?>">
+                <form id="record_payment_<?= $s['id'] ?>" method="POST" action="cashier_dashboard.php#record">
+                  <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                  <input type="hidden" name="tuition_fee_id" value="<?= $primaryView['plan_context']['tuition_fee_id'] ?? 0 ?>">
+                  <input type="hidden" name="plan_school_year" value="<?= $primaryView['plan_context']['school_year'] ?? '' ?>">
+                  <input type="hidden" name="plan_grade_level" value="<?= $primaryView['plan_context']['grade_level'] ?? '' ?>">
+                  <input type="hidden" name="plan_pricing_category" value="<?= $primaryView['plan_context']['pricing_category'] ?? '' ?>">
+                  <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
+                  <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
+
+                  <div>
+                    <label for="payment_mode_<?= $s['id'] ?>">Payment Mode:</label>
+                    <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
+                      <option value="Cash">Cash</option>
+                      <option value="GCash">GCash</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label>Amount:</label>
+                    <input type="number" step="0.01" name="amount" required>
+                  </div>
+
+                  <div id="payment-fields-<?= $s['id'] ?>">
+                    <div class="cash-field">
+                      <label>Official Receipt #:</label>
+                      <input type="text" name="or_number">
+                    </div>
+                    <div class="gcash-field" style="display:none;">
+                      <label>Reference #:</label>
+                      <input type="text" name="reference_number">
+                    </div>
+                  </div>
+
+                  <button type="submit">💵 Submit Payment</button>
+                </form>
               </div>
-                        </div>
-                    <?php endif; ?>
+              </div>
+            </div>
+            <?php endif; ?>
                 </li>
             <?php endforeach; ?>
         </ul>
@@ -305,7 +339,7 @@ $gradeOptions = [
   <?php while ($row = $payments->fetch_assoc()): ?>
     <tr>
       <td><?= date("Y-m-d", strtotime($row['created_at'])) ?></td>
-      <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?></td>
+      <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?> <?= htmlspecialchars($row['middlename']) ?></td>
       <td><?= htmlspecialchars($row['payment_type']) ?></td>
       <td>₱ <?= number_format($row['amount'], 2) ?></td>
       <td id="status-<?= $row['id'] ?>"><?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?></td>
@@ -536,13 +570,14 @@ $gradeOptions = [
 <script>
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.payment-plan-select').forEach(function(select) {
-    select.addEventListener('change', function() {
-      var studentId = select.getAttribute('data-student');
-      var hiddenInput = document.getElementById('payment_plan_' + studentId);
-      if (hiddenInput) {
+    var targetId = select.getAttribute('data-target');
+    var hiddenInput = targetId ? document.getElementById(targetId) : null;
+    if (hiddenInput) {
+      hiddenInput.value = select.value;
+      select.addEventListener('change', function () {
         hiddenInput.value = select.value;
-      }
-    });
+      });
+    }
   });
 });
 </script>

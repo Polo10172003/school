@@ -234,88 +234,65 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
     });
   };
 
-  const bindPlanSelectors = () => {
-    const formatCurrency = (value) => {
-      const amount = Number(value);
-      if (Number.isNaN(amount)) {
-        return '0.00';
-      }
-      return amount.toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      });
-    };
-
+    const bindPlanSelectors = () => {
     document.querySelectorAll('[data-plan-container]').forEach((container) => {
       const dropdown = container.querySelector('.payment-plan-select');
+      if (!dropdown) {
+        return;
+      }
+
       const panels = new Map();
       container.querySelectorAll('[data-plan-panel]').forEach((panel) => {
         panels.set(panel.dataset.planPanel, panel);
       });
-      if (!dropdown || panels.size === 0) {
-        return;
-      }
 
-
-      
-
-      const metas = new Map();
-      container.querySelectorAll('.cashier-plan-meta').forEach((meta) => {
-        metas.set(meta.dataset.plan, meta);
-      });
-
+      const labelDisplay = container.querySelector('[data-plan-selected-label]');
       const view = container.closest('.cashier-view');
       const studentId = view ? view.dataset.student : null;
-      const summaryWrapper = view ? view.querySelector('[data-plan-wrapper="summary"]') : null;
-      const labelEl = view ? view.querySelector('[data-plan-bind="label"]') : null;
-      const nextWrapper = view ? view.querySelector('[data-plan-bind="next-wrapper"]') : null;
-      const nextPrefix = view ? view.querySelector('[data-plan-bind="next-prefix"]') : null;
-      const nextTextEl = view ? view.querySelector('[data-plan-bind="next-text"]') : null;
-      const remainingEl = view ? view.querySelector('[data-plan-bind="remaining"]') : null;
-      const totalEl = view ? view.querySelector('[data-plan-bind="total"]') : null;
-      const messageEl = view ? view.querySelector('[data-plan-bind="schedule-message"]') : null;
-      const totalDisplay = container.querySelector('[data-plan-selected-total]');
-      const labelDisplay = container.querySelector('[data-plan-selected-label]');
+      const formWrapper = studentId ? document.querySelector(`.cashier-payment-entry[data-student="${studentId}"]`) : null;
+      const form = formWrapper ? formWrapper.querySelector('form') : null;
+      const planInput = form ? form.querySelector('input[name="payment_plan"]') : null;
 
-      const form = studentId ? document.querySelector(`.cashier-payment-entry[data-student="${studentId}"]`) : null;
-      const planInput = form ? form.querySelector('[data-plan-field="plan"]') : null;
-      const amountInput = form ? form.querySelector('[data-plan-field="amount"]') : null;
-      const hintEl = form ? form.querySelector('[data-plan-bind="amount-hint"]') : null;
-      const submitBtn = form ? form.querySelector('[data-plan-bind="submit-button"]') : null;
+      const normaliseKey = (value) => String(value || '').toLowerCase().replace(/-/g, '_');
 
-      
+      const setActivePlan = (planKey) => {
+        const normalised = normaliseKey(planKey);
+        panels.forEach((panel, key) => {
+          const keyNormalised = normaliseKey(key);
+          const isActive = keyNormalised === normalised;
+          panel.classList.toggle('active', isActive);
+          panel.style.display = isActive ? '' : 'none';
+        });
 
-const setActivePlan = (planKey) => {
-  const normalizedKey = String(planKey).toLowerCase().replace(/-/g, '_');
-  panels.forEach((panel, key) => {
-    const normKey = key.toLowerCase().replace(/-/g, '_');
-    const isActive = normKey === normalizedKey;
-    panel.classList.toggle('active', isActive);
-    panel.style.display = isActive ? '' : 'none';
-  });
-};
+        if (planInput) {
+          planInput.value = planKey;
+        }
+      };
 
+      const applySelection = (planKey) => {
+        if (!planKey && panels.size > 0) {
+          const iterator = panels.keys().next();
+          if (!iterator.done) {
+            planKey = iterator.value;
+            dropdown.value = planKey;
+          }
+        }
 
-// initialize
-setActivePlan(dropdown.value);
+        setActivePlan(planKey);
 
-// update on change
-dropdown.addEventListener('change', () => {
-  setActivePlan(dropdown.value);
-});
+        if (labelDisplay) {
+          const selectedOption = dropdown.querySelector(`option[value="${planKey}"]`);
+          labelDisplay.textContent = selectedOption ? selectedOption.textContent : '';
+        }
+      };
 
+      applySelection(dropdown.value);
 
-// initialize
-setActivePlan(dropdown.value);
-
-// update on change
-dropdown.addEventListener('change', () => {
-  setActivePlan(dropdown.value);
-});
+      dropdown.addEventListener('change', () => {
+        applySelection(dropdown.value);
+      });
     });
   };
-    
-    
 
   document.addEventListener('DOMContentLoaded', () => {
     bindPaymentModal();
