@@ -676,24 +676,25 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
         $reference_number = null;
     }
 
-    $message = '';
-    $saveSuccess = false;
-    $savePlan = false;
+	$message = '';
+	$saveSuccess = false;
+	$savePlan = false;
+	$advisory = '';
 
-    if (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null || $or_number === '')) {
-        $message = 'Official receipt number is required for cash payments.';
-    } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null || $reference_number === '')) {
-        $message = 'Reference number is required for non-cash payments.';
-    } else {
-        // Validate payment amount and sequencing
-        $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type);
-        if (!$validation['valid']) {
-            $message = $validation['message'];
-            if ($validation['suggested_amount'] !== null) {
-                $message .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
-            }
-        }
-    }
+	if (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null || $or_number === '')) {
+		$message = 'Official receipt number is required for cash payments.';
+	} elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null || $reference_number === '')) {
+		$message = 'Reference number is required for non-cash payments.';
+	} else {
+		// Validate payment amount and sequencing (advisory only; do not block cashier insert)
+		$validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type);
+		if (!$validation['valid']) {
+			$advisory = $validation['message'];
+			if ($validation['suggested_amount'] !== null) {
+				$advisory .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
+			}
+		}
+	}
 
     if ($message === '') {
         $stud = $conn->prepare('SELECT firstname, lastname, student_number, emailaddress FROM students_registration WHERE id = ?');
@@ -735,21 +736,21 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
         $check->fetch();
         $check->close();
 
-        if ($pending_payment_id) {
+		if ($pending_payment_id) {
             if (strcasecmp($payment_type, 'Cash') === 0) {
-                $updPay = $conn->prepare('
-                    UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", or_number = ?, payment_date = ?
-                    WHERE id = ?
-                ');
-                $updPay->bind_param('sssi', $payment_type, $or_number, $payment_date, $pending_payment_id);
+				$updPay = $conn->prepare('
+					UPDATE student_payments 
+					SET payment_type = ?, payment_status = "paid", or_number = ?, payment_date = ?, amount = ?
+					WHERE id = ?
+				');
+				$updPay->bind_param('sssdi', $payment_type, $or_number, $payment_date, $amount, $pending_payment_id);
             } else {
-                $updPay = $conn->prepare('
-                    UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", reference_number = ?, payment_date = ?
-                    WHERE id = ?
-                ');
-                $updPay->bind_param('sssi', $payment_type, $reference_number, $payment_date, $pending_payment_id);
+				$updPay = $conn->prepare('
+					UPDATE student_payments 
+					SET payment_type = ?, payment_status = "paid", reference_number = ?, payment_date = ?, amount = ?
+					WHERE id = ?
+				');
+				$updPay->bind_param('sssdi', $payment_type, $reference_number, $payment_date, $amount, $pending_payment_id);
             }
             $updPay->execute();
             $updPay->close();
@@ -795,10 +796,10 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
         }
     }
 
-    if ($message !== '') {
-        $_SESSION['cashier_flash'] = $message;
-        $_SESSION['cashier_flash_type'] = $saveSuccess ? 'success' : 'error';
-    }
+	if ($message !== '' || $advisory !== '') {
+		$_SESSION['cashier_flash'] = trim($message . ($saveSuccess && $advisory !== '' ? ' Note: ' . $advisory : ''));
+		$_SESSION['cashier_flash_type'] = $saveSuccess ? 'success' : 'error';
+	}
 
     if (!empty($savePlan ?? false) && $posted_plan !== '' && isset(cashier_dashboard_plan_labels()[$posted_plan])) {
         cashier_dashboard_save_plan_selection($conn, $student_id, $plan_context['tuition_fee_id'], $posted_plan, $plan_context);
