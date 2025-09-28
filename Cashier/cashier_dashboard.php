@@ -297,7 +297,32 @@ $gradeOptions = [
   <div class="section-card" id="records">
     <h2>Payment Records</h2>
     <table id="paymentTable">
-      <thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
+      <thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
+      <<tbody>
+  <?php while ($row = $payments->fetch_assoc()): ?>
+    <tr>
+      <td><?= date("Y-m-d", strtotime($row['created_at'])) ?></td>
+      <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?></td>
+      <td><?= htmlspecialchars($row['payment_type']) ?></td>
+      <td>₱ <?= number_format($row['amount'], 2) ?></td>
+      <td id="status-<?= $row['id'] ?>"><?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?></td>
+      <td>
+        <button class="view-payment-btn"
+          data-id="<?= $row['id'] ?>" 
+          data-student="<?= htmlspecialchars($row['lastname'] . ', ' . $row['firstname']) ?>" 
+          data-type="<?= htmlspecialchars($row['payment_type']) ?>" 
+          data-amount="<?= $row['amount'] ?>" 
+          data-status="<?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?>" 
+          data-ref="<?= htmlspecialchars($row['reference_number'] ?? $row['or_number'] ?? 'N/A') ?>" 
+          data-screenshot="<?= htmlspecialchars($row['screenshot_path'] ?? '') ?>">
+          🔎 View Payment
+        </button>
+      </td>
+    </tr>
+  <?php endwhile; ?>
+</tbody>
+
+
       <tbody>
         <?php while ($row = $payments->fetch_assoc()): ?>
           <tr>
@@ -309,6 +334,7 @@ $gradeOptions = [
           </tr>
         <?php endwhile; ?>
       </tbody>
+      
     </table>
   </div>
 

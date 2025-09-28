@@ -77,13 +77,17 @@
         activeButton = btn;
         document.getElementById('modalStudent').textContent = btn.dataset.student || '';
         document.getElementById('modalType').textContent = btn.dataset.type || '';
-        document.getElementById('modalAmount').textContent = (parseFloat(btn.dataset.amount) || 0).toFixed(2);
+        const rawAmount = parseFloat(btn.dataset.amount) || 0;
+document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('en-PH', {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
         document.getElementById('modalStatus').textContent = btn.dataset.status || '';
         document.getElementById('modalPaymentId').value = btn.dataset.id || '';
 
         const shot = (btn.dataset.screenshot || '').trim();
         if (shot) {
-          modalScreenshot.src = shot;
+          modalScreenshot.src =  shot;
           screenshotSection.style.display = 'block';
         } else {
           screenshotSection.style.display = 'none';
@@ -92,13 +96,13 @@
         currentType = (btn.dataset.type || '').toLowerCase();
         if (currentType === 'cash') {
           document.getElementById('modalLabel').textContent = 'Official Receipt #:';
-          document.getElementById('modalRefOr').textContent = btn.dataset.or || 'N/A';
+          document.getElementById('modalRefOr').textContent = btn.dataset.or ||btn.dataset.ref || 'N/A';
 
           if (acceptBtn) acceptBtn.style.display = 'none';
           if (declineBtn) declineBtn.style.display = 'none';
         } else {
           document.getElementById('modalLabel').textContent = 'Reference #:';
-          document.getElementById('modalRefOr').textContent = btn.dataset.reference || 'N/A';
+          document.getElementById('modalRefOr').textContent = btn.dataset.reference || btn.dataset.ref ||'N/A';
 
           if (acceptBtn) acceptBtn.style.display = 'inline-block';
           if (declineBtn) declineBtn.style.display = 'inline-block';

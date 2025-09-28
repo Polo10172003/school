@@ -278,63 +278,70 @@ if ($gender_normalized === 'male') {
     $avatar_variant = 'female';
 }
 
-if (!function_exists('generateScheduleFromDB')) {
-    /**
-     * Build tuition fee schedule based on selected plan.
-     */
-    function generateScheduleFromDB($fee, $plan, $start_date = '2025-06-01')
-    {
-        $schedule = [];
-        $date = new DateTime($start_date);
+        function generateScheduleFromDB($fee, $plan, $start_date = '2025-06-01')
+{
+    global $conn; // ensure DB connection is accessible
+    $schedule = [];
 
-        $entrance = (float) $fee['entrance_fee'];
-        $misc = (float) $fee['miscellaneous_fee'];
-        $tuition = (float) $fee['tuition_fee'];
-        $annual = $entrance + $misc + $tuition;
+    // Look up in tuition_fee_plans
+    $plan_sql = "SELECT due_upon_enrollment, next_payment_breakdown 
+                 FROM tuition_fee_plans 
+                 WHERE tuition_fee_id = ? AND plan_type = ? 
+                 ORDER BY created_at DESC LIMIT 1";
+    $stmt = $conn->prepare($plan_sql);
+    $stmt->bind_param("is", $fee['id'], $plan);
+    $stmt->execute();
+    $stmt->bind_result($due_upon, $breakdown_json);
+    if ($stmt->fetch()) {
+        // First row (due upon enrollment)
+        $schedule[] = [
+            'Due Date' => $start_date, // enrollment date
+            'Amount'   => (float)$due_upon,
+            'Notes'    => 'Due upon enrollment'
+        ];
 
-        switch (strtolower($plan)) {
-            case 'annually':
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $annual];
-                break;
-
-            case 'cash':
-                $discountedEntrance = $entrance * 0.9;
-                $totalCash = $discountedEntrance + $misc + $tuition;
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $totalCash];
-                break;
-
-            case 'semi-annually':
-                $upon = $entrance + $misc + ($tuition / 2);
-                $next = $tuition / 2;
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
-                $date->modify('+6 months');
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $next];
-                break;
-
-            case 'quarterly':
-                $upon = $entrance + ($misc / 4) + ($tuition / 4);
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
-                for ($i = 1; $i <= 3; $i++) {
-                    $date->modify('+3 months');
-                    $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => ($misc / 4) + ($tuition / 4)];
-                }
-                break;
-
-            case 'monthly':
-                $upon = $entrance + ($misc / 12) + ($tuition / 12);
-                $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => $upon];
-                for ($i = 1; $i <= 11; $i++) {
-                    $date->modify('+1 month');
-                    $schedule[] = ['Due Date' => $date->format('Y-m-d'), 'Amount' => ($misc / 12) + ($tuition / 12)];
-                }
-                break;
+        // Breakdown rows from JSON
+        if ($breakdown_json) {
+            $breakdowns = json_decode($breakdown_json, true) ?: [];
+            foreach ($breakdowns as $entry) {
+                $schedule[] = [
+                    'Due Date' => $entry['note'] ?? '',  // you may store actual dates instead of notes
+                    'Amount'   => (float)$entry['amount'],
+                    'Notes'    => $entry['note'] ?? ''
+                ];
+            }
         }
-
-        return $schedule;
     }
+    $stmt->close();
+
+    return $schedule;
 }
 
-$chosen_plan = $fee ? 'quarterly' : null; // Default plan until saved in enrollment record
+
+$chosen_plan = null;
+// Fetch the student's chosen plan from student_plan_selections
+$plan_sql = "SELECT plan_type FROM student_plan_selections WHERE student_id = ? ORDER BY selected_at DESC LIMIT 1";
+$plan_stmt = $conn->prepare($plan_sql);
+$plan_stmt->bind_param("i", $student_id);
+$plan_stmt->execute();
+$plan_stmt->bind_result($chosen_plan_db);
+$plan_stmt->fetch();
+$plan_stmt->close();
+
+$chosen_plan = $chosen_plan_db ?: null;
+// Fetch breakdown from tuition_fee_plans for chosen plan
+$breakdown_entries = [];
+if ($fee && $chosen_plan) {
+    $plan_sql = "SELECT next_payment_breakdown FROM tuition_fee_plans WHERE tuition_fee_id = ? AND plan_type = ? LIMIT 1";
+    $plan_stmt = $conn->prepare($plan_sql);
+    $plan_stmt->bind_param("is", $fee['id'], $chosen_plan);
+    $plan_stmt->execute();
+    $plan_stmt->bind_result($breakdown_json);
+    if ($plan_stmt->fetch() && $breakdown_json) {
+        $breakdown_entries = json_decode($breakdown_json, true) ?: [];
+    }
+    $plan_stmt->close();
+}
 $upcoming_rows = [];
 $first_unpaid_index = null;
 $upcoming_total = 0.0;
