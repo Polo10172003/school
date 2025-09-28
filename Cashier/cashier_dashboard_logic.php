@@ -37,7 +37,7 @@ function cashier_dashboard_plan_labels(): array
     return [
         'annually'    => 'Annually',
         'cash'        => 'Cash',
-        'semi_annual' => 'Semi-Annual',
+        'semi_annual' => 'Semi Annual',
         'quarterly'   => 'Quarterly',
         'monthly'     => 'Monthly',
     ];
@@ -377,6 +377,271 @@ function cashier_dashboard_fetch_tuition_packages(mysqli $conn): array
 }
 
 /**
+ * Generate a detailed payment breakdown for display.
+ *
+ * @return array{breakdown:array, total_paid:float, remaining_balance:float, next_due:array|null}
+ */
+function cashier_dashboard_generate_payment_breakdown(mysqli $conn, int $studentId): array
+{
+    // Get student information
+    $stmt = $conn->prepare('
+        SELECT sr.year, sr.student_type, sr.enrollment_status 
+        FROM students_registration sr 
+        WHERE sr.id = ?
+    ');
+    $stmt->bind_param('i', $studentId);
+    $stmt->execute();
+    $student = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$student) {
+        return ['breakdown' => [], 'total_paid' => 0, 'remaining_balance' => 0, 'next_due' => null];
+    }
+    
+    // Get tuition fee information
+    $gradeLevel = $student['year'];
+    $studentType = strtolower($student['student_type'] ?? 'new');
+    $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
+    $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
+    
+    $fee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates);
+    if (!$fee) {
+        return ['breakdown' => [], 'total_paid' => 0, 'remaining_balance' => 0, 'next_due' => null];
+    }
+    
+    // Get payment history
+    $payments_stmt = $conn->prepare('
+        SELECT id, amount, payment_status, payment_date, created_at, payment_type, reference_number, or_number
+        FROM student_payments 
+        WHERE student_id = ? AND payment_status = "paid"
+        ORDER BY created_at ASC
+    ');
+    $payments_stmt->bind_param('i', $studentId);
+    $payments_stmt->execute();
+    $payments_res = $payments_stmt->get_result();
+    $paid = [];
+    while ($row = $payments_res->fetch_assoc()) {
+        $paid[] = $row;
+    }
+    $payments_stmt->close();
+    
+    $totalPaid = array_sum(array_map('floatval', array_column($paid, 'amount')));
+    
+    // Get plan information
+    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
+    if (empty($plansData)) {
+        return ['breakdown' => [], 'total_paid' => $totalPaid, 'remaining_balance' => 0, 'next_due' => null];
+    }
+    
+    // Get the active plan
+    $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int)$fee['id']);
+    $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
+    $activePlan = $plansData[$active_plan_key] ?? null;
+    
+    if (!$activePlan) {
+        return ['breakdown' => [], 'total_paid' => $totalPaid, 'remaining_balance' => 0, 'next_due' => null];
+    }
+    
+    $breakdown = [];
+    $remainingPaid = $totalPaid;
+    $dueUponEnrollment = (float)($activePlan['due'] ?? 0);
+    
+    // Process enrollment payment
+    if ($dueUponEnrollment > 0) {
+        $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
+        $remainingPaid -= $allocatedToEnrollment;
+        
+        $breakdown[] = [
+            'category' => 'Enrollment Fee',
+            'description' => 'Entrance Fee + Miscellaneous Fee + First Monthly Installment',
+            'amount_due' => $dueUponEnrollment,
+            'amount_paid' => $allocatedToEnrollment,
+            'amount_remaining' => $dueUponEnrollment - $allocatedToEnrollment,
+            'status' => $allocatedToEnrollment >= $dueUponEnrollment ? 'Paid' : 'Partial',
+            'payments' => []
+        ];
+        
+        // Track which payments went to enrollment
+        $tempRemaining = $allocatedToEnrollment;
+        foreach ($paid as $payment) {
+            if ($tempRemaining <= 0) break;
+            $paymentAmount = (float)($payment['amount'] ?? 0);
+            if ($paymentAmount > 0) {
+                $allocatedAmount = min($tempRemaining, $paymentAmount);
+                $breakdown[count($breakdown) - 1]['payments'][] = [
+                    'id' => $payment['id'],
+                    'amount' => $allocatedAmount,
+                    'date' => $payment['payment_date'] ?? substr($payment['created_at'], 0, 10),
+                    'type' => $payment['payment_type'],
+                    'reference' => $payment['reference_number'] ?? $payment['or_number']
+                ];
+                $tempRemaining -= $allocatedAmount;
+            }
+        }
+    }
+    
+    // Process monthly installments
+    $monthNumber = 1;
+    foreach ($activePlan['entries'] as $entry) {
+        $entryAmount = (float)($entry['amount'] ?? 0);
+        $note = $entry['note'] ?? "Monthly Payment $monthNumber";
+        
+        $allocatedToMonth = min($remainingPaid, $entryAmount);
+        $remainingPaid -= $allocatedToMonth;
+        
+        $breakdown[] = [
+            'category' => 'Monthly Installment',
+            'description' => $note,
+            'amount_due' => $entryAmount,
+            'amount_paid' => $allocatedToMonth,
+            'amount_remaining' => $entryAmount - $allocatedToMonth,
+            'status' => $allocatedToMonth >= $entryAmount ? 'Paid' : ($allocatedToMonth > 0 ? 'Partial' : 'Pending'),
+            'payments' => []
+        ];
+        
+        // Track which payments went to this month
+        $tempRemaining = $allocatedToMonth;
+        foreach ($paid as $payment) {
+            if ($tempRemaining <= 0) break;
+            $paymentAmount = (float)($payment['amount'] ?? 0);
+            if ($paymentAmount > 0) {
+                $allocatedAmount = min($tempRemaining, $paymentAmount);
+                $breakdown[count($breakdown) - 1]['payments'][] = [
+                    'id' => $payment['id'],
+                    'amount' => $allocatedAmount,
+                    'date' => $payment['payment_date'] ?? substr($payment['created_at'], 0, 10),
+                    'type' => $payment['payment_type'],
+                    'reference' => $payment['reference_number'] ?? $payment['or_number']
+                ];
+                $tempRemaining -= $allocatedAmount;
+            }
+        }
+        
+        $monthNumber++;
+    }
+    
+    // Calculate remaining balance
+    $totalDue = $dueUponEnrollment + array_sum(array_column($activePlan['entries'], 'amount'));
+    $remainingBalance = max(0, $totalDue - $totalPaid);
+    
+    // Find next due payment
+    $nextDue = null;
+    foreach ($breakdown as $item) {
+        if ($item['amount_remaining'] > 0) {
+            $nextDue = $item;
+            break;
+        }
+    }
+    
+    return [
+        'breakdown' => $breakdown,
+        'total_paid' => $totalPaid,
+        'remaining_balance' => $remainingBalance,
+        'next_due' => $nextDue
+    ];
+}
+
+/**
+ * Validate payment to prevent duplicates and ensure proper sequencing.
+ *
+ * @return array{valid:bool, message:string, suggested_amount:float|null}
+ */
+function cashier_dashboard_validate_payment(mysqli $conn, int $studentId, float $amount, string $paymentType): array
+{
+    // Get student's current financial status
+    $stmt = $conn->prepare('
+        SELECT sr.year, sr.student_type, sr.enrollment_status 
+        FROM students_registration sr 
+        WHERE sr.id = ?
+    ');
+    $stmt->bind_param('i', $studentId);
+    $stmt->execute();
+    $student = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$student) {
+        return ['valid' => false, 'message' => 'Student not found.', 'suggested_amount' => null];
+    }
+    
+    // Get tuition fee information
+    $gradeLevel = $student['year'];
+    $studentType = strtolower($student['student_type'] ?? 'new');
+    $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
+    $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
+    
+    $fee = cashier_fetch_fee($conn, $normalizedGrade, $typeCandidates);
+    if (!$fee) {
+        return ['valid' => false, 'message' => 'No tuition fee configuration found for this grade.', 'suggested_amount' => null];
+    }
+    
+    // Get payment history
+    $payments_stmt = $conn->prepare('
+        SELECT amount, payment_status, payment_date, created_at 
+        FROM student_payments 
+        WHERE student_id = ? AND payment_status = "paid"
+        ORDER BY created_at ASC
+    ');
+    $payments_stmt->bind_param('i', $studentId);
+    $payments_stmt->execute();
+    $payments_res = $payments_stmt->get_result();
+    $paid = [];
+    while ($row = $payments_res->fetch_assoc()) {
+        $paid[] = $row;
+    }
+    $payments_stmt->close();
+    
+    $totalPaid = array_sum(array_map('floatval', array_column($paid, 'amount')));
+    
+    // Get plan information
+    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
+    if (empty($plansData)) {
+        return ['valid' => false, 'message' => 'No payment plans configured.', 'suggested_amount' => null];
+    }
+    
+    // Get the active plan
+    $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int)$fee['id']);
+    $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
+    $activePlan = $plansData[$active_plan_key] ?? null;
+    
+    if (!$activePlan) {
+        return ['valid' => false, 'message' => 'No active payment plan found.', 'suggested_amount' => null];
+    }
+    
+    // Calculate what should be paid next
+    $dueUponEnrollment = (float)($activePlan['due'] ?? 0);
+    $remainingPaid = $totalPaid;
+    
+    // Check if enrollment fee is covered
+    if ($remainingPaid < $dueUponEnrollment) {
+        $neededForEnrollment = $dueUponEnrollment - $remainingPaid;
+        if (abs($amount - $neededForEnrollment) < 0.01) {
+            return ['valid' => true, 'message' => 'Payment covers remaining enrollment fee.', 'suggested_amount' => null];
+        } else {
+            return ['valid' => false, 'message' => "Enrollment fee not fully paid. Need ₱" . number_format($neededForEnrollment, 2), 'suggested_amount' => $neededForEnrollment];
+        }
+    }
+    
+    // Check monthly installments
+    $remainingPaid -= $dueUponEnrollment;
+    foreach ($activePlan['entries'] as $entry) {
+        $entryAmount = (float)($entry['amount'] ?? 0);
+        if ($remainingPaid >= $entryAmount) {
+            $remainingPaid -= $entryAmount;
+            continue;
+        }
+        
+        $neededForThisMonth = $entryAmount - $remainingPaid;
+        if (abs($amount - $neededForThisMonth) < 0.01) {
+            return ['valid' => true, 'message' => 'Payment covers next monthly installment.', 'suggested_amount' => null];
+        } else {
+            return ['valid' => false, 'message' => "Next installment is ₱" . number_format($neededForThisMonth, 2), 'suggested_amount' => $neededForThisMonth];
+        }
+    }
+    
+    return ['valid' => false, 'message' => 'All payments are complete. No additional payment needed.', 'suggested_amount' => null];
+}
+
+/**
  * Handle the onsite payment submission form.
  *
  * @return string|null Returns the redirect URL when a submission occurs, otherwise null.
@@ -395,7 +660,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     $payment_date = date('Y-m-d');
     $or_number = isset($_POST['or_number']) ? trim((string) $_POST['or_number']) : null;
     $reference_number = isset($_POST['reference_number']) ? trim((string) $_POST['reference_number']) : null;
-    $posted_plan = isset($_POST['payment_plan']) ? strtolower(trim((string) $_POST['payment_plan'])) : '';
+    $posted_plan = isset($_POST['payment_plan']) ? cashier_normalize_plan_key((string) $_POST['payment_plan']) : '';
     $plan_context = [
         'tuition_fee_id' => (int) ($_POST['tuition_fee_id'] ?? 0),
         'school_year' => trim((string) ($_POST['plan_school_year'] ?? '')),
@@ -419,6 +684,15 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
         $message = 'Official receipt number is required for cash payments.';
     } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null || $reference_number === '')) {
         $message = 'Reference number is required for non-cash payments.';
+    } else {
+        // Validate payment amount and sequencing
+        $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type);
+        if (!$validation['valid']) {
+            $message = $validation['message'];
+            if ($validation['suggested_amount'] !== null) {
+                $message .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
+            }
+        }
     }
 
     if ($message === '') {
@@ -556,8 +830,9 @@ function cashier_dashboard_handle_tuition_fee_form(mysqli $conn): ?string
     $student_type = 'all';
     $pricing_category = strtolower(trim((string) ($_POST['pricing_category'] ?? 'regular')));
     $grade_level = trim((string) ($_POST['year'] ?? ''));
-    $plan_type_raw = strtolower(trim((string) ($_POST['payment_schedule'] ?? '')));
-    $plan_type = str_replace('-', '_', $plan_type_raw);
+    $plan_type_raw = $_POST['payment_schedule'] ?? '';
+    $plan_type = cashier_normalize_plan_key($plan_type_raw);
+
     $plan_labels = cashier_dashboard_plan_labels();
 
     $entrance_fee = (float) ($_POST['entrance_fee'] ?? 0);
@@ -772,6 +1047,14 @@ function cashier_grade_synonyms(string $normalized): array
     }
 
     return [$normalized];
+}
+
+function cashier_normalize_plan_key(string $plan): string
+{
+    $plan = strtolower(trim($plan));
+    $plan = str_replace([' ', '-'], '_', $plan);
+    $plan = preg_replace('/_{2,}/', '_', $plan);
+    return trim($plan, '_');
 }
 
 function cashier_fetch_fee(mysqli $conn, string $normalizedGrade, array $typeCandidates): ?array
@@ -1138,7 +1421,7 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
 
     if ($searchQuery !== '') {
         $search_name_like = "%" . $conn->real_escape_string($searchQuery) . "%";
-        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE lastname LIKE ? ORDER BY lastname');
+        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE LOWER(lastname)  LIKE LOWER (?) ORDER BY lastname');
         $stmt->bind_param('s', $search_name_like);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -1232,23 +1515,54 @@ if ($fee) {
     $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int)$fee['id']);
     $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
 
-    // Adapt plansData into tab-like records for dashboard view
-    foreach ($plansData as $planType => $plan) {
-        // Deduct paid amounts from breakdown entries
-        $entries = $plan['entries'];
-        $paidAmounts = $paid;
-        foreach ($entries as $i => $entry) {
-            $entryAmount = (float)($entry['amount'] ?? 0);
-            $remaining = $entryAmount;
-            foreach ($paidAmounts as $j => $payment) {
-                if ($remaining > 0 && abs($payment['amount'] - $entryAmount) < 0.01 && strtolower($payment['payment_status']) === 'paid') {
-                    $remaining -= $payment['amount'];
-                    $paidAmounts[$j]['amount'] = 0; // Mark as used
-                }
+        // Adapt plansData into tab-like records for dashboard view
+        foreach ($plansData as $planType => $plan) {
+            // Properly allocate payments to plan entries in chronological order
+            $entries = [];
+            $totalPaidAmount = $current_paid_amount;
+            $remainingPaid = $totalPaidAmount;
+            
+            // Sort payments chronologically (oldest first) for proper allocation
+            $sortedPaid = $paid;
+            usort($sortedPaid, function($a, $b) {
+                $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
+                $timeB = $b['created_at'] ?? $b['payment_date'] ?? '';
+                return strcmp($timeA, $timeB);
+            });
+            
+            // First, add enrollment payment entry
+            $dueUponEnrollment = (float)($plan['due'] ?? 0);
+            if ($dueUponEnrollment > 0) {
+                $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
+                $remainingPaid -= $allocatedToEnrollment;
+                
+                $entries[] = [
+                    'label' => $plan['label'],
+                    'amount' => $dueUponEnrollment,
+                    'amount_outstanding' => max($dueUponEnrollment - $allocatedToEnrollment, 0),
+                    'paid' => $allocatedToEnrollment >= $dueUponEnrollment,
+                    'note' => 'Due upon enrollment',
+                    'allocated_amount' => $allocatedToEnrollment
+                ];
             }
-            $entries[$i]['amount_outstanding'] = max($remaining, 0);
-            $entries[$i]['paid'] = ($remaining <= 0.01);
-        }
+            
+            // Then add future installments (if any)
+            foreach ($plan['entries'] as $entry) {
+                $entryAmount = (float)($entry['amount'] ?? 0);
+                $note = $entry['note'] ?? 'Next Payment';
+                
+                $allocatedToMonth = min($remainingPaid, $entryAmount);
+                $remainingPaid -= $allocatedToMonth;
+                
+                $entries[] = [
+                    'label' => $plan['label'],
+                    'amount' => $entryAmount,
+                    'amount_outstanding' => max($entryAmount - $allocatedToMonth, 0),
+                    'paid' => $allocatedToMonth >= $entryAmount,
+                    'note' => $note,
+                    'allocated_amount' => $allocatedToMonth
+                ];
+            }
         $plan_tabs[] = [
             'plan_type' => $planType,
             'label'     => $plan['label'],

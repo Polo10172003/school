@@ -13,6 +13,7 @@ if (isset($_SESSION['LAST_ACTIVITY']) && (time() - $_SESSION['LAST_ACTIVITY']) >
 $_SESSION['LAST_ACTIVITY'] = time();
 
 include __DIR__ . '/../db_connection.php';
+include __DIR__ . '/../Cashier/cashier_dashboard_logic.php';
 
 // Make sure student is logged in
 if (!isset($_SESSION['student_number'])) {
@@ -347,37 +348,73 @@ $first_unpaid_index = null;
 $upcoming_total = 0.0;
 
 if ($fee) {
-    $schedule = generateScheduleFromDB($fee, $chosen_plan);
-    $remaining = $current_paid_remaining;
-
-    foreach ($schedule as $idx => $due) {
-        $due_amount = (float) $due['Amount'];
-        if ($remaining > 0) {
-            $deduct = min($remaining, $due_amount);
-            $due_amount -= $deduct;
-            $remaining -= $deduct;
+    // Use the improved payment allocation logic from cashier dashboard
+    $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
+    
+    if (!empty($plansData)) {
+        // Get the active plan
+        $stored_plan = cashier_dashboard_fetch_selected_plan($conn, $student_id, (int)$fee['id']);
+        $active_plan_key = $stored_plan && isset($plansData[$stored_plan]) ? $stored_plan : array_key_first($plansData);
+        $activePlan = $plansData[$active_plan_key] ?? null;
+        
+        if ($activePlan) {
+            $remainingPaid = $current_paid_remaining;
+            $dueUponEnrollment = (float)($activePlan['due'] ?? 0);
+            
+            // Process enrollment payment
+            if ($dueUponEnrollment > 0) {
+                $allocatedToEnrollment = min($remainingPaid, $dueUponEnrollment);
+                $remainingPaid -= $allocatedToEnrollment;
+                
+                // Always add enrollment payment to show status
+                $upcoming_rows[] = [
+                    'index' => 0,
+                    'due_date' => 'Due upon enrollment (Date of enrollment)',
+                    'amount' => $dueUponEnrollment - $allocatedToEnrollment,
+                    'amount_original' => $dueUponEnrollment,
+                    'amount_outstanding' => $dueUponEnrollment - $allocatedToEnrollment,
+                    'is_next' => $first_unpaid_index === null && $allocatedToEnrollment < $dueUponEnrollment,
+                    'status' => $allocatedToEnrollment >= $dueUponEnrollment ? 'Paid' : ($allocatedToEnrollment > 0 ? 'Partial' : 'Pending')
+                ];
+                
+                if ($first_unpaid_index === null && $allocatedToEnrollment < $dueUponEnrollment) {
+                    $first_unpaid_index = 0;
+                }
+            }
+            
+            // Process future installments (if any)
+            $monthIndex = 1;
+            foreach ($activePlan['entries'] as $entry) {
+                $entryAmount = (float)($entry['amount'] ?? 0);
+                $note = $entry['note'] ?? "Next Payment";
+                
+                $allocatedToMonth = min($remainingPaid, $entryAmount);
+                $remainingPaid -= $allocatedToMonth;
+                
+                // Always add the installment to show status
+                $upcoming_rows[] = [
+                    'index' => $monthIndex,
+                    'due_date' => $note,
+                    'amount' => $entryAmount - $allocatedToMonth,
+                    'amount_original' => $entryAmount,
+                    'amount_outstanding' => $entryAmount - $allocatedToMonth,
+                    'is_next' => $first_unpaid_index === null && $allocatedToMonth < $entryAmount,
+                    'status' => $allocatedToMonth >= $entryAmount ? 'Paid' : ($allocatedToMonth > 0 ? 'Partial' : 'Pending')
+                ];
+                
+                if ($first_unpaid_index === null && $allocatedToMonth < $entryAmount) {
+                    $first_unpaid_index = $monthIndex;
+                }
+                
+                $monthIndex++;
+            }
+            
+            // Calculate total upcoming
+            foreach ($upcoming_rows as $row) {
+                $upcoming_total += $row['amount'];
+            }
         }
-
-        if ($due_amount <= 0) {
-            continue;
-        }
-
-        if ($first_unpaid_index === null) {
-            $first_unpaid_index = $idx;
-        }
-
-        $upcoming_rows[] = [
-            'index' => $idx,
-            'due_date' => $due['Due Date'],
-            'amount' => $due_amount,
-        ];
     }
-
-    foreach ($upcoming_rows as &$row) {
-        $row['is_next'] = ($row['index'] === $first_unpaid_index);
-        $upcoming_total += $row['amount'];
-    }
-    unset($row);
 }
 
 $pending_display = [];
@@ -999,7 +1036,7 @@ $has_multiple_views = count($finance_views) > 1;
 </main>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoacded', function () {
         const changePasswordBtn = document.getElementById('portalChangePassword');
         const inboxToggle = document.getElementById('studentInboxToggle');
         const inboxMenu = document.getElementById('studentInboxMenu');

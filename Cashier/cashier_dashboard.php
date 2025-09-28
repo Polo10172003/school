@@ -139,6 +139,7 @@ $gradeOptions = [
                           $primaryView = $views['current'] ?? reset($views);
                           $planTabs = $primaryView['plan_tabs'] ?? [];
                           $activePlanKey = $primaryView['active_plan'] ?? null;
+                          $next_due_row = $primaryView['next_due_row'] ?? null;
                         ?>
 
             <div class="search-subsection" data-plan-container style="margin-top:18px;">
@@ -215,10 +216,10 @@ $gradeOptions = [
                             <tr>
                               <td><?= htmlspecialchars($entry['label'] ?? $planLabel) ?></td>
                               <td>
-                                <?php if (!empty($entry['paid'])): ?>
+                                <?php if (!empty($entry['paid']) && $entry['paid']): ?>
                                   <span style="color:#388e3c;font-weight:600;">Paid</span>
                                   <span class="text-muted" style="font-size:0.92rem;">(₱<?= number_format((float) $entry['amount'], 2) ?>)</span>
-                                <?php elseif (!empty($entry['amount_outstanding']) && $entry['amount_outstanding'] < $entry['amount']): ?>
+                                <?php elseif (!empty($entry['amount_outstanding']) && $entry['amount_outstanding'] < $entry['amount'] && $entry['amount_outstanding'] > 0): ?>
                                   ₱<?= number_format((float) $entry['amount_outstanding'], 2) ?> <span class="text-muted" style="font-size:0.92rem;">of ₱<?= number_format((float) $entry['amount'], 2) ?> remaining</span>
                                 <?php else: ?>
                                   ₱<?= number_format((float) $entry['amount'], 2) ?>
@@ -238,6 +239,47 @@ $gradeOptions = [
                       <strong>Notes:</strong> <?= nl2br(htmlspecialchars($notes)) ?>
                     </div>
                   <?php endif; ?>
+
+                  <div class="cashier-payment-entry" data-student="<?= $s['id'] ?>">
+                  <h4>Record Payment</h4>
+                  <form method="POST" action="cashier_dashboard.php#record">
+                    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+                    <input type="hidden" name="tuition_fee_id" value="<?= $primaryView['plan_context']['tuition_fee_id'] ?? 0 ?>">
+                    <input type="hidden" name="plan_school_year" value="<?= $primaryView['plan_context']['school_year'] ?? '' ?>">
+                    <input type="hidden" name="plan_grade_level" value="<?= $primaryView['plan_context']['grade_level'] ?? '' ?>">
+                    <input type="hidden" name="plan_pricing_category" value="<?= $primaryView['plan_context']['pricing_category'] ?? '' ?>">
+                    <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
+                  <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
+
+                    <div>
+                      <label for="payment_mode_<?= $s['id'] ?>">Payment Mode:</label>
+                      <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
+                        <option value="Cash">Cash</option>
+                        <option value="GCash">GCash</option>
+                      </select>
+                    </div>
+
+                  
+
+                    <div>
+                      <label>Amount:</label>
+                      <input type="number" step="0.01" name="amount" required>
+                    </div>
+
+                      <div id="payment-fields-<?= $s['id'] ?>">
+                      <div class="cash-field">
+                        <label>Official Receipt #:</label>
+                        <input type="text" name="or_number">
+                      </div>
+                      <div class="gcash-field" style="display:none;">
+                        <label>Reference #:</label>
+                        <input type="text" name="reference_number">
+                      </div>
+                    </div>
+                    
+                    <button type="submit">💵 Submit Payment</button>
+                  </form>
+                </div>
                 </div>
                 <?php endforeach; ?>
               </div>
@@ -249,46 +291,7 @@ $gradeOptions = [
       </div>
     <?php endif; ?>
   
-  <div class="cashier-payment-entry" data-student="<?= $s['id'] ?>">
-  <h4>Record Payment</h4>
-  <form method="POST" action="cashier_dashboard.php#record">
-    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
-    <input type="hidden" name="tuition_fee_id" value="<?= $primaryView['plan_context']['tuition_fee_id'] ?? 0 ?>">
-    <input type="hidden" name="plan_school_year" value="<?= $primaryView['plan_context']['school_year'] ?? '' ?>">
-    <input type="hidden" name="plan_grade_level" value="<?= $primaryView['plan_context']['grade_level'] ?? '' ?>">
-    <input type="hidden" name="plan_pricing_category" value="<?= $primaryView['plan_context']['pricing_category'] ?? '' ?>">
-    <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
-  <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
-
-    <div>
-      <label for="payment_mode_<?= $s['id'] ?>">Payment Mode:</label>
-      <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
-        <option value="Cash">Cash</option>
-        <option value="GCash">GCash</option>
-      </select>
-    </div>
-
   
-
-    <div>
-      <label>Amount:</label>
-      <input type="number" step="0.01" name="amount" required>
-    </div>
-
-      <div id="payment-fields-<?= $s['id'] ?>">
-      <div class="cash-field">
-        <label>Official Receipt #:</label>
-        <input type="text" name="or_number">
-      </div>
-      <div class="gcash-field" style="display:none;">
-        <label>Reference #:</label>
-        <input type="text" name="reference_number">
-      </div>
-    </div>
-    
-    <button type="submit">💵 Submit Payment</button>
-  </form>
-</div>
 
 
 
@@ -298,7 +301,7 @@ $gradeOptions = [
     <h2>Payment Records</h2>
     <table id="paymentTable">
       <thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
-      <<tbody>
+      <tbody>
   <?php while ($row = $payments->fetch_assoc()): ?>
     <tr>
       <td><?= date("Y-m-d", strtotime($row['created_at'])) ?></td>
