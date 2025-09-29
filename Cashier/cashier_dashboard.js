@@ -257,36 +257,42 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
 
       const setActivePlan = (planKey) => {
         const normalised = normaliseKey(planKey);
+        let hasActive = false;
+
         panels.forEach((panel, key) => {
           const keyNormalised = normaliseKey(key);
-          const isActive = keyNormalised === normalised;
+          const isActive = normalised !== '' && keyNormalised === normalised;
           panel.classList.toggle('active', isActive);
           panel.style.display = isActive ? '' : 'none';
+          if (isActive) {
+            hasActive = true;
+          }
         });
 
+        if (!hasActive) {
+          panels.forEach((panel) => {
+            panel.classList.remove('active');
+            panel.style.display = 'none';
+          });
+        }
+
         if (planInput) {
-          planInput.value = planKey;
+          planInput.value = planKey || '';
         }
       };
 
       const applySelection = (planKey) => {
-        if (!planKey && panels.size > 0) {
-          const iterator = panels.keys().next();
-          if (!iterator.done) {
-            planKey = iterator.value;
-            dropdown.value = planKey;
-          }
-        }
-
         setActivePlan(planKey);
 
         if (labelDisplay) {
-          const selectedOption = dropdown.querySelector(`option[value="${planKey}"]`);
+          const selectedOption = planKey
+            ? dropdown.querySelector(`option[value="${planKey}"]`)
+            : null;
           labelDisplay.textContent = selectedOption ? selectedOption.textContent : '';
         }
       };
 
-      applySelection(dropdown.value);
+      applySelection(dropdown.value || '');
 
       dropdown.addEventListener('change', () => {
         applySelection(dropdown.value);

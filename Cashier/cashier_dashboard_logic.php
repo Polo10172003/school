@@ -497,13 +497,16 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
     }
     if ($message === '') {
         // Lookup student info
-        $stud = $conn->prepare('SELECT firstname, lastname, student_number, emailaddress FROM students_registration WHERE id = ?');
+        $stud = $conn->prepare('SELECT firstname, lastname, student_number, emailaddress, year FROM students_registration WHERE id = ?');
         $stud->bind_param('i', $student_id); // id in students_registration is INT
         $stud->execute();
-        $stud->bind_result($firstname, $lastname, $student_number, $email);
+        $stud->bind_result($firstname, $lastname, $student_number, $email, $current_grade_level);
         $stud->fetch();
         $stud->close();
         error_log('[cashier] student lookup firstname=' . ($firstname ?? 'null') . ' lastname=' . ($lastname ?? 'null') . ' student_number=' . ($student_number ?? 'null'));
+
+        $grade_level = $plan_context['grade_level'] !== '' ? $plan_context['grade_level'] : ($current_grade_level ?? null);
+        $school_year = $plan_context['school_year'] !== '' ? $plan_context['school_year'] : null;
 
         // Generate student number if missing
         $new_number = null;
@@ -547,17 +550,21 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
             if (strcasecmp($payment_type, 'Cash') === 0) {
                 $updPay = $conn->prepare('
                     UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", or_number = ?, payment_date = ?
+                    SET payment_type = ?, payment_status = "paid", or_number = ?, payment_date = ?,
+                        grade_level = COALESCE(?, grade_level),
+                        school_year = COALESCE(?, school_year)
                     WHERE id = ?
                 ');
-                $updPay->bind_param('sssi', $payment_type, $or_number, $payment_date, $pending_payment_id);
+                $updPay->bind_param('sssssi', $payment_type, $or_number, $payment_date, $grade_level, $school_year, $pending_payment_id);
             } else {
                 $updPay = $conn->prepare('
                     UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", reference_number = ?, payment_date = ?
+                    SET payment_type = ?, payment_status = "paid", reference_number = ?, payment_date = ?,
+                        grade_level = COALESCE(?, grade_level),
+                        school_year = COALESCE(?, school_year)
                     WHERE id = ?
                 ');
-                $updPay->bind_param('sssi', $payment_type, $reference_number, $payment_date, $pending_payment_id);
+                $updPay->bind_param('sssssi', $payment_type, $reference_number, $payment_date, $grade_level, $school_year, $pending_payment_id);
             }
             $updPay->execute();
             $updPay->close();
@@ -567,10 +574,10 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
         } else {
             $ins = $conn->prepare('
                 INSERT INTO student_payments
-                    (student_id, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, NOW())
+                    (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, NOW())
             ');
-            $ins->bind_param('ssssdsss', $student_id_str, $firstname, $lastname, $payment_type, $amount, $payment_status, $or_number, $reference_number);
+            $ins->bind_param('ssssssdsss', $student_id_str, $grade_level, $school_year, $firstname, $lastname, $payment_type, $amount, $payment_status, $or_number, $reference_number);
 
             if ($ins->execute()) {
                 $recordedPaymentId = (int) $ins->insert_id;
@@ -1364,21 +1371,39 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $stored_plan = ($storedPlanType && $storedPricingKey && $selectedPricing === $storedPricingKey) ? $storedPlanType : null;
 
     $studentIdStr = (string) $studentId;
-    $payments_stmt = $conn->prepare('SELECT payment_type, amount, payment_status, payment_date, created_at FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
+    $payments_stmt = $conn->prepare('SELECT id, payment_type, amount, payment_status, payment_date, created_at, grade_level, school_year FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
     $payments_stmt->bind_param('s', $studentIdStr);
     $payments_stmt->execute();
     $payments_res = $payments_stmt->get_result();
     $paid = [];
     $pending = [];
+    $paidByGrade = [];
+    $pendingByGrade = [];
+    $unassignedPaid = [];
+    $unassignedPending = [];
     while ($row = $payments_res->fetch_assoc()) {
         $row['amount'] = (float) ($row['amount'] ?? 0);
         if (empty($row['payment_date']) && !empty($row['created_at'])) {
             $row['payment_date'] = substr($row['created_at'], 0, 10);
         }
+        $normalizedPaymentGrade = '';
+        if (!empty($row['grade_level'])) {
+            $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
+        }
         if (strtolower($row['payment_status']) === 'paid') {
             $paid[] = $row;
+            if ($normalizedPaymentGrade !== '') {
+                $paidByGrade[$normalizedPaymentGrade][] = $row;
+            } else {
+                $unassignedPaid[] = $row;
+            }
         } else {
             $pending[] = $row;
+            if ($normalizedPaymentGrade !== '') {
+                $pendingByGrade[$normalizedPaymentGrade][] = $row;
+            } else {
+                $unassignedPending[] = $row;
+            }
         }
     }
     $payments_stmt->close();
@@ -1399,17 +1424,56 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     if ($previous_fee) {
         $previous_grade_total = (float) $previous_fee['entrance_fee'] + (float) $previous_fee['miscellaneous_fee'] + (float) $previous_fee['tuition_fee'];
     }
+    $sumAmounts = static function (array $rows): float {
+        $total = 0.0;
+        foreach ($rows as $entry) {
+            $total += (float) ($entry['amount'] ?? 0);
+        }
+        return $total;
+    };
 
-    $total_paid = array_sum(array_map('floatval', array_column($paid, 'amount')));
-    $previous_paid_applied = 0.0;
-    $previous_outstanding = 0.0;
-    if ($previous_fee) {
-        $previous_paid_applied = min($total_paid, $previous_grade_total);
-        $previous_outstanding = max($previous_grade_total - $total_paid, 0.0);
+    $current_grade_key = $grade_key;
+    $previous_grade_key = $previous_label ? cashier_normalize_grade_key($previous_label) : null;
+
+    $paid_current_total = isset($paidByGrade[$current_grade_key]) ? $sumAmounts($paidByGrade[$current_grade_key]) : 0.0;
+    $paid_previous_total = ($previous_grade_key && isset($paidByGrade[$previous_grade_key])) ? $sumAmounts($paidByGrade[$previous_grade_key]) : 0.0;
+    $paid_unassigned_total = $sumAmounts($unassignedPaid);
+
+    $paid_other_total = 0.0;
+    foreach ($paidByGrade as $gradeKey => $rows) {
+        if ($gradeKey === $current_grade_key) {
+            continue;
+        }
+        if ($previous_grade_key && $gradeKey === $previous_grade_key) {
+            continue;
+        }
+        $paid_other_total += $sumAmounts($rows);
     }
 
-    $current_paid_amount = max($total_paid - $previous_paid_applied, 0.0);
+    $remaining_previous_need = $previous_grade_total;
+
+    $allocated_previous_from_previous = min($remaining_previous_need, $paid_previous_total);
+    $remaining_previous_need -= $allocated_previous_from_previous;
+
+    $allocated_previous_from_unassigned = min($remaining_previous_need, $paid_unassigned_total);
+    $remaining_previous_need -= $allocated_previous_from_unassigned;
+
+    $allocated_previous_from_current = min($remaining_previous_need, $paid_current_total);
+    $remaining_previous_need -= $allocated_previous_from_current;
+
+    $allocated_previous_from_other = min($remaining_previous_need, $paid_other_total);
+    $remaining_previous_need -= $allocated_previous_from_other;
+
+    $previous_paid_applied = $previous_grade_total - max($remaining_previous_need, 0.0);
+    $previous_outstanding = max($remaining_previous_need, 0.0);
+
+    $remaining_current_paid = max($paid_current_total - $allocated_previous_from_current, 0.0);
+    $remaining_unassigned_total = max($paid_unassigned_total - $allocated_previous_from_unassigned, 0.0);
+    $allocated_current_from_unassigned = $remaining_unassigned_total;
+
+    $current_paid_amount = $remaining_current_paid + $allocated_current_from_unassigned;
     $current_paid_remaining = $current_paid_amount;
+    $total_paid = $paid_previous_total + $paid_current_total + $paid_unassigned_total + $paid_other_total;
 
     $plan_tabs = [];
     $plan_options = [];
@@ -1419,13 +1483,15 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $remaining_balance = $previous_outstanding;
     $current_year_total = 0.0;
     $plan_label_display = '';
-    $schedule_message = 'No tuition fee configuration found yet for this year.';
+    $schedule_message = 'Cashier will assign a payment plan once one is confirmed.';
 
     if ($fee) {
         $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
         if (!empty($plansData)) {
             $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
-            $active_plan_key = ($stored_plan && isset($plansData[$stored_plan])) ? $stored_plan : array_key_first($plansData);
+            if ($stored_plan && isset($plansData[$stored_plan])) {
+                $active_plan_key = $stored_plan;
+            }
 
             foreach ($plansData as $planType => $plan) {
                 $entries = $plan['entries'];
@@ -1525,6 +1591,11 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
                 $schedule_rows      = $summary['schedule_rows'] ?? [];
                 $next_due_row       = $summary['next_due_row'] ?? null;
                 $schedule_message   = $summary['schedule_message'] ?? 'Upcoming dues listed below.';
+            } elseif (!$active_plan_key) {
+                $schedule_rows = [];
+                $next_due_row = null;
+                $plan_label_display = '';
+                $schedule_message = 'Cashier will assign a payment plan once one is confirmed.';
             }
         }
     }
@@ -1558,14 +1629,31 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $remaining_prev_allocation = $previous_paid_applied;
     $remaining_current_allocation = $current_paid_amount;
+    $remaining_unassigned_prev = $allocated_previous_from_unassigned;
+    $remaining_unassigned_current = $allocated_current_from_unassigned;
+    $remaining_prev_from_previous = $allocated_previous_from_previous;
+    $remaining_prev_from_current = $allocated_previous_from_current;
+    $remaining_prev_from_other = $allocated_previous_from_other;
     $paid_history_previous = [];
     $paid_history_current = [];
 
     foreach ($paid_chronological as $entry) {
         $amount_remaining = (float) ($entry['amount'] ?? 0);
-        $original_amount = $amount_remaining;
+        if ($amount_remaining <= 0) {
+            continue;
+        }
 
-        if ($remaining_prev_allocation > 0) {
+        $original_amount = $amount_remaining;
+        $normalizedPaymentGrade = '';
+        if (!empty($entry['grade_level'])) {
+            $normalizedPaymentGrade = cashier_normalize_grade_key((string) $entry['grade_level']);
+        }
+
+        if (
+            $previous_grade_key &&
+            $normalizedPaymentGrade === $previous_grade_key &&
+            $remaining_prev_allocation > 0
+        ) {
             $apply_prev = min($amount_remaining, $remaining_prev_allocation);
             if ($apply_prev > 0) {
                 $record = $entry;
@@ -1575,18 +1663,94 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
                 $record['is_partial'] = $apply_prev < $original_amount;
                 $paid_history_previous[] = $record;
                 $remaining_prev_allocation -= $apply_prev;
+                $remaining_prev_from_previous = max($remaining_prev_from_previous - $apply_prev, 0.0);
+                $amount_remaining -= $apply_prev;
+            }
+        } elseif (
+            $previous_grade_key &&
+            $normalizedPaymentGrade === '' &&
+            $remaining_unassigned_prev > 0 &&
+            $remaining_prev_allocation > 0
+        ) {
+            $apply_prev = min($amount_remaining, $remaining_unassigned_prev, $remaining_prev_allocation);
+            if ($apply_prev > 0) {
+                $record = $entry;
+                $record['applied_amount'] = $apply_prev;
+                $record['source_amount'] = $original_amount;
+                $record['applied_to'] = $previous_label;
+                $record['is_partial'] = $apply_prev < $original_amount;
+                $paid_history_previous[] = $record;
+                $remaining_unassigned_prev -= $apply_prev;
+                $remaining_prev_allocation -= $apply_prev;
+                $amount_remaining -= $apply_prev;
+            }
+        } elseif (
+            $previous_grade_key &&
+            $normalizedPaymentGrade === $current_grade_key &&
+            $remaining_prev_from_current > 0 &&
+            $remaining_prev_allocation > 0
+        ) {
+            $apply_prev = min($amount_remaining, $remaining_prev_from_current, $remaining_prev_allocation);
+            if ($apply_prev > 0) {
+                $record = $entry;
+                $record['applied_amount'] = $apply_prev;
+                $record['source_amount'] = $original_amount;
+                $record['applied_to'] = $previous_label;
+                $record['is_partial'] = $apply_prev < $original_amount;
+                $paid_history_previous[] = $record;
+                $remaining_prev_from_current -= $apply_prev;
+                $remaining_prev_allocation -= $apply_prev;
+                $amount_remaining -= $apply_prev;
+            }
+        } elseif (
+            $previous_grade_key &&
+            $normalizedPaymentGrade !== '' &&
+            $normalizedPaymentGrade !== $previous_grade_key &&
+            $normalizedPaymentGrade !== $current_grade_key &&
+            $remaining_prev_from_other > 0 &&
+            $remaining_prev_allocation > 0
+        ) {
+            $apply_prev = min($amount_remaining, $remaining_prev_from_other, $remaining_prev_allocation);
+            if ($apply_prev > 0) {
+                $record = $entry;
+                $record['applied_amount'] = $apply_prev;
+                $record['source_amount'] = $original_amount;
+                $record['applied_to'] = $previous_label;
+                $record['is_partial'] = $apply_prev < $original_amount;
+                $paid_history_previous[] = $record;
+                $remaining_prev_from_other -= $apply_prev;
+                $remaining_prev_allocation -= $apply_prev;
                 $amount_remaining -= $apply_prev;
             }
         }
 
-        if ($amount_remaining > 0) {
+        if ($amount_remaining <= 0) {
+            continue;
+        }
+
+        $apply_current = 0.0;
+        $applied_to_label = $studentRow['year'];
+
+        if ($normalizedPaymentGrade === $current_grade_key) {
+            $apply_current = min($amount_remaining, $remaining_current_allocation);
+        } elseif ($normalizedPaymentGrade === '' && $remaining_unassigned_current > 0) {
+            $apply_current = min($amount_remaining, $remaining_unassigned_current, $remaining_current_allocation);
+            $remaining_unassigned_current -= $apply_current;
+        } elseif ($normalizedPaymentGrade !== '' && $normalizedPaymentGrade !== $previous_grade_key) {
+            $applied_to_label = $entry['grade_level'] ?? $studentRow['year'];
+            $apply_current = min($amount_remaining, $remaining_current_allocation);
+        } elseif ($remaining_current_allocation > 0) {
+            $apply_current = min($amount_remaining, $remaining_current_allocation);
+        }
+
+        if ($apply_current > 0) {
             $record = $entry;
-            $record['applied_amount'] = $amount_remaining;
+            $record['applied_amount'] = $apply_current;
             $record['source_amount'] = $original_amount;
-            $record['applied_to'] = $studentRow['year'];
-            $record['is_partial'] = $amount_remaining < $original_amount;
+            $record['applied_to'] = $applied_to_label;
+            $record['is_partial'] = $apply_current < $original_amount;
             $paid_history_current[] = $record;
-            $remaining_current_allocation = max($remaining_current_allocation - $amount_remaining, 0);
+            $remaining_current_allocation = max($remaining_current_allocation - $apply_current, 0);
         }
     }
 
@@ -1639,7 +1803,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'key' => 'current',
         'label' => $studentRow['year'] . ' (Current)',
         'remaining_balance' => $remaining_balance,
-        'total_paid' => $total_paid,
+        'total_paid' => $current_paid_amount,
         'pending_total' => $pending_total,
         'plan_label' => $plan_label_display,
         'pricing_variant' => $selectedPricing,

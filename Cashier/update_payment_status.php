@@ -64,16 +64,23 @@ if (!$stmt->execute()) {
 }
 $stmt->close();
 
-$student_stmt = $conn->prepare('SELECT sr.id, sr.emailaddress, sr.firstname, sr.lastname, sp.payment_type, sp.amount FROM student_payments sp JOIN students_registration sr ON sr.id = sp.student_id WHERE sp.id = ?');
+$student_stmt = $conn->prepare('SELECT sr.id, sr.emailaddress, sr.firstname, sr.lastname, sr.year, sp.payment_type, sp.amount, sp.grade_level FROM student_payments sp JOIN students_registration sr ON sr.id = sp.student_id WHERE sp.id = ?');
 $student_stmt->bind_param('i', $id);
 $student_stmt->execute();
-$student_stmt->bind_result($student_id, $email, $firstname, $lastname, $payment_type, $amount);
+$student_stmt->bind_result($student_id, $email, $firstname, $lastname, $current_grade_level, $payment_type, $amount, $existing_grade_level);
 $student_stmt->fetch();
 $student_stmt->close();
 
 if (!$student_id) {
     echo json_encode(['success' => false, 'error' => 'Payment found, but student not found.']);
     exit();
+}
+
+if ($status === 'paid' && $existing_grade_level === null && !empty($current_grade_level)) {
+    $gradeUpdate = $conn->prepare('UPDATE student_payments SET grade_level = ? WHERE id = ?');
+    $gradeUpdate->bind_param('si', $current_grade_level, $id);
+    $gradeUpdate->execute();
+    $gradeUpdate->close();
 }
 
 if ($status === 'paid') {

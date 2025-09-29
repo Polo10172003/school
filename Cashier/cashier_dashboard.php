@@ -170,6 +170,9 @@ $gradeOptions = [
                 <div class="mb-3" style="margin-bottom:18px;">
                   <label style="font-weight:500; color:#145A32;">Choose Payment Plan:</label>
                   <select class="payment-plan-select" data-student="<?= $s['id'] ?>" data-target="payment_plan_<?= $s['id'] ?>" style="padding:6px 12px; border-radius:8px; border:1px solid #cdd5d2; font-size:1rem; margin-left:8px;">
+                    <?php if (empty($activePlanKey)): ?>
+                      <option value="" selected disabled>-- Select a payment plan --</option>
+                    <?php endif; ?>
                     <?php foreach ($planOptions as $planType => $planLabel):
                       $isSelected = $planType === $activePlanKey;
                     ?>

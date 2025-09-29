@@ -82,9 +82,11 @@ if ($payment_type === 'onsite') {
         die("Could not resolve student by Student Number for onsite payment.");
     }
 
-    $student_id = (string)$student_id_db;       // student_payments.student_id is VARCHAR(20)
-    $firstname  = $firstname_db ?? '';
-    $lastname   = $lastname_db  ?? '';
+    $student_id    = (string)$student_id_db;       // student_payments.student_id is VARCHAR(20)
+    $firstname     = $firstname_db ?? '';
+    $lastname      = $lastname_db  ?? '';
+    $target_grade  = $suggestedGrade;
+    $school_year   = null;
 
     // TODO: compute correct fee for the grade level
     $total_amount_due = 9110.00;
@@ -93,10 +95,10 @@ if ($payment_type === 'onsite') {
     // 1) Insert pending CASH payment
 $ins = $conn->prepare("
 INSERT INTO student_payments
-    (student_id, firstname, lastname, payment_type, amount, payment_status, created_at)
-VALUES (?, ?, ?, 'Cash', ?, 'pending', NOW())
+    (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, created_at)
+VALUES (?, ?, ?, ?, ?, 'Cash', ?, 'pending', NOW())
 ");
-$ins->bind_param("sssd", $student_id, $firstname, $lastname, $total_amount_due);
+$ins->bind_param("sssssd", $student_id, $target_grade, $school_year, $firstname, $lastname, $total_amount_due);
 if (!$ins->execute()) {
 die('Insert error (student_payments): ' . $ins->error);
 }

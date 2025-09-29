@@ -18,11 +18,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $student_number = $_SESSION['student_number'];
     }
 
+    $grade_level = null;
     if ($student_id) {
-        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number FROM students_registration WHERE id = ?");
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year FROM students_registration WHERE id = ?");
         $stmt->bind_param("i", $student_id);
     } elseif ($student_number) {
-        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number FROM students_registration WHERE student_number = ?");
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year FROM students_registration WHERE student_number = ?");
         $stmt->bind_param("s", $student_number);
     } else {
         die("Not logged in. Please log in again.");
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $firstname  = $row['firstname'];
         $lastname   = $row['lastname'];
         $student_number = $row['student_number'];
+        $grade_level   = $row['year'] ?? null;
     } else {
         die("Student not found.");
     }
@@ -58,13 +60,16 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
     $payment_type = "Online";   // ✅ put it here
 
     $sql = "INSERT INTO student_payments 
-            (student_id, firstname, lastname, payment_type, reference_number, amount, screenshot_path, payment_status, payment_date) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
-    
+            (student_id, grade_level, school_year, firstname, lastname, payment_type, reference_number, amount, screenshot_path, payment_status, payment_date) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
     $stmt = $conn->prepare($sql);
+    $school_year = null; // Online submissions do not capture school year explicitly.
     $stmt->bind_param(
-        "issssdsss",
+        "issssssdsss",
         $student_id,
+        $grade_level,
+        $school_year,
         $firstname,
         $lastname,
         $payment_type,
