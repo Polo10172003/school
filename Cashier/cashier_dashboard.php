@@ -288,6 +288,63 @@ $gradeOptions = [
                   <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
+
+                <?php
+                  $pendingRows = $primaryView['pending_rows'] ?? [];
+                  $pendingMessage = $primaryView['pending_message'] ?? 'No pending payments right now.';
+                  $pendingTotal = (float)($primaryView['pending_total'] ?? 0);
+                ?>
+                <div class="cashier-pending-wrapper" style="margin-top:22px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <h4 style="font-size:1.05rem; font-weight:600; color:#b23b27; margin:0;">Pending & Past Due</h4>
+                    <span style="font-weight:600; color:#b23b27;">Total: ₱<?= number_format($pendingTotal, 2) ?></span>
+                  </div>
+                  <?php if (!empty($pendingRows)): ?>
+                    <div class="table-responsive">
+                      <table class="table table-bordered align-middle" style="background:#fff5f5;">
+                        <thead class="table-danger text-center">
+                          <tr>
+                            <th style="width:35%;">Type</th>
+                            <th style="width:20%;">Amount</th>
+                            <th style="width:20%;">Status</th>
+                            <th>Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php foreach ($pendingRows as $pendingRow): ?>
+                            <tr>
+                              <td><?= htmlspecialchars($pendingRow['payment_type_display'] ?? ($pendingRow['payment_type'] ?? 'Pending')) ?></td>
+                              <td>₱<?= number_format((float)($pendingRow['amount'] ?? 0), 2) ?></td>
+                              <td><?= htmlspecialchars($pendingRow['payment_status'] ?? 'Pending') ?></td>
+                              <td>
+                                <?php if (!empty($pendingRow['payment_date'])): ?>
+                                  <div class="text-muted">Date: <?= htmlspecialchars($pendingRow['payment_date']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($pendingRow['reference_number'])): ?>
+                                  <div class="text-muted">Ref: <?= htmlspecialchars($pendingRow['reference_number']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($pendingRow['or_number'])): ?>
+                                  <div class="text-muted">OR#: <?= htmlspecialchars($pendingRow['or_number']) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($pendingRow['notes'])): ?>
+                                  <div><?= nl2br(htmlspecialchars($pendingRow['notes'])) ?></div>
+                                <?php endif; ?>
+                                <?php if (!empty($pendingRow['is_placeholder'])): ?>
+                                  <div class="text-danger fw-semibold">Carry-over balance</div>
+                                <?php endif; ?>
+                              </td>
+                            </tr>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  <?php else: ?>
+                    <div style="background:#fff8e1; border-radius:10px; padding:14px 16px; color:#8a6d0a;">
+                      <?= htmlspecialchars($pendingMessage) ?>
+                    </div>
+                  <?php endif; ?>
+                </div>
+
               <h4>Record Payment</h4>
               <div class="cashier-payment-entry" data-student="<?= $s['id'] ?>">
                 <form id="record_payment_<?= $s['id'] ?>" method="POST" action="cashier_dashboard.php#record">

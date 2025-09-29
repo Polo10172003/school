@@ -221,6 +221,12 @@ if ($previous_fee) {
         + floatval($previous_fee['miscellaneous_fee'])
         + floatval($previous_fee['tuition_fee']);
 }
+$current_grade_total = 0.0;
+if ($fee) {
+    $current_grade_total = floatval($fee['entrance_fee'])
+        + floatval($fee['miscellaneous_fee'])
+        + floatval($fee['tuition_fee']);
+}
 $sumAmounts = static function (array $rows): float {
     $total = 0.0;
     foreach ($rows as $entry) {

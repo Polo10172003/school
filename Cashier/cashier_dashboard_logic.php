@@ -1184,6 +1184,36 @@ function cashier_dashboard_build_plan_summaries(array $fee, float $currentPaid, 
     return $summaries;
 }
 
+function cashier_determine_plan_total(array $fee, ?string $planType = null): float
+{
+    $fallback = (float) ($fee['entrance_fee'] ?? 0) + (float) ($fee['miscellaneous_fee'] ?? 0) + (float) ($fee['tuition_fee'] ?? 0);
+
+    if (empty($fee['plans']) || !is_array($fee['plans'])) {
+        return $fallback;
+    }
+
+    $normalizedPlan = null;
+    if ($planType !== null && $planType !== '') {
+        $normalizedPlan = strtolower(str_replace([' ', '-'], '_', trim($planType)));
+    }
+
+    $summaries = cashier_dashboard_build_plan_summaries($fee, 0.0, 0.0);
+    if (empty($summaries)) {
+        return $fallback;
+    }
+
+    if ($normalizedPlan !== null) {
+        foreach ($summaries as $summary) {
+            $summaryType = strtolower((string) ($summary['plan_type'] ?? ''));
+            if ($summaryType === $normalizedPlan) {
+                return (float) ($summary['plan_total'] ?? $fallback);
+            }
+        }
+    }
+
+    return (float) ($summaries[0]['plan_total'] ?? $fallback);
+}
+
 function cashier_generate_schedule(array $fee, string $plan, string $start_date = '2025-06-01'): array
 {
     $schedule = [];
@@ -1420,9 +1450,21 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
     }
 
+    $previous_stored_plan = null;
+    if ($previous_fee) {
+        $previous_plan_selection = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int) $previous_fee['id']);
+        if ($previous_plan_selection) {
+            $previous_stored_plan = strtolower((string) ($previous_plan_selection['plan_type'] ?? ''));
+        }
+    }
+
     $previous_grade_total = 0.0;
     if ($previous_fee) {
-        $previous_grade_total = (float) $previous_fee['entrance_fee'] + (float) $previous_fee['miscellaneous_fee'] + (float) $previous_fee['tuition_fee'];
+        $previous_grade_total = cashier_determine_plan_total($previous_fee, $previous_stored_plan);
+    }
+    $current_grade_total = 0.0;
+    if ($fee) {
+        $current_grade_total = cashier_determine_plan_total($fee, $storedPlanType);
     }
     $sumAmounts = static function (array $rows): float {
         $total = 0.0;
@@ -1608,8 +1650,9 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         $entry['payment_type_display'] = $entry['payment_type'] ?? 'Pending';
         $pending_display[] = $entry;
     }
-    if ($previous_label && $previous_outstanding > 0 && empty($pending_display)) {
-        $pending_display[] = [
+    if ($previous_label && $previous_outstanding > 0) {
+        $pending_total += $previous_outstanding;
+        $placeholder = [
             'payment_type_display' => 'Past Due for ' . $previous_label,
             'amount' => $previous_outstanding,
             'payment_status' => 'Past Due',
@@ -1618,6 +1661,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             'or_number' => null,
             'is_placeholder' => true,
         ];
+        array_unshift($pending_display, $placeholder);
     }
 
     $paid_chronological = $paid;
@@ -1765,24 +1809,66 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $historySort($paid_history_previous);
     $historySort($paid_history_current);
 
+    $previous_plan_label = null;
     $previous_schedule_rows = [];
+    $previous_schedule_message = null;
     if ($previous_fee) {
-        $prev_schedule = cashier_generate_schedule($previous_fee, 'quarterly');
-        $prev_paid_remaining = $previous_paid_applied;
-        foreach ($prev_schedule as $prevDue) {
-            $due_original = (float) $prevDue['Amount'];
-            $due_outstanding = $due_original;
-            if ($prev_paid_remaining > 0) {
-                $deduct = min($prev_paid_remaining, $due_outstanding);
-                $due_outstanding -= $deduct;
-                $prev_paid_remaining -= $deduct;
+        $paid_for_previous_plan = min($previous_paid_applied, $previous_grade_total);
+        $previous_plan_summaries = cashier_dashboard_build_plan_summaries($previous_fee, $paid_for_previous_plan, 0.0);
+        $targetPlan = $previous_stored_plan;
+        $selectedPreviousSummary = null;
+        if (!empty($previous_plan_summaries)) {
+            if (!empty($targetPlan)) {
+                foreach ($previous_plan_summaries as $candidate) {
+                    $candidateType = strtolower((string) ($candidate['plan_type'] ?? ''));
+                    if ($candidateType === $targetPlan) {
+                        $selectedPreviousSummary = $candidate;
+                        break;
+                    }
+                }
             }
-            $previous_schedule_rows[] = [
-                'due_date' => $prevDue['Due Date'],
-                'amount_original' => $due_original,
-                'amount_outstanding' => $due_outstanding,
-                'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
-            ];
+            if (!$selectedPreviousSummary) {
+                $selectedPreviousSummary = $previous_plan_summaries[0];
+            }
+
+            if ($selectedPreviousSummary) {
+                $previous_plan_label = $selectedPreviousSummary['label'] ?? null;
+                $previous_schedule_rows = $selectedPreviousSummary['schedule_rows'] ?? [];
+                $previous_schedule_message = $selectedPreviousSummary['schedule_message'] ?? null;
+            }
+        }
+
+        if (empty($previous_schedule_rows)) {
+            $prev_schedule = cashier_generate_schedule($previous_fee, 'quarterly');
+            $prev_paid_remaining = $previous_paid_applied;
+            foreach ($prev_schedule as $prevDue) {
+                $due_original = (float) $prevDue['Amount'];
+                $due_outstanding = $due_original;
+                if ($prev_paid_remaining > 0) {
+                    $deduct = min($prev_paid_remaining, $due_outstanding);
+                    $due_outstanding -= $deduct;
+                    $prev_paid_remaining -= $deduct;
+                }
+                $previous_schedule_rows[] = [
+                    'due_date' => $prevDue['Due Date'],
+                    'amount_original' => $due_original,
+                    'amount_outstanding' => $due_outstanding,
+                    'row_class' => $due_outstanding > 0 ? 'row-outstanding' : '',
+                ];
+            }
+        }
+    }
+
+    if ($previous_plan_label === null && $previous_fee) {
+        $previous_plan_label = 'Past Year Summary';
+    }
+    if ($previous_schedule_message === null) {
+        if ($previous_fee) {
+            $previous_schedule_message = $previous_outstanding > 0
+                ? 'Outstanding balance carried over from ' . $previous_label . '.'
+                : 'No outstanding balance for this grade.';
+        } else {
+            $previous_schedule_message = 'No tuition fee record saved for ' . $previous_label . ', but payments are retained below.';
         }
     }
 
@@ -1849,14 +1935,12 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             'remaining_balance' => $previous_outstanding,
             'total_paid' => $previous_paid_applied,
             'pending_total' => $previous_outstanding,
-            'plan_label' => $previous_fee ? 'Past Year Summary' : null,
+            'plan_label' => $previous_plan_label,
             'pricing_variant' => $storedPricingKey,
             'next_due_row' => null,
             'alert' => null,
             'schedule_rows' => $previous_schedule_rows,
-            'schedule_message' => $previous_fee
-                ? ($previous_outstanding > 0 ? 'Outstanding balance carried over from ' . $previous_label . '.' : 'No outstanding balance for this grade.')
-                : 'No tuition fee record saved for ' . $previous_label . ', but payments are retained below.',
+            'schedule_message' => $previous_schedule_message,
             'pending_rows' => $previous_pending_rows,
             'pending_message' => $previous_outstanding > 0 ? 'Pending balance remains from ' . $previous_label . '.' : 'No pending payments for this grade.',
             'history_rows' => $paid_history_previous,
