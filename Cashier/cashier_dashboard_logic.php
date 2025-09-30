@@ -2025,6 +2025,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'previous_grade_label' => $previous_label,
         'previous_outstanding' => $previous_outstanding,
         'is_default' => true,
+        'grade_key' => $current_grade_key,
         'plan_options' => $plan_options,
         'plan_tabs' => $plan_tabs,
         'active_plan' => $active_plan_key,
@@ -2064,6 +2065,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             'current_year_total' => $previous_grade_total,
             'has_previous_outstanding' => $previous_outstanding > 0,
             'is_default' => false,
+            'grade_key' => $previous_grade_key,
         ];
     }
 

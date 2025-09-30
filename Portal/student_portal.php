@@ -419,6 +419,59 @@ foreach ($finance_views as &$finance_view_ref) {
 unset($finance_view_ref);
 
 $has_multiple_views = count($finance_views) > 1;
+$student_type_lower = strtolower($student_type);
+
+foreach ($finance_views as &$finance_view_ref) {
+    if (($finance_view_ref['key'] ?? '') !== 'previous') {
+        continue;
+    }
+
+    $previous_grade_key_snapshot = $finance_view_ref['grade_key'] ?? null;
+    if (!$previous_grade_key_snapshot && !empty($financial_snapshot['previous_grade_label'])) {
+        $previous_grade_key_snapshot = cashier_normalize_grade_key((string) $financial_snapshot['previous_grade_label']);
+    }
+
+    if (!$previous_grade_key_snapshot) {
+        continue;
+    }
+
+    $typeCandidates = array_values(array_unique([$student_type_lower, 'old', 'new', 'all']));
+    $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
+    if (!$previous_fee_portal) {
+        continue;
+    }
+
+    $previous_selection_portal = cashier_dashboard_fetch_selected_plan($conn, (int) $student_id, (int) $previous_fee_portal['id']);
+    $previous_plan_type = strtolower(trim((string) ($previous_selection_portal['plan_type'] ?? '')));
+
+    $previous_total_paid = (float) ($finance_view_ref['total_paid'] ?? 0.0);
+    $previous_remaining = (float) ($finance_view_ref['remaining_balance'] ?? 0.0);
+
+    $previous_summaries_portal = cashier_dashboard_build_plan_summaries($previous_fee_portal, $previous_total_paid, $previous_remaining);
+    if (empty($previous_summaries_portal)) {
+        continue;
+    }
+
+    $selected_previous_summary_portal = null;
+    if ($previous_plan_type !== '') {
+        foreach ($previous_summaries_portal as $summaryCandidate) {
+            if (strtolower((string) ($summaryCandidate['plan_type'] ?? '')) === $previous_plan_type) {
+                $selected_previous_summary_portal = $summaryCandidate;
+                break;
+            }
+        }
+    }
+    if (!$selected_previous_summary_portal) {
+        $selected_previous_summary_portal = $previous_summaries_portal[0];
+    }
+
+    if ($selected_previous_summary_portal) {
+        $finance_view_ref['plan_label'] = $selected_previous_summary_portal['label'] ?? ($finance_view_ref['plan_label'] ?? '');
+        $finance_view_ref['schedule_rows'] = $selected_previous_summary_portal['schedule_rows'] ?? ($finance_view_ref['schedule_rows'] ?? []);
+        $finance_view_ref['schedule_message'] = $selected_previous_summary_portal['schedule_message'] ?? ($finance_view_ref['schedule_message'] ?? '');
+    }
+}
+unset($finance_view_ref);
 ?>
 <style>
     .portal-main {
