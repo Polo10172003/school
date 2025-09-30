@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/section_assignment.php';
+
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
  * to keep the dashboard leaner and avoid repeated declarations.
@@ -610,6 +612,8 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
                     $plan_context
                 );
             }
+
+            cashier_assign_section_if_needed($conn, (int) $student_id);
 
             if (isset($recordedPaymentId)) {
                 $php_path = '/Applications/XAMPP/bin/php';
