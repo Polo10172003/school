@@ -32,7 +32,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
         $id = intval($id);
 
         // Fetch current year/status
-        $stmt = $conn->prepare("SELECT year, academic_status FROM students_registration WHERE id = ?");
+        $stmt = $conn->prepare("SELECT year, academic_status, student_type FROM students_registration WHERE id = ?");
         $stmt->bind_param("i", $id);
         $stmt->execute();
         $student = $stmt->get_result()->fetch_assoc();
@@ -42,6 +42,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
 
         $current_year = $student['year'];
         $status       = $student['academic_status'];
+        $current_type = $student['student_type'] ?? 'new';
 
         // Logic: if already Failed, skip bulk promotion
         if ($status === "Failed") continue;
@@ -54,8 +55,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
             $academic_status = "Ongoing"; // reset after promotion
         }
 
-        $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ? WHERE id = ?");
-        $stmt->bind_param("ssi", $next_year, $academic_status, $id);
+        $new_student_type = 'old';
+        $resetSchedule = ($next_year !== $current_year);
+        if ($next_year === $current_year) {
+            // No promotion happened (e.g., failed); retain existing type
+            $new_student_type = $current_type;
+        }
+
+        if ($resetSchedule) {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL WHERE id = ?");
+            $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+        }
         $stmt->execute();
         $stmt->close();
     }

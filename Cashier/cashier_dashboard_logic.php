@@ -821,32 +821,152 @@ function cashier_dashboard_handle_tuition_fee_form(mysqli $conn): ?string
 function cashier_previous_grade_label(string $current): ?string
 {
     static $map = [
-        'Pre-Prime 1 & 2' => 'Preschool',
-        'Pre-Prime 1' => 'Preschool',
-        'Pre-Prime 2' => 'Pre-Prime 1',
-        'Kindergarten' => 'Pre-Prime 2',
-        'Kinder 1' => 'Pre-Prime 2',
-        'Kinder 2' => 'Kindergarten',
-        'Grade 1'  => 'Kindergarten',
-        'Grade 2'  => 'Grade 1',
-        'Grade 3'  => 'Grade 2',
-        'Grade 4'  => 'Grade 3',
-        'Grade 5'  => 'Grade 4',
-        'Grade 6'  => 'Grade 5',
-        'Grade 7'  => 'Grade 6',
-        'Grade 8'  => 'Grade 7',
-        'Grade 9'  => 'Grade 8',
-        'Grade 10' => 'Grade 9',
-        'Grade 11' => 'Grade 10',
-        'Grade 12' => 'Grade 11',
+        'preprime12' => 'Preschool',
+        'preprime1'  => 'Preschool',
+        'preprime2'  => 'Pre-Prime 1',
+        'kindergarten' => 'Pre-Prime 2',
+        'kinder1'      => 'Pre-Prime 2',
+        'kinder2'      => 'Kindergarten',
+        'grade1'   => 'Kindergarten',
+        'grade2'   => 'Grade 1',
+        'grade3'   => 'Grade 2',
+        'grade4'   => 'Grade 3',
+        'grade5'   => 'Grade 4',
+        'grade6'   => 'Grade 5',
+        'grade7'   => 'Grade 6',
+        'grade8'   => 'Grade 7',
+        'grade9'   => 'Grade 8',
+        'grade10'  => 'Grade 9',
+        'grade11'  => 'Grade 10',
+        'grade12'  => 'Grade 11',
     ];
 
-    return $map[$current] ?? null;
+    $normalized = cashier_normalize_grade_key($current);
+    if ($normalized === '') {
+        return null;
+    }
+
+    return $map[$normalized] ?? null;
 }
 
 function cashier_normalize_grade_key(string $label): string
 {
-    return strtolower(str_replace([' ', '-', '_'], '', $label));
+    $normalized = cashier_resolve_grade_token($label);
+    return $normalized;
+}
+
+function cashier_roman_to_int(string $roman): ?int
+{
+    static $map = [
+        'i' => 1,
+        'ii' => 2,
+        'iii' => 3,
+        'iv' => 4,
+        'v' => 5,
+        'vi' => 6,
+        'vii' => 7,
+        'viii' => 8,
+        'ix' => 9,
+        'x' => 10,
+        'xi' => 11,
+        'xii' => 12,
+    ];
+
+    $roman = strtolower(trim($roman));
+
+    return $map[$roman] ?? null;
+}
+
+function cashier_int_to_roman(int $number): ?string
+{
+    static $map = [
+        1 => 'I',
+        2 => 'II',
+        3 => 'III',
+        4 => 'IV',
+        5 => 'V',
+        6 => 'VI',
+        7 => 'VII',
+        8 => 'VIII',
+        9 => 'IX',
+        10 => 'X',
+        11 => 'XI',
+        12 => 'XII',
+    ];
+
+    return $map[$number] ?? null;
+}
+
+function cashier_resolve_grade_token(string $label): string
+{
+    if ($label === '') {
+        return '';
+    }
+
+    $normalized = strtolower(trim($label));
+    $normalized = str_replace(['–', '—'], '-', $normalized);
+    $normalized = preg_replace('/\(.+?\)/', '', $normalized);
+    $normalized = preg_replace('/[^a-z0-9&\- ]+/', ' ', $normalized);
+    $normalized = preg_replace('/\s+/', ' ', $normalized);
+    $normalized = trim($normalized);
+
+    if ($normalized === '') {
+        return '';
+    }
+
+    if (preg_match('/grade(?:\s*level)?\s*([ivx]{1,4})\b/', $normalized, $match)) {
+        $value = cashier_roman_to_int($match[1]);
+        if ($value !== null) {
+            return 'grade' . $value;
+        }
+    }
+    if (preg_match('/\bgr?\s*([ivx]{1,4})\b/', $normalized, $match)) {
+        $value = cashier_roman_to_int($match[1]);
+        if ($value !== null) {
+            return 'grade' . $value;
+        }
+    }
+    if (preg_match('/\bg([ivx]{1,4})\b/', $normalized, $match)) {
+        $value = cashier_roman_to_int($match[1]);
+        if ($value !== null) {
+            return 'grade' . $value;
+        }
+    }
+
+    if (preg_match('/pre\s*prime\s*(1\s*&\s*2|1&2|12)/', $normalized)) {
+        return 'preprime12';
+    }
+    if (preg_match('/pre\s*prime\s*2/', $normalized)) {
+        return 'preprime2';
+    }
+    if (preg_match('/pre\s*prime\s*1/', $normalized)) {
+        return 'preprime1';
+    }
+    if (strpos($normalized, 'preschool') !== false || strpos($normalized, 'nursery') !== false) {
+        return 'preschool';
+    }
+
+    if (preg_match('/kinder(garten)?\s*2/', $normalized)) {
+        return 'kinder2';
+    }
+    if (preg_match('/kinder(garten)?\s*1/', $normalized)) {
+        return 'kinder1';
+    }
+    if (strpos($normalized, 'kinder') !== false || strpos($normalized, 'kindergarten') !== false) {
+        return 'kindergarten';
+    }
+
+    if (preg_match('/grade\s*(1[0-2]|[1-9])/', $normalized, $match)) {
+        return 'grade' . (int) $match[1];
+    }
+    if (preg_match('/\bgr?\s*(1[0-2]|[1-9])\b/', $normalized, $match)) {
+        return 'grade' . (int) $match[1];
+    }
+    if (preg_match('/\bg(1[0-2]|[1-9])\b/', $normalized, $match)) {
+        return 'grade' . (int) $match[1];
+    }
+
+    return str_replace([' ', '-', '_'], '', $normalized);
 }
 
 /**
@@ -857,22 +977,48 @@ function cashier_normalize_grade_key(string $label): string
 function cashier_grade_synonyms(string $normalized): array
 {
     $normalized = strtolower($normalized);
+    $normalized = str_replace([' ', '-', '_'], '', $normalized);
+
+    $synonyms = [$normalized];
+
     if ($normalized === 'preprime1') {
-        return ['preprime1', 'preprime12'];
+        $synonyms[] = 'preprime12';
+        return array_values(array_unique($synonyms));
     }
     if ($normalized === 'preprime2') {
-        return ['preprime2', 'preprime12'];
+        $synonyms[] = 'preprime12';
+        return array_values(array_unique($synonyms));
     }
     if ($normalized === 'preprime12') {
-        return ['preprime12', 'preprime1', 'preprime2'];
+        $synonyms[] = 'preprime1';
+        $synonyms[] = 'preprime2';
+        return array_values(array_unique($synonyms));
     }
 
     static $kindergartenSet = ['kindergarten', 'kinder1', 'kinder2'];
     if (in_array($normalized, $kindergartenSet, true)) {
-        return $kindergartenSet;
+        return array_values(array_unique(array_merge($synonyms, $kindergartenSet)));
     }
 
-    return [$normalized];
+    if (preg_match('/^grade([0-9]{1,2})$/', $normalized, $match)) {
+        $num = (int) $match[1];
+        $roman = cashier_int_to_roman($num);
+        if ($roman !== null) {
+            $synonyms[] = 'grade' . strtolower($roman);
+        }
+        return array_values(array_unique($synonyms));
+    }
+
+    if (preg_match('/^grade([ivx]{1,4})$/', $normalized, $match)) {
+        $value = cashier_roman_to_int($match[1]);
+        if ($value !== null) {
+            $synonyms[] = 'grade' . $value;
+            $synonyms[] = 'grade' . strtolower($match[1]);
+        }
+        return array_values(array_unique($synonyms));
+    }
+
+    return array_values(array_unique($synonyms));
 }
 
 function cashier_fetch_fee(mysqli $conn, string $normalizedGrade, array $typeCandidates, ?string $pricingCategory = null): ?array

@@ -72,13 +72,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
 
     $new_student_type = $current_type;
+    $resetSchedule = false;
     if ($status === 'Passed' && $next_year !== $current_year) {
         $new_student_type = 'old';
+        $resetSchedule = true;
     }
 
-    // Update DB
-    $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
-    $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+    if ($next_year !== $current_year) {
+        $resetSchedule = true;
+    }
+
+    if ($resetSchedule) {
+        $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL WHERE id = ?");
+        $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+    } else {
+        $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
+        $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+    }
     if ($stmt->execute()) {
         echo "<script>
                 alert('Student status updated successfully!');

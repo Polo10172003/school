@@ -42,7 +42,7 @@ $header_variant = 'student_portal';
 
 include '../includes/header.php';
 // Fetch tuition fee setup from admin
-$normalized_year = strtolower(str_replace(' ', '', $year));
+$normalized_year = cashier_normalize_grade_key((string) $year);
 
 $sql = "SELECT * FROM tuition_fees 
         WHERE REPLACE(LOWER(grade_level), ' ', '') = ? 
@@ -55,21 +55,7 @@ $typeCandidates = array_values(array_unique($typeCandidates));
 
 function gradeSynonyms(string $normalized): array
 {
-    $normalized = strtolower($normalized);
-    if ($normalized === 'preprime1') {
-        return ['preprime1', 'preprime12'];
-    }
-    if ($normalized === 'preprime2') {
-        return ['preprime2', 'preprime12'];
-    }
-    if ($normalized === 'preprime12') {
-        return ['preprime12', 'preprime1', 'preprime2'];
-    }
-    $kindergartenSet = ['kindergarten', 'kinder1', 'kinder2'];
-    if (in_array($normalized, $kindergartenSet, true)) {
-        return $kindergartenSet;
-    }
-    return [$normalized];
+    return cashier_grade_synonyms($normalized);
 }
 
 foreach (gradeSynonyms($normalized_year) as $gradeKey) {
@@ -85,69 +71,13 @@ foreach (gradeSynonyms($normalized_year) as $gradeKey) {
     }
 }
 
-function previousGradeLabel($current)
-{
-    $map = [
-        'pre-prime 1 & 2' => 'Preschool',
-        'preprime1&2' => 'Preschool',
-        'preprime12' => 'Preschool',
-        'pre-prime 1' => 'Preschool',
-        'preprime1' => 'Preschool',
-        'pre prime 1' => 'Preschool',
-        'pre-prime 2' => 'Pre-Prime 1',
-        'preprime2' => 'Pre-Prime 1',
-        'pre prime 2' => 'Pre-Prime 1',
-        'kindergarten' => 'Pre-Prime 2',
-        'kinder' => 'Pre-Prime 2',
-        'kinder 1' => 'Pre-Prime 2',
-        'kinder1' => 'Pre-Prime 2',
-        'kinder 2' => 'Kindergarten',
-        'kinder2' => 'Kindergarten',
-        'grade 1'  => 'Kindergarten',
-        'grade1'   => 'Kindergarten',
-        'grade 2'  => 'Grade 1',
-        'grade2'   => 'Grade 1',
-        'grade 3'  => 'Grade 2',
-        'grade3'   => 'Grade 2',
-        'grade 4'  => 'Grade 3',
-        'grade4'   => 'Grade 3',
-        'grade 5'  => 'Grade 4',
-        'grade5'   => 'Grade 4',
-        'grade 6'  => 'Grade 5',
-        'grade6'   => 'Grade 5',
-        'grade 7'  => 'Grade 6',
-        'grade7'   => 'Grade 6',
-        'grade 8'  => 'Grade 7',
-        'grade8'   => 'Grade 7',
-        'grade 9'  => 'Grade 8',
-        'grade9'   => 'Grade 8',
-        'grade 10' => 'Grade 9',
-        'grade10'  => 'Grade 9',
-        'grade 11' => 'Grade 10',
-        'grade11'  => 'Grade 10',
-        'grade 12' => 'Grade 11',
-        'grade12'  => 'Grade 11',
-    ];
-
-    $normalized = strtolower(trim((string) $current));
-    $normalized = str_replace(['-', '_'], ' ', $normalized);
-    $normalized = preg_replace('/\s+/', ' ', $normalized);
-
-    if (isset($map[$normalized])) {
-        return $map[$normalized];
-    }
-
-    $compacted = str_replace(' ', '', $normalized);
-    return $map[$compacted] ?? null;
-}
-
-$previous_grade_label = previousGradeLabel($year);
-$grade_key = strtolower(str_replace(' ', '', $year));
+$previous_grade_label = cashier_previous_grade_label($year);
+$grade_key = cashier_normalize_grade_key((string) $year);
 $no_previous = ($lower_type === 'new') || in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kindergarten', 'kg', 'grade1']);
 
 $previous_fee = null;
 if (!$no_previous && $previous_grade_label) {
-    $normalized_prev = strtolower(str_replace(' ', '', $previous_grade_label));
+    $normalized_prev = cashier_normalize_grade_key((string) $previous_grade_label);
     foreach (gradeSynonyms($normalized_prev) as $gradeKeyPrev) {
         foreach ($typeCandidates as $candidateType) {
             $stmt = $conn->prepare($sql);
@@ -189,7 +119,7 @@ while ($row = $result->fetch_assoc()) {
 
     $normalizedPaymentGrade = '';
     if (!empty($row['grade_level'])) {
-        $normalizedPaymentGrade = strtolower(str_replace(' ', '', $row['grade_level']));
+        $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
     }
 
     if (strtolower((string) $row['payment_status']) === 'paid') {
@@ -235,7 +165,7 @@ $sumAmounts = static function (array $rows): float {
     return $total;
 };
 
-$previous_grade_key = $previous_grade_label ? strtolower(str_replace(' ', '', $previous_grade_label)) : null;
+$previous_grade_key = $previous_grade_label ? cashier_normalize_grade_key((string) $previous_grade_label) : null;
 
 $paid_current_total = isset($paidByGrade[$grade_key]) ? $sumAmounts($paidByGrade[$grade_key]) : 0.0;
 $paid_previous_total = ($previous_grade_key && isset($paidByGrade[$previous_grade_key])) ? $sumAmounts($paidByGrade[$previous_grade_key]) : 0.0;
@@ -303,7 +233,7 @@ foreach ($paid_chronological as $entry) {
     $original_amount = $amount_remaining;
     $normalizedPaymentGrade = '';
     if (!empty($entry['grade_level'])) {
-        $normalizedPaymentGrade = strtolower(str_replace(' ', '', $entry['grade_level']));
+        $normalizedPaymentGrade = cashier_normalize_grade_key((string) $entry['grade_level']);
     }
 
     if (
