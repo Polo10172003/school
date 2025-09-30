@@ -1628,15 +1628,6 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $paid_unassigned_total = $sumAmounts($unassignedPaid);
 
     $paid_other_total = 0.0;
-    foreach ($paidByGrade as $gradeKey => $rows) {
-        if ($gradeKey === $current_grade_key) {
-            continue;
-        }
-        if ($previous_grade_key && $gradeKey === $previous_grade_key) {
-            continue;
-        }
-        $paid_other_total += $sumAmounts($rows);
-    }
 
     $remaining_previous_need = $previous_grade_total;
 
@@ -1649,8 +1640,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $allocated_previous_from_current = min($remaining_previous_need, $paid_current_total);
     $remaining_previous_need -= $allocated_previous_from_current;
 
-    $allocated_previous_from_other = min($remaining_previous_need, $paid_other_total);
-    $remaining_previous_need -= $allocated_previous_from_other;
+    $allocated_previous_from_other = 0.0;
 
     $previous_paid_applied = $previous_grade_total - max($remaining_previous_need, 0.0);
     $previous_outstanding = max($remaining_previous_need, 0.0);
@@ -1823,7 +1813,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $remaining_unassigned_current = $allocated_current_from_unassigned;
     $remaining_prev_from_previous = $allocated_previous_from_previous;
     $remaining_prev_from_current = $allocated_previous_from_current;
-    $remaining_prev_from_other = $allocated_previous_from_other;
+    $remaining_prev_from_other = 0.0;
     $paid_history_previous = [];
     $paid_history_current = [];
 
@@ -1889,26 +1879,6 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
                 $record['is_partial'] = $apply_prev < $original_amount;
                 $paid_history_previous[] = $record;
                 $remaining_prev_from_current -= $apply_prev;
-                $remaining_prev_allocation -= $apply_prev;
-                $amount_remaining -= $apply_prev;
-            }
-        } elseif (
-            $previous_grade_key &&
-            $normalizedPaymentGrade !== '' &&
-            $normalizedPaymentGrade !== $previous_grade_key &&
-            $normalizedPaymentGrade !== $current_grade_key &&
-            $remaining_prev_from_other > 0 &&
-            $remaining_prev_allocation > 0
-        ) {
-            $apply_prev = min($amount_remaining, $remaining_prev_from_other, $remaining_prev_allocation);
-            if ($apply_prev > 0) {
-                $record = $entry;
-                $record['applied_amount'] = $apply_prev;
-                $record['source_amount'] = $original_amount;
-                $record['applied_to'] = $previous_label;
-                $record['is_partial'] = $apply_prev < $original_amount;
-                $paid_history_previous[] = $record;
-                $remaining_prev_from_other -= $apply_prev;
                 $remaining_prev_allocation -= $apply_prev;
                 $amount_remaining -= $apply_prev;
             }
