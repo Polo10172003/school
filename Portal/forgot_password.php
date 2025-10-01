@@ -1,9 +1,9 @@
 <?php
 require __DIR__ . '/../vendor/autoload.php';
 include __DIR__ . '/../db_connection.php';
-include '../includes/header.php';
 date_default_timezone_set('Asia/Manila');
 $msg = '';
+$isSuccess = false;
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $email = $_POST['email'];
@@ -29,6 +29,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exec($cmd . ' > /dev/null 2>&1 &');
 
         $msg = "If the email exists in our records, a reset link has been sent. It expires in 2 minutes.";
+        $isSuccess = true;
     } else {
         $msg = "Email not registered.";
     }
@@ -36,61 +37,34 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 ?>
 
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Forgot Password</title>
-    <style>
-        body {
-            font-family: Arial;
-            background: #f0f0f0;
-        }
-        .pass-container {
-            max-width: 400px;
-            margin: 80px auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0px 4px 8px rgba(0,0,0,0.1);
-        }
-        input[type=email] {
-            width: 100%;
-            padding: 10px;
-            margin: 12px 0;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-        }
-        .btn-submit {
-            width: 100%; padding: 10px;
-            background: #145A32; color: white; border: none; border-radius: 5px;
-        }
-        .btn-submit:hover {
-            background-color: #0f723aff;
-            color: #ffffff !important;
-            transform: translateY(-1px);
-        }
-        .error { color: red; text-align: center; 
-        }
-        .message {
-            margin-top: 15px;
-            color: red;
-            text-align: center;
-        }
-    </style>
+    <link rel="stylesheet" href="../assets/css/auth.css">
 </head>
-<body>
-<div class="pass-container">
-    <h2 class="text-center mb-4 fw-bold">Forgot Password</h2>
-    <form method="POST">
-        <label>Enter your registered email:</label>
-        <input type="email" name="email" required placeholder="example@gmail.com">
-        <button type="submit" class="btn-submit w-100">Send Reset Link</button>
-    </form>
-    <?php if ($msg): ?>
-        <p class="message"><?= $msg ?></p>
-    <?php endif; ?>
-</div>
+<body class="auth-body">
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <img src="../Esrlogo.png" alt="ESR Logo">
+                <span>Escuela de Sto. Rosario</span>
+            </div>
+            <h1 class="auth-title">Forgot Password</h1>
+            <p class="auth-subtitle">Enter your registered email address so we can send you a reset link.</p>
+            <?php if ($msg): ?>
+                <div class="<?= $isSuccess ? 'auth-notice' : 'auth-error'; ?>"><?= htmlspecialchars($msg); ?></div>
+            <?php endif; ?>
+            <form class="auth-form" method="POST" action="">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required placeholder="name@email.com">
+                <button type="submit" class="auth-btn">Send Reset Link</button>
+            </form>
+            <div class="auth-footer">
+                <a href="student_login.php">Back to student login</a>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
-<?php
-   include '../includes/footer.php';
-?>

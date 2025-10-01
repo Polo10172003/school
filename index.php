@@ -2,46 +2,254 @@
 // Set page title
 $page_title = 'Escuela de Sto. Rosario - Home';
 
-  include 'includes/header.php';?> 
-  
-    <!-- Jumbotron -->
+  include 'includes/header.php';
+  require_once __DIR__ . '/includes/homepage_images.php';
+  $homepageImages = homepage_images_load();
+?> 
+
+<style>
+  :root {
+    --brand-green: #145A32;
+    --brand-yellow: #fbd80a;
+    --brand-sage: #e7f3ec;
+  }
+
+  .hero-banner {
+    background-image: linear-gradient(rgba(20, 90, 50, 0.75), rgba(20, 90, 50, 0.75)), url('<?= htmlspecialchars($homepageImages['cards']['campus']); ?>');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+  }
+
+  .hero-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.15);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+  }
+
+  .hero-lead {
+    font-size: 1.15rem;
+    max-width: 560px;
+  }
+
+  .hero-actions .btn {
+    min-width: 220px;
+    border-radius: 999px;
+    padding: 0.75rem 1.75rem;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  }
+
+  .hero-actions .btn-outline-light {
+    border-width: 2px;
+  }
+
+  .hero-badges .badge {
+    background: rgba(255, 255, 255, 0.9);
+    color: var(--brand-green);
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 0.6rem 1.1rem;
+  }
+
+  .hero-card img {
+    height: 240px;
+    object-fit: cover;
+  }
+
+  .hero-card .card-body {
+    padding: 1.75rem;
+  }
+
+  .info-card img {
+    height: 190px;
+    object-fit: cover;
+    border-radius: 1rem 1rem 0 0;
+  }
+
+  .info-card .card-body {
+    padding: 1.75rem;
+  }
+
+  .feature-card {
+    background: var(--brand-sage);
+    border: none;
+    border-radius: 1.25rem;
+    padding: 1.75rem;
+    height: 100%;
+    box-shadow: 0 12px 30px rgba(20, 90, 50, 0.08);
+  }
+
+  .feature-card i {
+    font-size: 2.2rem;
+    color: var(--brand-green);
+  }
+
+  .staff-access {
+    background: linear-gradient(120deg, rgba(20, 90, 50, 0.95), rgba(39, 174, 96, 0.9));
+    border-radius: 1.75rem;
+    color: #fff;
+    padding: 2.5rem;
+  }
+
+  .staff-btn {
+    border-radius: 999px;
+    padding: 0.75rem 1.75rem;
+    font-weight: 600;
+    background: #fff;
+    color: var(--brand-green);
+    border: none;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .staff-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+    color: var(--brand-green);
+  }
+
+  .soft-section {
+    background: #fff;
+    border-radius: 2rem;
+    box-shadow: 0 20px 40px rgba(20, 90, 50, 0.08);
+    padding: 3rem 2rem;
+  }
+
+  .section-label {
+    font-size: 0.85rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--brand-green);
+    font-weight: 700;
+  }
+</style>
+
 <main>
-    <div id="home">
-      <a href="StudentNoVerification/student_number.php" style="text-decoration: none; color: inherit;">
-        <div class="jumbotron">
-          <div class="text-center">
-            <h class="display-4 fw-bold">Welcome to Escuela de Sto. Rosario</h>
-            <h1 class="lead fw-bold">Quality education rooted in values and excellence.</h1>
-            <p class="early">Early Registration | SY: 2026-2027</p>
+  <section class="hero-banner text-white py-5" id="home">
+    <div class="container py-5">
+      <div class="row align-items-center">
+        <div class="col-lg-7">
+          <span class="hero-kicker"><i class="bi bi-stars"></i> Student & Parent Hub</span>
+          <h1 class="display-4 fw-bold mt-4">Learning with heart, growing with family.</h1>
+          <p class="hero-lead mt-3">Escuela de Sto. Rosario partners with parents to celebrate every learner’s progress—from their first classroom experience to senior high milestones.</p>
+          <div class="d-flex flex-wrap gap-3 mt-4 hero-actions">
+            <a class="btn btn-warning btn-lg text-dark fw-semibold" href="StudentNoVerification/student_number.php">Start Early Registration</a>
+            <a class="btn btn-outline-light btn-lg fw-semibold" href="#family-explore">Explore School Life</a>
+          </div>
+          <div class="hero-badges d-flex flex-wrap gap-2 mt-4">
+            <span class="badge">Kinder to Senior High</span>
+            <span class="badge">Family-first Support</span>
+            <span class="badge">Guided Enrollment Steps</span>
           </div>
         </div>
-      </a>
-    </div>
-
-    <!-- Sample Content -->
-    <div class="container mt-5">
-      <div class="row">
-        <div class="col-md-4">
-          <img src="EsrBanner.jpg" alt="School Banner" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5 class="fw-bold">Programs</h5>
-          <p>Explore our wide range of academic programs designed to prepare students for the future.</p>
-        </div>
-        <div id="admission" class="col-md-4">
-          <img src="Esrlogo.png" alt="School Logo" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5 class="fw-bold">Admissions</h5>
-          <p>Join our community and take the first step towards a brighter future with us.</p>
-        </div>
-        <div class="col-md-4">
-          <img src="EsrBanner.jpg" alt="School Campus" class="img-fluid mb-3" style="max-height: 250px; object-fit: cover;">
-          <h5 class="fw-bold">Campus Life</h5>
-          <p>Experience a vibrant and supportive campus life that nurtures learning and growth.</p>
+        <div class="col-lg-5 mt-5 mt-lg-0">
+          <div class="hero-card card border-0 shadow-lg">
+            <img src="<?= htmlspecialchars($homepageImages['events']['slide1']); ?>" alt="Students on campus" class="card-img-top">
+            <div class="card-body">
+              <h5 class="fw-bold text-success">Welcome, parents and guardians!</h5>
+              <p class="text-muted mb-0">Check schedules, tuition details, and announcements anytime through our online portal to stay in step with your child’s journey.</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+  </section>
 
-    <div id="aboutus" class="container mb-4 pb-5">
-      <p><!-- Invisible spacer to adjust scroll position for About Us tab --></p>
+  <section class="py-5 bg-light" id="family-explore">
+    <div class="container">
+      <div class="text-center mb-5">
+        <span class="section-label">Family Essentials</span>
+        <h2 class="fw-bold text-success mt-3">Everything you need for a confident start</h2>
+        <p class="lead text-muted">Quick guides for exploring programs, admissions, and day-to-day life at ESR.</p>
+      </div>
+      <div class="row g-4">
+        <div class="col-md-4">
+          <div class="card info-card border-0 shadow-sm h-100">
+            <img src="<?= htmlspecialchars($homepageImages['cards']['programs']); ?>" alt="Academic programs" class="w-100">
+            <div class="card-body">
+              <h5 class="fw-bold text-success">Academic Programs</h5>
+              <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
+              <a href="tuition_fees.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View program tracks <i class="bi bi-arrow-right-short"></i></a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card info-card border-0 shadow-sm h-100">
+            <img src="<?= htmlspecialchars($homepageImages['cards']['admissions']); ?>" alt="Admissions" class="w-100">
+            <div class="card-body">
+              <h5 class="fw-bold text-success">Admissions Checklist</h5>
+              <p class="text-muted">Follow easy steps for document submission, interviews, and payment options.</p>
+              <a href="StudentNoVerification/early_registration.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">See enrollment steps <i class="bi bi-arrow-right-short"></i></a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card info-card border-0 shadow-sm h-100">
+            <img src="<?= htmlspecialchars($homepageImages['cards']['campus']); ?>" alt="Campus life" class="w-100">
+            <div class="card-body">
+              <h5 class="fw-bold text-success">Life on Campus</h5>
+              <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>
+              <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container soft-section">
+      <div class="row g-4 align-items-center">
+        <div class="col-lg-4">
+          <div class="feature-card text-center">
+            <i class="bi bi-backpack-fill"></i>
+            <h5 class="fw-bold mt-3">Guided Enrollment Support</h5>
+            <p class="text-muted mb-0">Our registrar team walks new families through every requirement with friendly assistance.</p>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="feature-card text-center">
+            <i class="bi bi-people-fill"></i>
+            <h5 class="fw-bold mt-3">Community-first Culture</h5>
+            <p class="text-muted mb-0">Parents, guardians, and teachers collaborate closely to keep every learner thriving.</p>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="feature-card text-center">
+            <i class="bi bi-mortarboard-fill"></i>
+            <h5 class="fw-bold mt-3">Future-ready Learning</h5>
+            <p class="text-muted mb-0">Modern facilities and values-based education help students discover their purpose.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-5">
+    <div class="container">
+      <div class="staff-access text-center shadow-lg">
+        <span class="section-label text-white">Staff Access</span>
+        <h2 class="fw-bold mt-3">Log in to your workspace</h2>
+        <p class="mb-4">Dedicated portals for our cashier, registrar, and admin teams keep operations running smoothly.</p>
+        <div class="d-flex flex-wrap justify-content-center gap-3">
+          <a class="staff-btn" href="Cashier/cashier_login.php">Cashier Login</a>
+          <a class="staff-btn" href="Registrar/registrar_login.php">Registrar Login</a>
+          <a class="staff-btn" href="admin_login.php">Admin Login</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="aboutus" class="container mb-4 pb-5">
+    <p><!-- Invisible spacer to adjust scroll position for About Us tab --></p>
+  </div>
 
     <!-- About Us Section -->
     <div class="container py-5">
@@ -89,21 +297,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           </div>
           <div class="carousel-inner">
             <div class="carousel-item active" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="School Event 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['events']['slide1']); ?>" class="d-block" alt="School Event 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Annual School Fair</h5>
                 <p>Join us for our exciting annual school fair with games, food, and entertainment.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="Esrlogo.png" class="d-block" alt="School Event 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['events']['slide2']); ?>" class="d-block" alt="School Event 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Graduation Ceremony</h5>
                 <p>Celebrating the achievements of our graduating students.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="School Event 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['events']['slide3']); ?>" class="d-block" alt="School Event 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Sports Festival</h5>
                 <p>Annual sports competition showcasing student athletic talents.</p>
@@ -132,21 +340,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           </div>
           <div class="carousel-inner">
             <div class="carousel-item active" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="Achievement 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide1']); ?>" class="d-block" alt="Achievement 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Academic Excellence Award</h5>
                 <p>Recognized for outstanding academic performance and student achievement.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="Esrlogo.png" class="d-block" alt="Achievement 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide2']); ?>" class="d-block" alt="Achievement 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Best Private School</h5>
                 <p>Awarded as one of the top private educational institutions in the region.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="Achievement 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide3']); ?>" class="d-block" alt="Achievement 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Innovation in Education</h5>
                 <p>Recognized for implementing innovative teaching methods and technology.</p>
@@ -175,21 +383,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           </div>
           <div class="carousel-inner">
             <div class="carousel-item active" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="Primary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide1']); ?>" class="d-block" alt="Primary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Primary Education (K-6)</h5>
                 <p>Building strong foundations in reading, writing, and mathematics for young learners.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="Esrlogo.png" class="d-block" alt="Secondary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide2']); ?>" class="d-block" alt="Secondary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Secondary Education (7-10)</h5>
                 <p>Comprehensive curriculum preparing students for higher education and life skills.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="Learning Environment" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide3']); ?>" class="d-block" alt="Learning Environment" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Modern Learning Environment</h5>
                 <p>State-of-the-art facilities and technology-enhanced classrooms.</p>
@@ -218,21 +426,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           </div>
           <div class="carousel-inner">
             <div class="carousel-item active" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="JHS Grade 7-8" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide1']); ?>" class="d-block" alt="JHS Grade 7-8" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Grades 7-8 Program</h5>
                 <p>Transitioning students with enhanced academic and social development programs.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="Esrlogo.png" class="d-block" alt="JHS Grade 9-10" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide2']); ?>" class="d-block" alt="JHS Grade 9-10" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Grades 9-10 Program</h5>
                 <p>Advanced curriculum preparing students for senior high school specialization.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="JHS Activities" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide3']); ?>" class="d-block" alt="JHS Activities" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>Extracurricular Activities</h5>
                 <p>Diverse clubs, sports, and leadership opportunities for holistic development.</p>
@@ -263,21 +471,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           </div>
           <div class="carousel-inner">
             <div class="carousel-item active" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="STEM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide1']); ?>" class="d-block" alt="STEM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>STEM Track</h5>
                 <p>Science, Technology, Engineering, and Mathematics specialization for future innovators.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="Esrlogo.png" class="d-block" alt="ABM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide2']); ?>" class="d-block" alt="ABM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>ABM Track</h5>
                 <p>Accountancy, Business, and Management program for future business leaders.</p>
               </div>
             </div>
             <div class="carousel-item" data-bs-interval="5000">
-              <img src="EsrBanner.jpg" class="d-block" alt="HUMSS Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
+              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide3']); ?>" class="d-block" alt="HUMSS Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
               <div class="carousel-caption d-none d-md-block">
                 <h5>HUMSS Track</h5>
                 <p>Humanities and Social Sciences for students pursuing liberal arts and social studies.</p>
@@ -312,21 +520,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             </div>
             <div class="carousel-inner">
               <div class="carousel-item active" data-bs-interval="5000">
-                <img src="EsrBanner.jpg" class="d-block w-100" alt="PAPRISA Membership" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide1']); ?>" class="d-block w-100" alt="PAPRISA Membership" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>PAPRISA Membership</h5>
                   <p>Philippine Association of Private Schools and Administrators recognition and membership programs.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="Esrlogo.png" class="d-block w-100" alt="PAPRISA Awards" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide2']); ?>" class="d-block w-100" alt="PAPRISA Awards" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>PAPRISA Awards</h5>
                   <p>Recognized for excellence in private education administration and management.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="EsrBanner.jpg" class="d-block w-100" alt="PAPRISA Programs" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide3']); ?>" class="d-block w-100" alt="PAPRISA Programs" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>PAPRISA Programs</h5>
                   <p>Active participation in PAPRISA educational programs and professional development initiatives.</p>
@@ -355,21 +563,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             </div>
             <div class="carousel-inner">
               <div class="carousel-item active" data-bs-interval="5000">
-                <img src="Esrlogo.png" class="d-block w-100" alt="Licensure Exams" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['board']['slide1']); ?>" class="d-block w-100" alt="Licensure Exams" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Professional Licensure</h5>
                   <p>Celebrating our alumni who have successfully passed various professional board examinations.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="EsrBanner.jpg" class="d-block w-100" alt="Top Performers" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['board']['slide2']); ?>" class="d-block w-100" alt="Top Performers" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Top Performers</h5>
                   <p>Alumni who achieved top rankings in their respective professional licensure examinations.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="Esrlogo.png" class="d-block w-100" alt="Career Success" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['board']['slide3']); ?>" class="d-block w-100" alt="Career Success" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Career Success</h5>
                   <p>Our graduates excelling in their chosen professions and contributing to society.</p>
@@ -398,21 +606,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             </div>
             <div class="carousel-inner">
               <div class="carousel-item active" data-bs-interval="5000">
-                <img src="EsrBanner.jpg" class="d-block w-100" alt="Academic Honors" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide1']); ?>" class="d-block w-100" alt="Academic Honors" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Academic Honors</h5>
                   <p>Students who have achieved academic excellence and graduated with honors.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="Esrlogo.png" class="d-block w-100" alt="Summa Cum Laude" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide2']); ?>" class="d-block w-100" alt="Summa Cum Laude" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Summa Cum Laude</h5>
                   <p>Highest academic distinction awarded to students with exceptional academic performance.</p>
                 </div>
               </div>
               <div class="carousel-item" data-bs-interval="5000">
-                <img src="EsrBanner.jpg" class="d-block w-100" alt="Magna Cum Laude" style="height: 300px; object-fit: cover;">
+                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide3']); ?>" class="d-block w-100" alt="Magna Cum Laude" style="height: 300px; object-fit: cover;">
                 <div class="carousel-caption d-none d-md-block">
                   <h5>Magna Cum Laude</h5>
                   <p>High academic distinction for students with outstanding scholastic achievements.</p>
@@ -510,5 +718,3 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         });
       });
     </script>
-
-

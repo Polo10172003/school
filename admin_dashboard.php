@@ -1,8 +1,13 @@
 <?php
 include 'db_connection.php';
+require_once __DIR__ . '/includes/homepage_images.php';
 
 $scheduleMessage = '';
 $scheduleError   = '';
+$homeImageMessage = '';
+$homeImageError   = '';
+
+$homepageImages = homepage_images_load();
 
 $scheduleGradeOptions = [
   'Pre-Prime 1', 'Pre-Prime 2', 'Kindergarten',
@@ -11,6 +16,81 @@ $scheduleGradeOptions = [
 ];
 
 $scheduleDaysOfWeek = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+$homepageSections = [
+  'cards' => [
+    'label' => 'Feature Cards',
+    'items' => [
+      'programs'   => 'Programs Card',
+      'admissions' => 'Admissions Card',
+      'campus'     => 'Campus Life Card',
+    ],
+  ],
+  'events' => [
+    'label' => 'School Events Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'achievements' => [
+    'label' => 'Achievements Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'primary_secondary' => [
+    'label' => 'Primary & Secondary Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'junior_high' => [
+    'label' => 'Junior High Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'senior_high' => [
+    'label' => 'Senior High Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'paprisa' => [
+    'label' => 'PAPRISA Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'board' => [
+    'label' => 'Board Passers Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+  'laudes' => [
+    'label' => 'Laudes Carousel',
+    'items' => [
+      'slide1' => 'Slide 1',
+      'slide2' => 'Slide 2',
+      'slide3' => 'Slide 3',
+    ],
+  ],
+];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_form'])) {
   $gradeLevel = trim((string) ($_POST['schedule_grade'] ?? ''));
@@ -82,6 +162,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_form'])) {
   }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_homepage_images'])) {
+  $defaults = homepage_images_defaults();
+  if (homepage_images_save($defaults)) {
+    $homepageImages = $defaults;
+    $homeImageMessage = 'Homepage images reset to defaults.';
+  } else {
+    $homeImageError = 'Unable to reset homepage images. Check file permissions.';
+  }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['homepage_images_form'])) {
+  $images = homepage_images_load();
+  $uploadDir = __DIR__ . '/assets/homepage/';
+  if (!is_dir($uploadDir)) {
+    if (!mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) {
+      $homeImageError = 'Unable to create homepage image directory.';
+    }
+  }
+
+  if ($homeImageError === '') {
+    $allowedExtensions = ['jpg','jpeg','png','gif','webp'];
+    $timestamp = time();
+
+    foreach ($homepageSections as $sectionKey => $sectionData) {
+      foreach ($sectionData['items'] as $itemKey => $_label) {
+        $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
+        if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+          continue;
+        }
+
+        $originalName = $_FILES[$fieldName]['name'];
+        $tmpPath = $_FILES[$fieldName]['tmp_name'];
+        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if (!in_array($extension, $allowedExtensions, true)) {
+          $homeImageError = 'Invalid file type uploaded. Allowed: jpg, jpeg, png, gif, webp.';
+          break 2;
+        }
+
+        $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($originalName, PATHINFO_FILENAME));
+        if ($safeBase === '') {
+          $safeBase = 'image';
+        }
+        $newFilename = $safeBase . '_' . $timestamp . '_' . $sectionKey . '_' . $itemKey . '.' . $extension;
+        $destination = $uploadDir . $newFilename;
+
+        if (!move_uploaded_file($tmpPath, $destination)) {
+          $homeImageError = 'Failed to move uploaded file.';
+          break 2;
+        }
+
+        $relativePath = 'assets/homepage/' . $newFilename;
+        homepage_images_set($images, [$sectionKey, $itemKey], $relativePath);
+      }
+    }
+
+    if ($homeImageError === '') {
+      if (homepage_images_save($images)) {
+        $homeImageMessage = 'Homepage images updated successfully.';
+        $homepageImages = $images;
+      } else {
+        $homeImageError = 'Unable to save homepage image settings.';
+      }
+    }
+  }
+}
+
 $scheduleFilterGrade   = trim((string) ($_GET['schedule_grade_filter'] ?? ''));
 $scheduleFilterSection = trim((string) ($_GET['schedule_section_filter'] ?? ''));
 $scheduleFilterYear    = trim((string) ($_GET['schedule_year_filter'] ?? ''));
@@ -126,285 +272,128 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
 <head>
   <meta charset="UTF-8">
   <title>Admin Dashboard - Escuela De Sto. Rosario</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f0f4f3;
-      margin: 0;
-      padding: 0;
-      color: #333;
-      display: flex;
-    }
-
-    /* Sidebar */
-    .sidebar {
-      width: 220px;
-      background-color: #004d00;
-      color: white;
-      height: 100vh;
-      padding-top: 30px;
-      position: fixed;
-      left: 0;
-      top: 0;
-      display: flex;
-      flex-direction: column;
-      transition: width 0.3s ease;
-      overflow: hidden;
-    }
-    .sidebar.collapsed {
-      width: 70px;
-    }
-    .sidebar h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      font-size: 18px;
-      transition: opacity 0.3s ease;
-    }
-    .sidebar.collapsed h2 {
-      opacity: 0;
-      pointer-events: none;
-    }
-    .sidebar a {
-      color: white;
-      padding: 12px 20px;
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      font-weight: bold;
-      transition: background-color 0.3s;
-      white-space: nowrap;
-    }
-    .sidebar a:hover {
-      background-color: #007f3f;
-    }
-    .sidebar i {
-      margin-right: 10px;
-      font-size: 18px;
-      min-width: 20px;
-      text-align: center;
-    }
-    .sidebar.collapsed a span {
-      display: none;
-    }
-
-    /* Collapse toggle button */
-    .toggle-btn {
-      background-color: #003300;
-      color: white;
-      border: none;
-      padding: 10px;
-      cursor: pointer;
-      font-size: 18px;
-      width: 100%;
-      transition: background-color 0.3s;
-    }
-    .toggle-btn:hover {
-      background-color: #007f3f;
-    }
-
-    /* Main content */
-    .main-content {
-      margin-left: 240px;
-      padding: 20px;
-      flex-grow: 1;
-      transition: margin-left 0.3s ease;
-    }
-    .sidebar.collapsed + .main-content {
-      margin-left: 90px;
-    }
-
-    .logout-btn {
-      background-color: #a30000;
-      color: white;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      text-decoration: none;
-      font-size: 14px;
-      margin: 10px auto;
-      text-align: center;
-      width: 80%;
-    }
-    .logout-btn:hover {
-      background-color: #7a0000;
-    }
-
-    .container {
-      background: white;
-      padding: 30px;
-      margin-bottom: 30px;
-      border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0, 0, 0, 0.08);
-    }
-
-    h2 {
-      color: #007f3f;
-      border-bottom: 2px solid #007f3f;
-      padding-bottom: 10px;
-      margin-top: 0;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 20px;
-    }
-
-    table, th, td {
-      border: 1px solid #ccc;
-    }
-
-    th, td {
-      padding: 12px;
-      text-align: left;
-    }
-
-    th {
-      background-color: #007f3f;
-      color: white;
-    }
-
-    tr:nth-child(even) {
-      background-color: #f9f9f9;
-    }
-
-    input[type="text"],
-    textarea,
-    select {
-      width: 100%;
-      padding: 10px;
-      margin-top: 5px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 14px;
-    }
-
-    input[type="submit"],
-    button {
-      margin-top: 20px;
-      background-color: #007f3f;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-    }
-
-    input[type="submit"]:hover,
-    button:hover {
-      background-color: #004d00;
-    }
-
-    label {
-      font-weight: bold;
-      margin-top: 10px;
-      display: block;
-    }
-  </style>
+  <link rel="stylesheet" href="assets/css/dashboard.css">
 </head>
-<body>
+<body class="dashboard-body">
+<button class="dashboard-toggle" type="button" aria-label="Toggle navigation" onclick="document.querySelector('.dashboard-sidebar').classList.toggle('is-open');">☰</button>
+<div class="dashboard-shell">
+  <aside class="dashboard-sidebar">
+    <div class="dashboard-brand">
+      <img src="Esrlogo.png" alt="ESR Logo">
+      <span>Admin Portal</span>
+    </div>
+    <nav class="dashboard-nav">
+      <a href="#stats">Statistics</a>
+      <a href="#announcements">Announcements</a>
+      <a href="#users">User Management</a>
+      <a href="#schedules">Class Schedules</a>
+      <a href="#homepage-images">Homepage Images</a>
+      <a href="#students">Student Tools</a>
+    </nav>
+    <a href="admin_login.php" class="dashboard-logout">Logout</a>
+  </aside>
 
-<!-- Sidebar -->
-<div class="sidebar" id="sidebar">
-  <button class="toggle-btn" onclick="toggleSidebar()">☰</button>
-  <h2>Admin Panel</h2>
-  <a href="#stats"><i>📊</i> <span>Statistics</span></a>
-  <a href="#announcements"><i>📢</i> <span>Post Announcement</span></a>
-  <a href="#users"><i>👥</i> <span>Add New User</span></a>
-  <a href="#students"><i>🎓</i> <span>Manage Students</span></a>
-  <a href="admin_login.php" class="logout-btn">Logout</a>
-</div>
-
-<!-- Main content -->
-<div class="main-content">
-  <div class="container" id="stats">
-    <h2>Statistics</h2>
-    <?php include 'statistics.php'; ?>
-  </div>
-
-  <div class="container" id="announcements">
-    <h2>Post Announcement</h2>
-    <form action="submit_announcement.php" method="POST">
-      <label for="subject">Subject:</label>
-      <input type="text" name="subject" required>
-
-      <label for="message">Message:</label>
-      <textarea name="message" required></textarea>
-
-      <label for="grades">Send To:</label>
-      <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top:10px;">
-        <?php
-        $audienceOptions = [
-            'everyone'  => 'Everyone',
-            'preschool' => 'Pre-School',
-            'pp1'       => 'Pre-Prime 1',
-            'pp2'       => 'Pre-Prime 2',
-            'pp12'      => 'Pre-Prime 1 & 2',
-            'kg'        => 'Kindergarten',
-            'g1'        => 'Grade-1',
-            'g2'        => 'Grade-2',
-            'g3'        => 'Grade-3',
-            'g4'        => 'Grade-4',
-            'g5'        => 'Grade-5',
-            'g6'        => 'Grade-6',
-            'g7'        => 'Grade-7',
-            'g8'        => 'Grade-8',
-            'g9'        => 'Grade-9',
-            'g10'       => 'Grade-10',
-            'g11'       => 'Grade-11',
-            'g12'       => 'Grade-12',
-        ];
-
-        foreach ($audienceOptions as $code => $label) {
-            echo "<label><input type=\"checkbox\" name=\"grades[]\" value=\"$code\"> $label</label>";
-        }
-        ?>
+  <main class="dashboard-main">
+    <header class="dashboard-header">
+      <div>
+        <h1>Admin Dashboard</h1>
+        <p>Oversee school-wide data, publish announcements, and curate the public website content.</p>
       </div>
-      <input type="submit" value="Send Announcement">
-    </form>
-  </div>
+    </header>
 
-  <div class="container" id="users">
-    <h2>Add New User</h2>
-    <form action="admin_addusers.php" method="POST">
-      <label for="fullname">Full Name:</label>
-      <input type="text" name="fullname" required>
+    <section class="dashboard-card" id="stats">
+      <span class="dashboard-section-title">At A Glance</span>
+      <h2>Statistics</h2>
+      <?php include 'statistics.php'; ?>
+    </section>
 
-      <label for="username">Username:</label>
-      <input type="text" name="username" required>
+    <section class="dashboard-card" id="announcements">
+      <span class="dashboard-section-title">Communication</span>
+      <h2>Post Announcement</h2>
+      <form class="dashboard-form" action="submit_announcement.php" method="POST">
+        <label for="subject">Subject</label>
+        <input type="text" name="subject" required>
 
-      <label for="password">Password:</label>
-      <input type="password" name="password" required>
+        <label for="message">Message</label>
+        <textarea name="message" required></textarea>
 
-      <label for="role">Role:</label>
-      <select name="role" required>
-        <option value="cashier">Cashier</option>
-        <option value="registrar">Registrar</option>
-      </select>
+        <label for="grades">Send To</label>
+        <div class="dashboard-checkbox-grid" style="margin-top:10px;">
+          <?php
+          $audienceOptions = [
+              'everyone'  => 'Everyone',
+              'preschool' => 'Pre-School',
+              'pp1'       => 'Pre-Prime 1',
+              'pp2'       => 'Pre-Prime 2',
+              'pp12'      => 'Pre-Prime 1 & 2',
+              'kg'        => 'Kindergarten',
+              'g1'        => 'Grade-1',
+              'g2'        => 'Grade-2',
+              'g3'        => 'Grade-3',
+              'g4'        => 'Grade-4',
+              'g5'        => 'Grade-5',
+              'g6'        => 'Grade-6',
+              'g7'        => 'Grade-7',
+              'g8'        => 'Grade-8',
+              'g9'        => 'Grade-9',
+              'g10'       => 'Grade-10',
+              'g11'       => 'Grade-11',
+              'g12'       => 'Grade-12',
+          ];
 
-      <input type="submit" value="Add User">
-    </form>
-  </div>
-  <div class="container" id="class-schedules">
-    <h2>Class Schedules</h2>
-    <?php if ($scheduleMessage !== ''): ?>
-      <div style="padding:12px 16px; border-radius:8px; background:#e8f5e9; color:#256029; margin-bottom:18px; font-weight:600;">
-        <?= htmlspecialchars($scheduleMessage) ?>
-      </div>
-    <?php endif; ?>
-    <?php if ($scheduleError !== ''): ?>
-      <div style="padding:12px 16px; border-radius:8px; background:#fdecea; color:#c62828; margin-bottom:18px; font-weight:600;">
-        <?= htmlspecialchars($scheduleError) ?>
-      </div>
-    <?php endif; ?>
+          foreach ($audienceOptions as $code => $label) {
+              echo "<label><input type=\"checkbox\" name=\"grades[]\" value=\"$code\"> $label</label>";
+          }
+          ?>
+        </div>
 
-    <form method="POST" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:18px;">
+        <div class="dashboard-actions">
+          <button type="submit" class="dashboard-btn">Send Announcement</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="dashboard-card" id="users">
+      <span class="dashboard-section-title">Access Control</span>
+      <h2>Add New User</h2>
+      <form class="dashboard-form" action="admin_addusers.php" method="POST">
+        <label for="fullname">Full Name</label>
+        <input type="text" name="fullname" required>
+
+        <label for="username">Username</label>
+        <input type="text" name="username" required>
+
+        <label for="password">Password</label>
+        <input type="password" name="password" required>
+
+        <label for="role">Role</label>
+        <select name="role" required>
+          <option value="cashier">Cashier</option>
+          <option value="registrar">Registrar</option>
+        </select>
+
+        <div class="dashboard-actions">
+          <button type="submit" class="dashboard-btn">Add User</button>
+        </div>
+      </form>
+    </section>
+    <section class="dashboard-card" id="schedules">
+      <span class="dashboard-section-title">Schedule Planner</span>
+      <h2>Class Schedules</h2>
+      <?php if ($scheduleMessage !== ''): ?>
+        <div class="dashboard-alert success">
+          <?= htmlspecialchars($scheduleMessage) ?>
+        </div>
+      <?php endif; ?>
+      <?php if ($scheduleError !== ''): ?>
+        <div class="dashboard-alert error">
+          <?= htmlspecialchars($scheduleError) ?>
+        </div>
+      <?php endif; ?>
+
+      <form class="dashboard-form" method="POST" action="#schedules">
       <input type="hidden" name="schedule_form" value="1">
+      <div class="dashboard-grid two">
       <div>
         <label for="schedule_grade">Grade Level</label>
         <select name="schedule_grade" id="schedule_grade" required>
@@ -423,7 +412,7 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
       <div>
         <label for="schedule_section">Section (optional)</label>
         <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
-        <label style="margin-top:6px; font-weight:500;">
+        <label class="dashboard-checkbox-inline">
           <input type="checkbox" name="schedule_all_sections" <?= isset($_POST['schedule_all_sections']) ? 'checked' : '' ?>> Apply to all sections
         </label>
       </div>
@@ -458,40 +447,43 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
         <label for="schedule_room">Room (optional)</label>
         <input type="text" name="schedule_room" id="schedule_room" value="<?= htmlspecialchars($_POST['schedule_room'] ?? '') ?>">
       </div>
-      <div style="grid-column: 1 / -1; text-align:right;">
-        <button type="submit">Save Schedule</button>
       </div>
-    </form>
+      <div class="dashboard-actions">
+        <button type="submit" class="dashboard-btn">Save Schedule</button>
+      </div>
+      </form>
 
-    <hr style="margin:32px 0; border:none; border-top:1px solid #d4dce1;">
+      <hr style="margin:32px 0; border:none; border-top:1px solid #d4dce1;">
 
-    <form method="GET" style="display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end; margin-bottom:18px;">
-      <div>
-        <label for="schedule_grade_filter">Grade Filter</label>
-        <select name="schedule_grade_filter" id="schedule_grade_filter" onchange="this.form.submit()">
-          <option value="">All</option>
-          <?php foreach ($scheduleGradeOptions as $gradeOption):
-            $sel = ($scheduleFilterGrade === $gradeOption) ? 'selected' : '';
-          ?>
-            <option value="<?= htmlspecialchars($gradeOption) ?>" <?= $sel ?>><?= htmlspecialchars($gradeOption) ?></option>
-          <?php endforeach; ?>
-        </select>
+      <form class="dashboard-form" method="GET" action="#schedules">
+      <div class="dashboard-grid two">
+        <div>
+          <label for="schedule_grade_filter">Grade Filter</label>
+          <select name="schedule_grade_filter" id="schedule_grade_filter" onchange="this.form.submit()">
+            <option value="">All</option>
+            <?php foreach ($scheduleGradeOptions as $gradeOption):
+              $sel = ($scheduleFilterGrade === $gradeOption) ? 'selected' : '';
+            ?>
+              <option value="<?= htmlspecialchars($gradeOption) ?>" <?= $sel ?>><?= htmlspecialchars($gradeOption) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label for="schedule_section_filter">Section Filter</label>
+          <input type="text" name="schedule_section_filter" id="schedule_section_filter" value="<?= htmlspecialchars($scheduleFilterSection) ?>" placeholder="e.g., Section A" onchange="this.form.submit()">
+        </div>
+        <div>
+          <label for="schedule_year_filter">School Year Filter</label>
+          <input type="text" name="schedule_year_filter" id="schedule_year_filter" value="<?= htmlspecialchars($scheduleFilterYear) ?>" placeholder="e.g., 2024-2025" onchange="this.form.submit()">
+        </div>
       </div>
-      <div>
-        <label for="schedule_section_filter">Section Filter</label>
-        <input type="text" name="schedule_section_filter" id="schedule_section_filter" value="<?= htmlspecialchars($scheduleFilterSection) ?>" placeholder="e.g., Section A" onchange="this.form.submit()">
+      <div class="dashboard-actions">
+        <a href="admin_dashboard.php#schedules" class="dashboard-btn secondary dashboard-btn--small">Clear Filters</a>
       </div>
-      <div>
-        <label for="schedule_year_filter">School Year Filter</label>
-        <input type="text" name="schedule_year_filter" id="schedule_year_filter" value="<?= htmlspecialchars($scheduleFilterYear) ?>" placeholder="e.g., 2024-2025" onchange="this.form.submit()">
-      </div>
-      <div>
-        <a href="admin_dashboard.php#class-schedules" style="display:inline-block; margin-top:24px; text-decoration:none; background:#6c757d; color:#fff; padding:9px 16px; border-radius:8px;">Clear Filters</a>
-      </div>
-    </form>
+      </form>
 
-    <div style="overflow-x:auto;">
-      <table>
+      <div class="table-responsive">
+        <table>
         <thead>
           <tr>
             <th>Grade</th>
@@ -526,9 +518,9 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
             <?php endforeach; ?>
           <?php endif; ?>
         </tbody>
-      </table>
-    </div>
-  </div>
+        </table>
+      </div>
+    </section>
   <?php
 function normalizeEarlyGrade(string $grade): string {
     $grade = trim($grade);
@@ -622,13 +614,84 @@ if (!empty($params)) {
     $stmt->bind_param($types, ...$params);
 }
 $stmt->execute();
-$result = $stmt->get_result();
+$studentsRows = [];
+if ($result = $stmt->get_result()) {
+    $studentsRows = $result->fetch_all(MYSQLI_ASSOC);
+    $result->free();
+}
+$stmt->close();
+
+$rosters = [];
+foreach ($studentsRows as $row) {
+    $gradeKey = trim((string)($row['year'] ?? ''));
+    $gradeKey = $gradeKey !== '' ? $gradeKey : 'Unassigned';
+    $sectionKey = trim((string)($row['section'] ?? ''));
+    $sectionKey = $sectionKey !== '' ? $sectionKey : 'Unassigned';
+    $rosters[$gradeKey][$sectionKey][] = $row;
+}
+ksort($rosters);
+foreach ($rosters as &$sections) {
+    ksort($sections);
+}
+unset($sections);
 ?>
 
-  <div class="container" id="students">
-    <h2>Manage Students</h2>
-<!-- Filters -->
-<form method="GET" style="margin-bottom:20px; display:flex; gap:20px; align-items:center;">
+    <section class="dashboard-card" id="homepage-images">
+      <span class="dashboard-section-title">Public Site</span>
+      <h2>Homepage Images</h2>
+      <?php if ($homeImageMessage !== ''): ?>
+        <div class="dashboard-alert success">
+          <?= htmlspecialchars($homeImageMessage) ?>
+        </div>
+      <?php endif; ?>
+      <?php if ($homeImageError !== ''): ?>
+        <div class="dashboard-alert error">
+          <?= htmlspecialchars($homeImageError) ?>
+        </div>
+      <?php endif; ?>
+
+      <form class="dashboard-form" method="POST" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:18px;">
+      <input type="hidden" name="homepage_images_form" value="1">
+      <?php foreach ($homepageSections as $sectionKey => $sectionData):
+        $sectionLabel = $sectionData['label'];
+      ?>
+        <details style="background:#fff; border:1px solid #d4dce1; border-radius:10px; padding:16px;">
+          <summary style="cursor:pointer; font-weight:700; color:#145A32; margin-bottom:12px;"><?= htmlspecialchars($sectionLabel) ?></summary>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+            <?php foreach ($sectionData['items'] as $itemKey => $itemLabel):
+              $currentImage = homepage_images_get($homepageImages, [$sectionKey, $itemKey]);
+              $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
+            ?>
+              <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc;">
+                <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($itemLabel) ?></div>
+                <div style="margin-bottom:10px;">
+                  <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($itemLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+                </div>
+                <label style="display:block; font-weight:500; margin-bottom:6px;">Upload new image</label>
+                <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
+                <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </details>
+      <?php endforeach; ?>
+      <div class="dashboard-actions" style="justify-content:flex-end;">
+        <button type="submit" class="dashboard-btn">Save Images</button>
+      </div>
+      </form>
+
+      <form class="dashboard-form" method="POST" style="margin-top:12px; text-align:right;">
+      <input type="hidden" name="reset_homepage_images" value="1">
+      <div class="dashboard-actions" style="justify-content:flex-end;">
+        <button type="submit" class="dashboard-btn secondary">Reset to Defaults</button>
+      </div>
+      </form>
+    </section>
+
+    <section class="dashboard-card" id="students">
+      <span class="dashboard-section-title">Student Tools</span>
+      <h2>Manage Students</h2>
+      <form class="dashboard-form" method="GET" style="margin-bottom:20px; display:flex; gap:20px; align-items:center;">
       <div>
         <label><b>Grade:</b></label>
         <select name="grade" id="gradeSelect" onchange="this.form.submit()">
@@ -661,36 +724,117 @@ $result = $stmt->get_result();
       </div>
     </form>
 
-    <!-- Students Table -->
-    <table>
-      <tr>
-        <th>ID</th>
-        <th>Student Number</th>
-        <th>Name</th>
-        <th>Grade</th>
-        <th>Section</th>
-        <th>Adviser</th>
-        <th>Status</th>
-      </tr>
-      <?php while ($row = $result->fetch_assoc()): ?>
-      <tr>
-        <td><?= $row['id'] ?></td>
-        <td><?= htmlspecialchars($row['student_number']) ?></td>
-        <td><?= htmlspecialchars($row['firstname'] . " " . $row['lastname']) ?></td>
-        <td><?= htmlspecialchars($row['year']) ?></td>
-        <td><?= htmlspecialchars($row['section'] ?: "Unassigned") ?></td>
-        <td><?= htmlspecialchars($row['adviser'] ?: "TBA") ?></td>
-        <td><?= htmlspecialchars($row['academic_status']) ?></td>
-      </tr>
-      <?php endwhile; ?>
-    </table>
-  </div>
-</div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Student Number</th>
+              <th>Name</th>
+              <th>Grade</th>
+              <th>Section</th>
+              <th>Adviser</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php if (!empty($studentsRows)): ?>
+              <?php foreach ($studentsRows as $row): ?>
+                <tr>
+                  <td><?= $row['id'] ?></td>
+                  <td><?= htmlspecialchars($row['student_number']) ?></td>
+                  <td><?= htmlspecialchars($row['firstname'] . " " . $row['lastname']) ?></td>
+                  <td><?= htmlspecialchars($row['year']) ?></td>
+                  <td><?= htmlspecialchars($row['section'] ?: "Unassigned") ?></td>
+                  <td><?= htmlspecialchars($row['adviser'] ?: "TBA") ?></td>
+                  <td><?= htmlspecialchars($row['academic_status'] ?? $row['enrollment_status']) ?></td>
+                </tr>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <tr><td colspan="7" class="text-center">No enrolled students found.</td></tr>
+            <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <?php if (!empty($rosters)): ?>
+      <section class="dashboard-card" id="print-rosters">
+        <span class="dashboard-section-title">Print Lists</span>
+        <h2>Section Checklists</h2>
+        <p class="text-muted">Generate first-day adviser sheets for each grade and section.</p>
+        <?php foreach ($rosters as $gradeLabel => $sections): ?>
+          <div class="roster-grade">
+            <h3><?= htmlspecialchars($gradeLabel) ?></h3>
+            <?php foreach ($sections as $sectionLabel => $students):
+              $slug = strtolower(preg_replace('/[^a-z0-9]+/i', '-', $gradeLabel . '-' . $sectionLabel));
+              $slug = trim($slug, '-');
+              $targetId = 'print-roster-' . $slug;
+            ?>
+              <div class="roster-section">
+                <div class="roster-section__header">
+                  <h4><?= htmlspecialchars($sectionLabel) ?></h4>
+                  <button type="button" class="dashboard-btn secondary dashboard-btn--small" onclick="printRoster('<?= $targetId ?>')">Print</button>
+                </div>
+                <div class="roster-print-block" id="<?= $targetId ?>">
+                  <div class="roster-print-heading">
+                    <h2>Escuela de Sto. Rosario</h2>
+                    <p><strong>Grade:</strong> <?= htmlspecialchars($gradeLabel) ?> &nbsp;|&nbsp; <strong>Section:</strong> <?= htmlspecialchars($sectionLabel) ?></p>
+                    <p><strong>Prepared:</strong> <?= date('F j, Y') ?></p>
+                  </div>
+                  <table class="roster-print-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Student Number</th>
+                        <th>Student Name</th>
+                        <th>Adviser</th>
+                        <th>Signature</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <?php foreach ($students as $index => $student):
+                        $fullName = trim(($student['lastname'] ?? '') . ', ' . ($student['firstname'] ?? '') . ' ' . ($student['middlename'] ?? ''));
+                      ?>
+                        <tr>
+                          <td><?= $index + 1 ?></td>
+                          <td><?= htmlspecialchars($student['student_number'] ?? '—') ?></td>
+                          <td><?= htmlspecialchars($fullName) ?></td>
+                          <td><?= htmlspecialchars($student['adviser'] ?? 'TBA') ?></td>
+                          <td></td>
+                        </tr>
+                      <?php endforeach; ?>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        <?php endforeach; ?>
+      </section>
+    <?php endif; ?>
+
+  </main>
 </div>
 
+<?php $conn->close(); ?>
+
 <script>
-  function toggleSidebar() {
-    document.getElementById("sidebar").classList.toggle("collapsed");
+  function printRoster(targetId) {
+    var block = document.getElementById(targetId);
+    if (!block) {
+      return;
+    }
+    var printWindow = window.open('', '_blank', 'width=900,height=650');
+    printWindow.document.write('<html><head><title>Class List</title>');
+    printWindow.document.write('<style>body{font-family:\'Segoe UI\',Tahoma,Arial,sans-serif;margin:24px;}h2{margin:0 0 8px;}p{margin:4px 0;}table{width:100%;border-collapse:collapse;margin-top:16px;}th,td{border:1px solid #555;padding:8px;text-align:left;font-size:13px;}th{text-transform:uppercase;font-size:12px;}@media print{body{margin:12mm;}}</style>');
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(block.outerHTML);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   }
 </script>
 

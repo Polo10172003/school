@@ -10,6 +10,13 @@ $student_id = $_GET['student_id'] ?? ($_POST['student_id'] ?? ($_SESSION['studen
 if (!empty($student_id)) {
     $_SESSION['student_id'] = $student_id;
 }
+
+$paymentSuccess = $_SESSION['payment_success'] ?? false;
+$paymentSuccessMessage = '';
+if ($paymentSuccess) {
+    $paymentSuccessMessage = $_SESSION['payment_success_message'] ?? '';
+    unset($_SESSION['payment_success'], $_SESSION['payment_success_message']);
+}
 ?>
 
 <!DOCTYPE html>
@@ -348,7 +355,28 @@ if (!empty($student_id)) {
         </div>
     </div>
 
+    <div class="modal fade" id="paymentSuccessModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 rounded-4">
+                <div class="modal-header border-0 justify-content-center">
+                    <h5 class="modal-title text-success fw-bold"><i class="bi bi-check-circle-fill me-2"></i>Payment Submitted</h5>
+                </div>
+                <div class="modal-body text-center pb-0">
+                    <p class="mb-0 text-muted">
+                        <?= nl2br(htmlspecialchars($paymentSuccessMessage ?: "Thank you for your payment. Your transaction is now being reviewed by our finance department.\nPlease keep your reference number and wait for confirmation via SMS or Email.")); ?>
+                    </p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center pb-4">
+                    <button type="button" class="btn btn-success px-4" id="paymentSuccessConfirm">Go to student portal</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        const paymentSuccess = <?= $paymentSuccess ? 'true' : 'false'; ?>;
+        const paymentSuccessMessage = <?= json_encode($paymentSuccessMessage); ?>;
         const methodCards = document.querySelectorAll('.method-card');
         const paymentTypeInput = document.getElementById('payment_type');
         const gcashInfo = document.getElementById('gcashInfo');
@@ -398,6 +426,32 @@ if (!empty($student_id)) {
 
         function goBackOnce() {
             window.history.back();
+        }
+
+        if (paymentSuccess) {
+            const redirectToPortal = () => {
+                window.location.href = 'student_portal.php';
+            };
+
+            const modalElement = document.getElementById('paymentSuccessModal');
+            if (modalElement && typeof bootstrap !== 'undefined') {
+                const successModal = new bootstrap.Modal(modalElement, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+
+                const confirmBtn = document.getElementById('paymentSuccessConfirm');
+                if (confirmBtn) {
+                    confirmBtn.addEventListener('click', () => successModal.hide());
+                }
+
+                modalElement.addEventListener('hidden.bs.modal', redirectToPortal);
+                successModal.show();
+                setTimeout(redirectToPortal, 6000);
+            } else {
+                alert(paymentSuccessMessage || 'Thank you for your payment. Your transaction is now being reviewed by our finance department. Please keep your reference number and wait for confirmation via SMS or Email.');
+                redirectToPortal();
+            }
         }
     </script>
 </body>

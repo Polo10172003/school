@@ -964,46 +964,107 @@ unset($finance_view_ref);
 </main>
 
 <script>
-    document.addEventListener('DOMContentLoacded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
         const changePasswordBtn = document.getElementById('portalChangePassword');
+        const changePasswordModalEl = document.getElementById('changePasswordModal');
+        const changePasswordForm = document.getElementById('changePasswordForm');
+        const changePasswordAlert = document.getElementById('changePasswordAlert');
         const inboxToggle = document.getElementById('studentInboxToggle');
         const inboxMenu = document.getElementById('studentInboxMenu');
         const inboxCountEl = document.getElementById('studentInboxCount');
         let inboxLoaded = false;
+        let changePasswordModal = null;
 
-        if (changePasswordBtn) {
-            changePasswordBtn.addEventListener('click', async function () {
-                const originalText = changePasswordBtn.textContent;
-                changePasswordBtn.disabled = true;
-                changePasswordBtn.textContent = 'Sending…';
+        if (changePasswordModalEl && typeof bootstrap !== 'undefined') {
+            changePasswordModal = new bootstrap.Modal(changePasswordModalEl);
+        }
+
+        function showChangePasswordAlert(message, type) {
+            if (!changePasswordAlert) {
+                return;
+            }
+            changePasswordAlert.textContent = message;
+            changePasswordAlert.className = 'alert alert-' + type;
+            changePasswordAlert.style.display = 'block';
+        }
+
+        function clearChangePasswordAlert() {
+            if (changePasswordAlert) {
+                changePasswordAlert.textContent = '';
+                changePasswordAlert.style.display = 'none';
+            }
+        }
+
+        if (changePasswordBtn && changePasswordModal) {
+            changePasswordBtn.addEventListener('click', function () {
+                clearChangePasswordAlert();
+                changePasswordForm.reset();
+                changePasswordModal.show();
+            });
+        }
+
+        if (changePasswordForm) {
+            changePasswordForm.addEventListener('submit', async function (e) {
+                e.preventDefault();
+                clearChangePasswordAlert();
+
+                const formData = new FormData(changePasswordForm);
+                const currentPassword = formData.get('current_password') || '';
+                const newPassword = formData.get('new_password') || '';
+                const confirmPassword = formData.get('confirm_password') || '';
+
+                if (newPassword !== confirmPassword) {
+                    showChangePasswordAlert('New password and confirmation do not match.', 'danger');
+                    return;
+                }
+                if (newPassword.length < 8) {
+                    showChangePasswordAlert('Password must be at least 8 characters long.', 'danger');
+                    return;
+                }
+
+                const submitBtn = changePasswordForm.querySelector('button[type="submit"]');
+                const originalLabel = submitBtn ? submitBtn.textContent : '';
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Updating…';
+                }
+
                 try {
-                    const response = await fetch('Portal/request_password_reset.php', {
+                    const response = await fetch('Portal/change_password.php', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
-                        body: '{}'
+                        body: JSON.stringify({
+                            current_password: currentPassword,
+                            new_password: newPassword
+                        })
                     });
                     const data = await response.json();
-                    if (data && data.success) {
-                        alert('A confirmation email has been sent. Please check your inbox within the next 2 minutes.');
-                    } else {
-                        alert(data && data.error ? data.error : 'Unable to send reset email right now.');
+
+                    if (!data || !data.success) {
+                        throw new Error(data && data.error ? data.error : 'Unable to update password right now.');
                     }
+
+                    showChangePasswordAlert('Password updated successfully.', 'success');
+                    setTimeout(function () {
+                        if (changePasswordModal) {
+                            changePasswordModal.hide();
+                        }
+                    }, 1500);
                 } catch (error) {
                     console.error(error);
-                    alert('Something went wrong while sending the reset email.');
+                    showChangePasswordAlert(error.message || 'Unable to update password right now.', 'danger');
                 } finally {
-                    changePasswordBtn.disabled = false;
-                    changePasswordBtn.textContent = originalText;
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = originalLabel;
+                    }
                 }
             });
         }
 
         async function loadInbox() {
-            if (inboxLoaded) {
-                return;
-            }
             try {
                 const response = await fetch('Portal/fetch_inbox.php');
                 const data = await response.json();
@@ -1038,24 +1099,54 @@ unset($finance_view_ref);
                 inboxLoaded = true;
             } catch (error) {
                 console.error(error);
-                alert(error.message || 'Cannot load announcements right now.');
+                if (!inboxLoaded) {
+                    alert(error.message || 'Cannot load announcements right now.');
+                }
             }
         }
 
         if (inboxToggle) {
             inboxToggle.addEventListener('click', function () {
-                loadInbox();
+                if (!inboxLoaded) {
+                    loadInbox();
+                }
             });
         }
 
-        // Auto logout if student navigates away or closes tab (disabled intentionally)
-        window.addEventListener('blur', function () {
-             fetch('Portal/logout.php')
-                 .then(function () {
-                     window.location.href = 'Portal/student_login.php';
-                 });
-        // });
+        loadInbox();
     });
 </script>
+
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changePasswordLabel">Change Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="changePasswordAlert" class="alert" style="display:none;"></div>
+                <form id="changePasswordForm">
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label">Current Password</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label">New Password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" minlength="8" required>
+                        <div class="form-text">Must be at least 8 characters.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label">Confirm New Password</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" minlength="8" required>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <button type="submit" class="btn btn-success">Update Password</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
 <?php include '../includes/footer.php'; ?>

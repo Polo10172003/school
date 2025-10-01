@@ -1,0 +1,47 @@
+{
+    "cards": {
+        "programs": "EsrBanner.jpg",
+        "admissions": "Esrlogo.png",
+        "campus": "EsrBanner.jpg"
+    },
+    "events": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "achievements": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "primary_secondary": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "junior_high": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "senior_high": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "paprisa": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    },
+    "board": {
+        "slide1": "Esrlogo.png",
+        "slide2": "EsrBanner.jpg",
+        "slide3": "Esrlogo.png"
+    },
+    "laudes": {
+        "slide1": "EsrBanner.jpg",
+        "slide2": "Esrlogo.png",
+        "slide3": "EsrBanner.jpg"
+    }
+}

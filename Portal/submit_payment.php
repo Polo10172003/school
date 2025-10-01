@@ -32,19 +32,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->execute();
     $result = $stmt->get_result();
 
-    if ($row = $result->fetch_assoc()) {
-        $student_id = $row['id'];
-        $firstname  = $row['firstname'];
-        $lastname   = $row['lastname'];
-        $student_number = $row['student_number'];
-        $grade_level   = $row['year'] ?? null;
+if ($row = $result->fetch_assoc()) {
+    $student_id = $row['id'];
+    $firstname  = $row['firstname'];
+    $lastname   = $row['lastname'];
+    $student_number = $row['student_number'];
+    $grade_level   = $row['year'] ?? null;
     } else {
         die("Student not found.");
     }
     $stmt->close();
 
     // ✅ STEP 2: Handle screenshot upload
-    if (isset($_FILES["payment_screenshot"]) && $_FILES["payment_screenshot"]["error"] === UPLOAD_ERR_OK) {
+if (isset($_FILES["payment_screenshot"]) && $_FILES["payment_screenshot"]["error"] === UPLOAD_ERR_OK) {
         $targetDir = __DIR__ . "/../payment_uploads/";   // filesystem path
 if (!is_dir($targetDir)) {
     mkdir($targetDir, 0755, true);
@@ -57,7 +57,12 @@ $targetFilePath = $targetDir . $fileName;
 if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePath)) {
     $webPath = "/Enrollment/payment_uploads/" . $fileName;  // ✅ web accessible path
     $payment_date = date("Y-m-d");
-    $payment_type = "Online";   // ✅ put it here
+    $selectedMethod = $_POST['payment_type'] ?? 'online';
+    $methodLabels = [
+        'gcash' => 'Online - GCash',
+        'bank'  => 'Online - Bank Transfer',
+    ];
+    $payment_type = $methodLabels[$selectedMethod] ?? ucfirst($selectedMethod);
 
     $sql = "INSERT INTO student_payments 
             (student_id, grade_level, school_year, firstname, lastname, payment_type, reference_number, amount, screenshot_path, payment_status, payment_date) 
@@ -81,7 +86,9 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
     );
 
             if ($stmt->execute()) {
-                header("Location: payment_success.php");
+                $_SESSION['payment_success'] = true;
+                $_SESSION['payment_success_message'] = "Thank you for your payment. Your transaction is now being reviewed by our finance department.\nPlease keep your reference number and wait for confirmation via SMS or Email.";
+                header("Location: choose_payment.php");
                 exit();
             } else {
                 echo "Database error: " . $stmt->error;
