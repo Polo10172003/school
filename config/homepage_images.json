@@ -5,9 +5,12 @@
         "campus": "EsrBanner.jpg"
     },
     "events": {
-        "slide1": "EsrBanner.jpg",
-        "slide2": "Esrlogo.png",
-        "slide3": "EsrBanner.jpg"
+        "slide1": "assets/homepage/event1tlga_1759327928_events_slide1.png",
+        "slide2": "assets/homepage/event2_1759327928_events_slide2.png",
+        "slide3": "assets/homepage/event1_1759327928_events_slide3.png",
+        "slide4": "assets/homepage/event3_1759327928_events_slide4.png",
+        "slide5": "assets/homepage/event4_1759327928_events_slide5.png",
+        "slide6": "assets/homepage/event5_1759327928_events_slide6.png"
     },
     "achievements": {
         "slide1": "EsrBanner.jpg",

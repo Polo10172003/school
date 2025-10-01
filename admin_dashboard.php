@@ -20,6 +20,7 @@ $scheduleDaysOfWeek = ['Monday','Tuesday','Wednesday','Thursday','Friday','Satur
 $homepageSections = [
   'cards' => [
     'label' => 'Feature Cards',
+    'type'  => 'static',
     'items' => [
       'programs'   => 'Programs Card',
       'admissions' => 'Admissions Card',
@@ -28,69 +29,100 @@ $homepageSections = [
   ],
   'events' => [
     'label' => 'School Events Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'achievements' => [
     'label' => 'Achievements Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'primary_secondary' => [
     'label' => 'Primary & Secondary Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'junior_high' => [
     'label' => 'Junior High Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'senior_high' => [
     'label' => 'Senior High Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'paprisa' => [
     'label' => 'PAPRISA Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'board' => [
     'label' => 'Board Passers Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
   'laudes' => [
     'label' => 'Laudes Carousel',
-    'items' => [
-      'slide1' => 'Slide 1',
-      'slide2' => 'Slide 2',
-      'slide3' => 'Slide 3',
-    ],
+    'type'  => 'carousel',
+    'item_label' => 'Slide',
   ],
 ];
+
+function homepage_next_slide_key(array $slides): string
+{
+  $maxIndex = 0;
+  foreach (array_keys($slides) as $key) {
+    if (preg_match('/^slide(\d+)$/', (string) $key, $matches)) {
+      $index = (int) $matches[1];
+      if ($index > $maxIndex) {
+        $maxIndex = $index;
+      }
+    }
+  }
+
+  return 'slide' . ($maxIndex + 1);
+}
+
+function homepage_process_upload(array $fileInfo, string $sectionKey, string $itemKey, string $uploadDir, array $allowedExtensions, int $timestamp, array &$images, string &$homeImageError): void
+{
+  if ($homeImageError !== '') {
+    return;
+  }
+
+  $error = $fileInfo['error'] ?? UPLOAD_ERR_NO_FILE;
+  if ($error !== UPLOAD_ERR_OK) {
+    return;
+  }
+
+  $originalName = $fileInfo['name'] ?? '';
+  $tmpPath      = $fileInfo['tmp_name'] ?? '';
+  if ($originalName === '' || $tmpPath === '') {
+    return;
+  }
+
+  $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+  if (!in_array($extension, $allowedExtensions, true)) {
+    $homeImageError = 'Invalid file type uploaded. Allowed: jpg, jpeg, png, gif, webp.';
+    return;
+  }
+
+  $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($originalName, PATHINFO_FILENAME));
+  if ($safeBase === '') {
+    $safeBase = 'image';
+  }
+
+  $newFilename = $safeBase . '_' . $timestamp . '_' . $sectionKey . '_' . $itemKey . '.' . $extension;
+  $destination = $uploadDir . $newFilename;
+
+  if (!move_uploaded_file($tmpPath, $destination)) {
+    $homeImageError = 'Failed to move uploaded file.';
+    return;
+  }
+
+  $relativePath = 'assets/homepage/' . $newFilename;
+  homepage_images_set($images, [$sectionKey, $itemKey], $relativePath);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_form'])) {
   $gradeLevel = trim((string) ($_POST['schedule_grade'] ?? ''));
@@ -186,34 +218,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['homepage_images_form'
     $timestamp = time();
 
     foreach ($homepageSections as $sectionKey => $sectionData) {
-      foreach ($sectionData['items'] as $itemKey => $_label) {
-        $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
-        if (!isset($_FILES[$fieldName]) || $_FILES[$fieldName]['error'] !== UPLOAD_ERR_OK) {
+      if ($homeImageError !== '') {
+        break;
+      }
+
+      $sectionType = $sectionData['type'] ?? 'static';
+
+      if ($sectionType === 'static') {
+        foreach ($sectionData['items'] as $itemKey => $_label) {
+          if (!isset($_FILES['homeimg_' . $sectionKey . '_' . $itemKey])) {
+            continue;
+          }
+          homepage_process_upload(
+            $_FILES['homeimg_' . $sectionKey . '_' . $itemKey],
+            $sectionKey,
+            $itemKey,
+            $uploadDir,
+            $allowedExtensions,
+            $timestamp,
+            $images,
+            $homeImageError
+          );
+          if ($homeImageError !== '') {
+            break;
+          }
+        }
+        continue;
+      }
+
+      if (!isset($images[$sectionKey]) || !is_array($images[$sectionKey])) {
+        $images[$sectionKey] = [];
+      }
+
+      $deleteField = 'homeimg_' . $sectionKey . '_delete';
+      if (isset($_POST[$deleteField]) && is_array($_POST[$deleteField])) {
+        foreach ($_POST[$deleteField] as $deleteKey) {
+          $deleteKey = (string) $deleteKey;
+          if (isset($images[$sectionKey][$deleteKey])) {
+            unset($images[$sectionKey][$deleteKey]);
+          }
+        }
+      }
+
+      foreach (array_keys($images[$sectionKey]) as $itemKey) {
+        if (!isset($_FILES['homeimg_' . $sectionKey . '_' . $itemKey])) {
           continue;
         }
-
-        $originalName = $_FILES[$fieldName]['name'];
-        $tmpPath = $_FILES[$fieldName]['tmp_name'];
-        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        if (!in_array($extension, $allowedExtensions, true)) {
-          $homeImageError = 'Invalid file type uploaded. Allowed: jpg, jpeg, png, gif, webp.';
-          break 2;
+        homepage_process_upload(
+          $_FILES['homeimg_' . $sectionKey . '_' . $itemKey],
+          $sectionKey,
+          $itemKey,
+          $uploadDir,
+          $allowedExtensions,
+          $timestamp,
+          $images,
+          $homeImageError
+        );
+        if ($homeImageError !== '') {
+          break;
         }
+      }
 
-        $safeBase = preg_replace('/[^a-zA-Z0-9_-]/', '', pathinfo($originalName, PATHINFO_FILENAME));
-        if ($safeBase === '') {
-          $safeBase = 'image';
+      if ($homeImageError !== '') {
+        break;
+      }
+
+      $newField = 'homeimg_' . $sectionKey . '_new';
+      if (isset($_FILES[$newField]) && is_array($_FILES[$newField]['error'])) {
+        $fileCount = count($_FILES[$newField]['error']);
+        for ($i = 0; $i < $fileCount; $i++) {
+          if ($homeImageError !== '') {
+            break;
+          }
+          if ($_FILES[$newField]['error'][$i] !== UPLOAD_ERR_OK) {
+            continue;
+          }
+
+          $nextKey = homepage_next_slide_key($images[$sectionKey]);
+          $fileInfo = [
+            'name'     => $_FILES[$newField]['name'][$i] ?? '',
+            'tmp_name' => $_FILES[$newField]['tmp_name'][$i] ?? '',
+            'error'    => $_FILES[$newField]['error'][$i],
+          ];
+
+          homepage_process_upload(
+            $fileInfo,
+            $sectionKey,
+            $nextKey,
+            $uploadDir,
+            $allowedExtensions,
+            $timestamp,
+            $images,
+            $homeImageError
+          );
         }
-        $newFilename = $safeBase . '_' . $timestamp . '_' . $sectionKey . '_' . $itemKey . '.' . $extension;
-        $destination = $uploadDir . $newFilename;
-
-        if (!move_uploaded_file($tmpPath, $destination)) {
-          $homeImageError = 'Failed to move uploaded file.';
-          break 2;
-        }
-
-        $relativePath = 'assets/homepage/' . $newFilename;
-        homepage_images_set($images, [$sectionKey, $itemKey], $relativePath);
       }
     }
 
@@ -654,24 +752,61 @@ unset($sections);
       <input type="hidden" name="homepage_images_form" value="1">
       <?php foreach ($homepageSections as $sectionKey => $sectionData):
         $sectionLabel = $sectionData['label'];
+        $sectionType  = $sectionData['type'] ?? 'static';
+        $isCarousel   = $sectionType === 'carousel';
       ?>
         <details style="background:#fff; border:1px solid #d4dce1; border-radius:10px; padding:16px;">
           <summary style="cursor:pointer; font-weight:700; color:#145A32; margin-bottom:12px;"><?= htmlspecialchars($sectionLabel) ?></summary>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
-            <?php foreach ($sectionData['items'] as $itemKey => $itemLabel):
-              $currentImage = homepage_images_get($homepageImages, [$sectionKey, $itemKey]);
-              $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
-            ?>
-              <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc;">
-                <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($itemLabel) ?></div>
-                <div style="margin-bottom:10px;">
-                  <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($itemLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+            <?php if ($isCarousel): ?>
+              <?php
+                $slides = isset($homepageImages[$sectionKey]) && is_array($homepageImages[$sectionKey])
+                  ? $homepageImages[$sectionKey]
+                  : [];
+                $itemLabelPrefix = $sectionData['item_label'] ?? 'Slide';
+                $slideNumber = 1;
+              ?>
+              <?php foreach ($slides as $itemKey => $currentImage):
+                $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
+                $displayLabel = $itemLabelPrefix . ' ' . $slideNumber;
+                $slideNumber++;
+              ?>
+                <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc; position:relative;">
+                  <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($displayLabel) ?></div>
+                  <div style="margin-bottom:10px;">
+                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($displayLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+                  </div>
+                  <label style="display:block; font-weight:500; margin-bottom:6px;">Replace image</label>
+                  <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
+                  <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
+                  <label style="display:flex; gap:6px; align-items:center; font-size:13px; margin-top:8px; color:#5d6d6f;">
+                    <input type="checkbox" name="homeimg_<?= htmlspecialchars($sectionKey) ?>_delete[]" value="<?= htmlspecialchars($itemKey) ?>">
+                    Remove this slide
+                  </label>
                 </div>
-                <label style="display:block; font-weight:500; margin-bottom:6px;">Upload new image</label>
-                <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
-                <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
+              <?php endforeach; ?>
+              <div style="border:1px dashed #b8c6cc; border-radius:10px; padding:12px; background:#fdfefe; display:flex; flex-direction:column; justify-content:center; gap:8px;">
+                <div style="font-weight:600; color:#145A32;">Add new slides</div>
+                <p style="font-size:12px; color:#5d6d6f; margin:0;">Upload one or more images to append to this carousel.</p>
+                <input type="file" name="homeimg_<?= htmlspecialchars($sectionKey) ?>_new[]" accept="image/*" multiple>
+                <p style="font-size:12px; color:#5d6d6f; margin:0;">Tip: hold Ctrl/Cmd to select multiple files.</p>
               </div>
-            <?php endforeach; ?>
+            <?php else: ?>
+              <?php foreach ($sectionData['items'] as $itemKey => $itemLabel):
+                $currentImage = homepage_images_get($homepageImages, [$sectionKey, $itemKey]);
+                $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
+              ?>
+                <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc;">
+                  <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($itemLabel) ?></div>
+                  <div style="margin-bottom:10px;">
+                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($itemLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+                  </div>
+                  <label style="display:block; font-weight:500; margin-bottom:6px;">Upload new image</label>
+                  <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
+                  <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
+                </div>
+              <?php endforeach; ?>
+            <?php endif; ?>
           </div>
         </details>
       <?php endforeach; ?>

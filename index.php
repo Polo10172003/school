@@ -5,6 +5,97 @@ $page_title = 'Escuela de Sto. Rosario - Home';
   include 'includes/header.php';
   require_once __DIR__ . '/includes/homepage_images.php';
   $homepageImages = homepage_images_load();
+
+  function render_homepage_carousel(
+    string $id,
+    array $slides,
+    array $captions = [],
+    string $imageClass = 'd-block w-100',
+    string $imageStyle = '',
+    string $altPrefix = 'Slide'
+  ): void {
+    $slides = is_array($slides) ? array_filter($slides, static function ($path) {
+      return is_string($path) && $path !== '';
+    }) : [];
+    if (empty($slides)) {
+      echo '<p class="text-muted text-center mb-0">No images configured yet.</p>';
+      return;
+    }
+
+    ?>
+    <div id="<?= htmlspecialchars($id) ?>" class="carousel carousel-dark slide" data-bs-ride="carousel">
+      <div class="carousel-indicators">
+        <?php $i = 0; foreach ($slides as $_key => $_path): ?>
+          <button type="button" data-bs-target="#<?= htmlspecialchars($id) ?>" data-bs-slide-to="<?= $i ?>" <?= $i === 0 ? 'class="active" aria-current="true"' : '' ?> aria-label="Slide <?= $i + 1 ?>"></button>
+        <?php $i++; endforeach; ?>
+      </div>
+      <div class="carousel-inner">
+        <?php $i = 0; foreach ($slides as $_path): ?>
+          <div class="carousel-item <?= $i === 0 ? 'active' : '' ?>" data-bs-interval="5000">
+            <img src="<?= htmlspecialchars($_path) ?>"<?php if ($imageClass !== ''): ?> class="<?= htmlspecialchars($imageClass) ?>"<?php endif; ?> alt="<?= htmlspecialchars($altPrefix . ' ' . ($i + 1)) ?>"<?php if ($imageStyle !== ''): ?> style="<?= htmlspecialchars($imageStyle, ENT_QUOTES) ?>"<?php endif; ?>>
+            <?php if (!empty($captions[$i]) && (isset($captions[$i]['title']) || isset($captions[$i]['text']))): ?>
+              <div class="carousel-caption d-none d-md-block">
+                <?php if (!empty($captions[$i]['title'])): ?><h5><?= htmlspecialchars($captions[$i]['title']) ?></h5><?php endif; ?>
+                <?php if (!empty($captions[$i]['text'])): ?><p><?= htmlspecialchars($captions[$i]['text']) ?></p><?php endif; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        <?php $i++; endforeach; ?>
+      </div>
+      <button class="carousel-control-prev" type="button" data-bs-target="#<?= htmlspecialchars($id) ?>" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Previous</span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#<?= htmlspecialchars($id) ?>" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        <span class="visually-hidden">Next</span>
+      </button>
+    </div>
+    <?php
+  }
+
+  $carouselCaptions = [
+    'events' => [
+      ['title' => 'Annual School Fair', 'text' => 'Join us for our exciting annual school fair with games, food, and entertainment.'],
+      ['title' => 'Graduation Ceremony', 'text' => 'Celebrating the achievements of our graduating students.'],
+      ['title' => 'Sports Festival', 'text' => 'Annual sports competition showcasing student athletic talents.'],
+    ],
+    'achievements' => [
+      ['title' => 'Academic Excellence Award', 'text' => 'Recognized for outstanding academic performance and student achievement.'],
+      ['title' => 'Best Private School', 'text' => 'Awarded as one of the top private educational institutions in the region.'],
+      ['title' => 'Innovation in Education', 'text' => 'Recognized for implementing innovative teaching methods and technology.'],
+    ],
+    'primary_secondary' => [
+      ['title' => 'Primary Education (K-6)', 'text' => 'Building strong foundations in reading, writing, and mathematics for young learners.'],
+      ['title' => 'Secondary Education (7-10)', 'text' => 'Comprehensive curriculum preparing students for higher education and life skills.'],
+      ['title' => 'Modern Learning Environment', 'text' => 'State-of-the-art facilities and technology-enhanced classrooms.'],
+    ],
+    'junior_high' => [
+      ['title' => 'Grades 7-8 Program', 'text' => 'Transitioning students with enhanced academic and social development programs.'],
+      ['title' => 'Grades 9-10 Program', 'text' => 'Advanced curriculum preparing students for senior high school specialization.'],
+      ['title' => 'Extracurricular Activities', 'text' => 'Diverse clubs, sports, and leadership opportunities for holistic development.'],
+    ],
+    'senior_high' => [
+      ['title' => 'STEM Track', 'text' => 'Science, Technology, Engineering, and Mathematics specialization for future innovators.'],
+      ['title' => 'ABM Track', 'text' => 'Accountancy, Business, and Management program for future business leaders.'],
+      ['title' => 'HUMSS Track', 'text' => 'Humanities and Social Sciences for students pursuing liberal arts and social studies.'],
+    ],
+    'paprisa' => [
+      ['title' => 'PAPRISA Membership', 'text' => 'Philippine Association of Private Schools and Administrators recognition and membership programs.'],
+      ['title' => 'PAPRISA Awards', 'text' => 'Recognized for excellence in private education administration and management.'],
+      ['title' => 'PAPRISA Programs', 'text' => 'Active participation in PAPRISA educational programs and professional development initiatives.'],
+    ],
+    'board' => [
+      ['title' => 'Professional Licensure', 'text' => 'Celebrating our alumni who have successfully passed various professional board examinations.'],
+      ['title' => 'Top Performers', 'text' => 'Alumni who achieved top rankings in their respective professional licensure examinations.'],
+      ['title' => 'Career Success', 'text' => 'Our graduates excelling in their chosen professions and contributing to society.'],
+    ],
+    'laudes' => [
+      ['title' => 'Academic Honors', 'text' => 'Students who have achieved academic excellence and graduated with honors.'],
+      ['title' => 'Summa Cum Laude', 'text' => 'Highest academic distinction awarded to students with exceptional academic performance.'],
+      ['title' => 'Magna Cum Laude', 'text' => 'High academic distinction for students with outstanding scholastic achievements.'],
+    ],
+  ];
 ?> 
 
 <style>
@@ -289,173 +380,61 @@ $page_title = 'Escuela de Sto. Rosario - Home';
       <!-- School Events Carousel -->
       <div class="mb-5">
         <h4 class="text-center mb-3 fw-bold text-success">School Events</h4>
-        <div id="eventsCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-          <div class="carousel-indicators">
-            <button type="button" data-bs-target="#eventsCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#eventsCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#eventsCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-          </div>
-          <div class="carousel-inner">
-            <div class="carousel-item active" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['events']['slide1']); ?>" class="d-block" alt="School Event 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Annual School Fair</h5>
-                <p>Join us for our exciting annual school fair with games, food, and entertainment.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['events']['slide2']); ?>" class="d-block" alt="School Event 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Graduation Ceremony</h5>
-                <p>Celebrating the achievements of our graduating students.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['events']['slide3']); ?>" class="d-block" alt="School Event 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Sports Festival</h5>
-                <p>Annual sports competition showcasing student athletic talents.</p>
-              </div>
-            </div>
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#eventsCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#eventsCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
+        <?php
+          render_homepage_carousel(
+            'eventsCarousel',
+            $homepageImages['events'] ?? [],
+            $carouselCaptions['events'] ?? [],
+            'd-block',
+            'height: 400px; object-fit: cover; width: 70%; margin: 0 auto;',
+            'School Event'
+          );
+        ?>
       </div>
 
       <!-- School Achievements Carousel -->
       <div class="mb-5">
         <h4 class="text-center mb-3 fw-bold text-success">School Achievements</h4>
-        <div id="achievementsCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-          <div class="carousel-indicators">
-            <button type="button" data-bs-target="#achievementsCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#achievementsCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#achievementsCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-          </div>
-          <div class="carousel-inner">
-            <div class="carousel-item active" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide1']); ?>" class="d-block" alt="Achievement 1" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Academic Excellence Award</h5>
-                <p>Recognized for outstanding academic performance and student achievement.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide2']); ?>" class="d-block" alt="Achievement 2" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Best Private School</h5>
-                <p>Awarded as one of the top private educational institutions in the region.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['achievements']['slide3']); ?>" class="d-block" alt="Achievement 3" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Innovation in Education</h5>
-                <p>Recognized for implementing innovative teaching methods and technology.</p>
-              </div>
-            </div>
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#achievementsCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#achievementsCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
+        <?php
+          render_homepage_carousel(
+            'achievementsCarousel',
+            $homepageImages['achievements'] ?? [],
+            $carouselCaptions['achievements'] ?? [],
+            'd-block',
+            'height: 400px; object-fit: cover; width: 70%; margin: 0 auto;',
+            'Achievement'
+          );
+        ?>
       </div>
 
       <!-- Primary & Secondary Education Carousel -->
       <div class="mb-5">
         <h4 class="text-center mb-3 fw-bold text-success">Primary & Secondary Education</h4>
-        <div id="primarySecondaryCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-          <div class="carousel-indicators">
-            <button type="button" data-bs-target="#primarySecondaryCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#primarySecondaryCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#primarySecondaryCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-          </div>
-          <div class="carousel-inner">
-            <div class="carousel-item active" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide1']); ?>" class="d-block" alt="Primary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Primary Education (K-6)</h5>
-                <p>Building strong foundations in reading, writing, and mathematics for young learners.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide2']); ?>" class="d-block" alt="Secondary Education" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Secondary Education (7-10)</h5>
-                <p>Comprehensive curriculum preparing students for higher education and life skills.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['primary_secondary']['slide3']); ?>" class="d-block" alt="Learning Environment" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Modern Learning Environment</h5>
-                <p>State-of-the-art facilities and technology-enhanced classrooms.</p>
-              </div>
-            </div>
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#primarySecondaryCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#primarySecondaryCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
+        <?php
+          render_homepage_carousel(
+            'primarySecondaryCarousel',
+            $homepageImages['primary_secondary'] ?? [],
+            $carouselCaptions['primary_secondary'] ?? [],
+            'd-block',
+            'height: 400px; object-fit: cover; width: 70%; margin: 0 auto;',
+            'Primary & Secondary'
+          );
+        ?>
       </div>
 
       <!-- Junior High School Carousel -->
       <div class="mb-5">
         <h4 class="text-center mb-3 fw-bold text-success">Junior High School</h4>
-        <div id="juniorHighCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-          <div class="carousel-indicators">
-            <button type="button" data-bs-target="#juniorHighCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#juniorHighCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#juniorHighCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-          </div>
-          <div class="carousel-inner">
-            <div class="carousel-item active" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide1']); ?>" class="d-block" alt="JHS Grade 7-8" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Grades 7-8 Program</h5>
-                <p>Transitioning students with enhanced academic and social development programs.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide2']); ?>" class="d-block" alt="JHS Grade 9-10" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Grades 9-10 Program</h5>
-                <p>Advanced curriculum preparing students for senior high school specialization.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['junior_high']['slide3']); ?>" class="d-block" alt="JHS Activities" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>Extracurricular Activities</h5>
-                <p>Diverse clubs, sports, and leadership opportunities for holistic development.</p>
-              </div>
-            </div>
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#juniorHighCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#juniorHighCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
+        <?php
+          render_homepage_carousel(
+            'juniorHighCarousel',
+            $homepageImages['junior_high'] ?? [],
+            $carouselCaptions['junior_high'] ?? [],
+            'd-block',
+            'height: 400px; object-fit: cover; width: 70%; margin: 0 auto;',
+            'Junior High Highlight'
+          );
+        ?>
       </div>
 
       <!-- Senior High School Carousel -->
@@ -463,44 +442,16 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         <h4 class="text-center mb-3 fw-bold text-success">Senior High School</h4>
         <div class="row">
         
-        <div id="seniorHighCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-          <div class="carousel-indicators">
-            <button type="button" data-bs-target="#seniorHighCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-            <button type="button" data-bs-target="#seniorHighCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-            <button type="button" data-bs-target="#seniorHighCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-          </div>
-          <div class="carousel-inner">
-            <div class="carousel-item active" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide1']); ?>" class="d-block" alt="STEM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>STEM Track</h5>
-                <p>Science, Technology, Engineering, and Mathematics specialization for future innovators.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide2']); ?>" class="d-block" alt="ABM Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>ABM Track</h5>
-                <p>Accountancy, Business, and Management program for future business leaders.</p>
-              </div>
-            </div>
-            <div class="carousel-item" data-bs-interval="5000">
-              <img src="<?= htmlspecialchars($homepageImages['senior_high']['slide3']); ?>" class="d-block" alt="HUMSS Track" style="height: 400px; object-fit: cover; width: 70%; margin: 0 auto;">
-              <div class="carousel-caption d-none d-md-block">
-                <h5>HUMSS Track</h5>
-                <p>Humanities and Social Sciences for students pursuing liberal arts and social studies.</p>
-              </div>
-            </div>
-          </div>
-          <button class="carousel-control-prev" type="button" data-bs-target="#seniorHighCarousel" data-bs-slide="prev">
-            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Previous</span>
-          </button>
-          <button class="carousel-control-next" type="button" data-bs-target="#seniorHighCarousel" data-bs-slide="next">
-            <span class="carousel-control-next-icon" aria-hidden="true"></span>
-            <span class="visually-hidden">Next</span>
-          </button>
-        </div>
+        <?php
+          render_homepage_carousel(
+            'seniorHighCarousel',
+            $homepageImages['senior_high'] ?? [],
+            $carouselCaptions['senior_high'] ?? [],
+            'd-block',
+            'height: 400px; object-fit: cover; width: 70%; margin: 0 auto;',
+            'Senior High Track'
+          );
+        ?>
       </div>
     </div>
 
@@ -512,130 +463,46 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         <!-- Column 1: PAPRISA Carousel -->
         <div class="col-md-4 mb-4">
           <h4 class="text-center mb-3 fw-bold text-success">PAPRISA</h4>
-          <div id="paprisaCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-            <div class="carousel-indicators">
-              <button type="button" data-bs-target="#paprisaCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-              <button type="button" data-bs-target="#paprisaCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-              <button type="button" data-bs-target="#paprisaCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-            </div>
-            <div class="carousel-inner">
-              <div class="carousel-item active" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide1']); ?>" class="d-block w-100" alt="PAPRISA Membership" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>PAPRISA Membership</h5>
-                  <p>Philippine Association of Private Schools and Administrators recognition and membership programs.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide2']); ?>" class="d-block w-100" alt="PAPRISA Awards" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>PAPRISA Awards</h5>
-                  <p>Recognized for excellence in private education administration and management.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['paprisa']['slide3']); ?>" class="d-block w-100" alt="PAPRISA Programs" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>PAPRISA Programs</h5>
-                  <p>Active participation in PAPRISA educational programs and professional development initiatives.</p>
-                </div>
-              </div>
-            </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#paprisaCarousel" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#paprisaCarousel" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Next</span>
-            </button>
-          </div>
+          <?php
+            render_homepage_carousel(
+              'paprisaCarousel',
+              $homepageImages['paprisa'] ?? [],
+              $carouselCaptions['paprisa'] ?? [],
+              'd-block w-100',
+              'height: 300px; object-fit: cover;',
+              'PAPRISA Highlight'
+            );
+          ?>
         </div>
 
         <!-- Column 2: Board Exam Passers Carousel -->
         <div class="col-md-4 mb-4">
           <h4 class="text-center mb-3 fw-bold text-success">Board Exam Passers</h4>
-          <div id="boardExamCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-            <div class="carousel-indicators">
-              <button type="button" data-bs-target="#boardExamCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-              <button type="button" data-bs-target="#boardExamCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-              <button type="button" data-bs-target="#boardExamCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-            </div>
-            <div class="carousel-inner">
-              <div class="carousel-item active" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['board']['slide1']); ?>" class="d-block w-100" alt="Licensure Exams" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Professional Licensure</h5>
-                  <p>Celebrating our alumni who have successfully passed various professional board examinations.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['board']['slide2']); ?>" class="d-block w-100" alt="Top Performers" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Top Performers</h5>
-                  <p>Alumni who achieved top rankings in their respective professional licensure examinations.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['board']['slide3']); ?>" class="d-block w-100" alt="Career Success" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Career Success</h5>
-                  <p>Our graduates excelling in their chosen professions and contributing to society.</p>
-                </div>
-              </div>
-            </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#boardExamCarousel" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#boardExamCarousel" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Next</span>
-            </button>
-          </div>
+          <?php
+            render_homepage_carousel(
+              'boardExamCarousel',
+              $homepageImages['board'] ?? [],
+              $carouselCaptions['board'] ?? [],
+              'd-block w-100',
+              'height: 300px; object-fit: cover;',
+              'Board Exam Highlight'
+            );
+          ?>
         </div>
 
         <!-- Column 3: Laudes Carousel -->
         <div class="col-md-4 mb-4">
           <h4 class="text-center mb-3 fw-bold text-success">Laudes</h4>
-          <div id="laudesCarousel" class="carousel carousel-dark slide" data-bs-ride="carousel">
-            <div class="carousel-indicators">
-              <button type="button" data-bs-target="#laudesCarousel" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-              <button type="button" data-bs-target="#laudesCarousel" data-bs-slide-to="1" aria-label="Slide 2"></button>
-              <button type="button" data-bs-target="#laudesCarousel" data-bs-slide-to="2" aria-label="Slide 3"></button>
-            </div>
-            <div class="carousel-inner">
-              <div class="carousel-item active" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide1']); ?>" class="d-block w-100" alt="Academic Honors" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Academic Honors</h5>
-                  <p>Students who have achieved academic excellence and graduated with honors.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide2']); ?>" class="d-block w-100" alt="Summa Cum Laude" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Summa Cum Laude</h5>
-                  <p>Highest academic distinction awarded to students with exceptional academic performance.</p>
-                </div>
-              </div>
-              <div class="carousel-item" data-bs-interval="5000">
-                <img src="<?= htmlspecialchars($homepageImages['laudes']['slide3']); ?>" class="d-block w-100" alt="Magna Cum Laude" style="height: 300px; object-fit: cover;">
-                <div class="carousel-caption d-none d-md-block">
-                  <h5>Magna Cum Laude</h5>
-                  <p>High academic distinction for students with outstanding scholastic achievements.</p>
-                </div>
-              </div>
-            </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#laudesCarousel" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#laudesCarousel" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Next</span>
-            </button>
-          </div>
+          <?php
+            render_homepage_carousel(
+              'laudesCarousel',
+              $homepageImages['laudes'] ?? [],
+              $carouselCaptions['laudes'] ?? [],
+              'd-block w-100',
+              'height: 300px; object-fit: cover;',
+              'Laudes Highlight'
+            );
+          ?>
         </div>
       </div>
     </div>
