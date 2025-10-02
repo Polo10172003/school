@@ -6,141 +6,125 @@ session_start();
 
 $data = $_SESSION['registration'] ?? null;
 if (!$data) {
-    die("No registration data found. Please complete the registration form.");
+    die('No registration data found. Please complete the registration form.');
 }
 
-// Validate email
-if (empty($data['emailaddress']) || !filter_var($data['emailaddress'], FILTER_VALIDATE_EMAIL)) {
-    die("Invalid or missing email address.");
+$school_year          = trim($data['school_year'] ?? '');
+$yearlevel            = trim($data['yearlevel'] ?? '');
+$course               = trim($data['course'] ?? '');
+$lastname             = trim($data['lastname'] ?? '');
+$firstname            = trim($data['firstname'] ?? '');
+$middlename           = trim($data['middlename'] ?? '');
+$gender               = trim($data['gender'] ?? '');
+$dob                  = trim($data['dob'] ?? '');
+$religion             = trim($data['religion'] ?? '');
+$emailaddress         = trim($data['emailaddress'] ?? '');
+$telephone            = trim($data['telephone'] ?? '');
+$address              = trim($data['address'] ?? '');
+$last_school_attended = trim($data['last_school_attended'] ?? '');
+$academic_honors      = trim($data['academic_honors'] ?? '');
+$father_name          = trim($data['father_name'] ?? '');
+$father_occupation    = trim($data['father_occupation'] ?? '');
+$mother_name          = trim($data['mother_name'] ?? '');
+$mother_occupation    = trim($data['mother_occupation'] ?? '');
+$guardian_name        = trim($data['guardian_name'] ?? '');
+$guardian_occupation  = trim($data['guardian_occupation'] ?? '');
+
+$required = [
+    'school_year' => $school_year,
+    'yearlevel' => $yearlevel,
+    'lastname' => $lastname,
+    'firstname' => $firstname,
+    'gender' => $gender,
+    'dob' => $dob,
+    'religion' => $religion,
+    'emailaddress' => $emailaddress,
+    'telephone' => $telephone,
+    'address' => $address,
+    'father_name' => $father_name,
+    'mother_name' => $mother_name,
+];
+
+foreach ($required as $label => $value) {
+    if ($value === '') {
+        die("Missing required field: {$label}");
+    }
 }
 
-// 🔹 Student Info
-$lrn         = $data['lrn'] ?? '';
-$lastname    = $data['lastname'] ?? '';
-$firstname   = $data['firstname'] ?? '';
-$middlename  = $data['middlename'] ?? '';
-$suffixname  = $data['suffixname'] ?? '';
-$yearlevel   = $data['yearlevel'] ?? '';
-$course      = $data['course'] ?? '';
-$gender      = $data['gender'] ?? '';
-$status      = $data['status'] ?? '';
-$citizenship = $data['citizenship'] ?? '';
-$dob         = $data['dob'] ?? '';
-$birthplace  = $data['birthplace'] ?? '';
-$religion    = $data['religion'] ?? '';
-$emailaddress= $data['emailaddress'] ?? '';
-$mobnumber   = $data['mobnumber'] ?? '';
-$telnumber   = $data['telnumber'] ?? '';
-
-if (empty($mobnumber)) {
-    die("Mobile number is required."); // ✅ prevents NULL insert
+if (!filter_var($emailaddress, FILTER_VALIDATE_EMAIL)) {
+    die('Invalid or missing email address.');
 }
 
-// 🔹 Current Address
-$streetno = $data['streetno'] ?? '';
-$street   = $data['street'] ?? '';
-$subd     = $data['subd'] ?? '';
-$brgy     = $data['brgy'] ?? '';
-$city     = $data['city'] ?? '';
-$province = $data['province'] ?? '';
-$zipcode  = $data['zipcode'] ?? '';
+if (in_array($yearlevel, ['Grade 11', 'Grade 12'], true) && $course === '') {
+    die('Course/strand is required for senior high school applicants.');
+}
 
-// 🔹 Permanent Address
-$p_streetno = $data['p_streetno'] ?? '';
-$p_street   = $data['p_street'] ?? '';
-$p_subd     = $data['p_subd'] ?? '';
-$p_brgy     = $data['p_brgy'] ?? '';
-$p_city     = $data['p_city'] ?? '';
-$p_province = $data['p_province'] ?? '';
-$p_zipcode  = $data['p_zipcode'] ?? '';
+$student_type = 'New';
+$academic_status = 'Ongoing';
 
-// 🔹 Parents/Guardian Info
-$father_lastname     = $data['father_lastname'] ?? '';
-$father_firstname    = $data['father_firstname'] ?? '';
-$father_middlename   = $data['father_middlename'] ?? '';
-$father_suffixname   = $data['father_suffixname'] ?? '';
-$father_mobnumber    = $data['father_mobnumber'] ?? '';
-$father_emailaddress = $data['father_emailaddress'] ?? '';
-$father_occupation   = $data['father_occupation'] ?? '';
-
-$mother_lastname     = $data['mother_lastname'] ?? '';
-$mother_firstname    = $data['mother_firstname'] ?? '';
-$mother_middlename   = $data['mother_middlename'] ?? '';
-$mother_suffixname   = $data['mother_suffixname'] ?? '';
-$mother_mobnumber    = $data['mother_mobnumber'] ?? '';
-$mother_emailaddress = $data['mother_emailaddress'] ?? '';
-$mother_occupation   = $data['mother_occupation'] ?? '';
-
-$guardian_lastname     = $data['guardian_lastname'] ?? '';
-$guardian_firstname    = $data['guardian_firstname'] ?? '';
-$guardian_middlename   = $data['guardian_middlename'] ?? '';
-$guardian_suffixname   = $data['guardian_suffixname'] ?? '';
-$guardian_mobnumber    = $data['guardian_mobnumber'] ?? '';
-$guardian_emailaddress = $data['guardian_emailaddress'] ?? '';
-$guardian_occupation   = $data['guardian_occupation'] ?? '';
-$guardian_relationship = $data['guardian_relationship'] ?? '';
-
-// 🔹 Step 1: Check if LRN exists (Old student)
-$check = $conn->prepare("SELECT year, academic_status FROM students_registration WHERE lrn = ? ORDER BY id DESC LIMIT 1");
-$check->bind_param("s", $lrn);
-$check->execute();
-$result = $check->get_result();
-
-if ($result->num_rows > 0) {
-    $row     = $result->fetch_assoc();
-    $lastYear= $row['year'];
-    $status  = $row['academic_status'] ?? 'Passed';
-    $yearlevel = (strtolower($status) === 'passed') ? getNextGrade($lastYear) : $lastYear;
+$lookup = $conn->prepare('SELECT year, academic_status FROM students_registration WHERE firstname = ? AND lastname = ? AND dob = ? ORDER BY id DESC LIMIT 1');
+$lookup->bind_param('sss', $firstname, $lastname, $dob);
+$lookup->execute();
+$result = $lookup->get_result();
+if ($result && $result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $lastYear = $row['year'];
+    $lastStatus = strtolower($row['academic_status'] ?? 'ongoing');
     $student_type = 'Old';
-} else {
-    $student_type = 'New';
+    if ($lastStatus === 'passed' || $lastStatus === 'ongoing') {
+        $yearlevel = getNextGrade($lastYear);
+    } else {
+        $yearlevel = $lastYear;
+    }
 }
-$check->close();
+$lookup->close();
 
-$student_number = null;
+if (!in_array($yearlevel, ['Grade 11', 'Grade 12'], true)) {
+    $course = '';
+}
 
-// 🔹 Step 3: Save Registration
-// 🔹 Insert Query (52 columns)
-$sql = "INSERT INTO students_registration 
-    (year, course, student_type, lrn, lastname, firstname, middlename, suffixname,
-     gender, status, citizenship, dob, birthplace, religion,
-     streetno, street, subd, brgy, city, province, zipcode,
-     p_streetno, p_street, p_subd, p_brgy, p_city, p_province, p_zipcode,
-     emailaddress, mobnumber, telnumber,
-     father_lastname, father_firstname, father_middlename, father_suffixname, father_mobnumber, father_emailaddress, father_occupation,
-     mother_lastname, mother_firstname, mother_middlename, mother_suffixname, mother_mobnumber, mother_emailaddress, mother_occupation,
-     guardian_lastname, guardian_firstname, guardian_middlename, guardian_suffixname, guardian_mobnumber, guardian_emailaddress, guardian_occupation, guardian_relationship
-    )
-    VALUES (" . str_repeat("?,", 52) . "?)";
+$sql = 'INSERT INTO students_registration 
+    (school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
 $stmt = $conn->prepare($sql);
-
 if (!$stmt) {
-    die("Prepare failed: " . $conn->error);
+    die('Prepare failed: ' . $conn->error);
 }
 
-// 🔹 Bind 52 variables
-$stmt->bind_param(str_repeat("s", 53),
-    $yearlevel, $course, $student_type, $lrn, $lastname, $firstname, $middlename, $suffixname,
-    $gender, $status, $citizenship, $dob, $birthplace, $religion,
-    $streetno, $street, $subd, $brgy, $city, $province, $zipcode,
-    $p_streetno, $p_street, $p_subd, $p_brgy, $p_city, $p_province, $p_zipcode,
-    $emailaddress, $mobnumber, $telnumber,
-    $father_lastname, $father_firstname, $father_middlename, $father_suffixname, $father_mobnumber, $father_emailaddress, $father_occupation,
-    $mother_lastname, $mother_firstname, $mother_middlename, $mother_suffixname, $mother_mobnumber, $mother_emailaddress, $mother_occupation,
-    $guardian_lastname, $guardian_firstname, $guardian_middlename, $guardian_suffixname, $guardian_mobnumber, $guardian_emailaddress, $guardian_occupation, $guardian_relationship
+$stmt->bind_param(
+    'ssssssssssssssssssssss',
+    $school_year,
+    $yearlevel,
+    $course,
+    $student_type,
+    $lastname,
+    $firstname,
+    $middlename,
+    $gender,
+    $dob,
+    $religion,
+    $emailaddress,
+    $telephone,
+    $address,
+    $last_school_attended,
+    $academic_honors,
+    $father_name,
+    $father_occupation,
+    $mother_name,
+    $mother_occupation,
+    $guardian_name,
+    $guardian_occupation,
+    $academic_status
 );
 
-
-// 🔹 Email Worker
 if ($stmt->execute()) {
     $student_id = $conn->insert_id;
     $stmt->close();
 
-    $php_path = "/Applications/XAMPP/bin/php";
-    $worker   = __DIR__ . "/email_worker.php";
+    $php_path = '/Applications/XAMPP/bin/php';
+    $worker   = __DIR__ . '/email_worker.php';
 
-    // Escape arguments properly
     $cmdParts = [
         escapeshellcmd($php_path),
         escapeshellarg($worker),
@@ -152,28 +136,38 @@ if ($stmt->execute()) {
     ];
     $cmd = implode(' ', $cmdParts);
 
-    // Capture debug output
-    exec($cmd . " 2>&1", $output, $return_var);
-    error_log("CMD: " . $cmd);
-    error_log("OUTPUT: " . print_r($output, true));
-    error_log("RETURN: " . $return_var);
+    exec($cmd . ' 2>&1', $output, $return_var);
+    error_log('CMD: ' . $cmd);
+    error_log('OUTPUT: ' . print_r($output, true));
+    error_log('RETURN: ' . $return_var);
 
     unset($_SESSION['registration']);
-    header("Location: success.php?sn=" . urlencode($student_number));
+    header('Location: success.php');
     exit();
-} else {
-    echo "Error: " . $conn->error;
 }
 
+echo 'Error: ' . $conn->error;
 
 $conn->close();
 
-// 🔹 Helper
-function getNextGrade($current) {
+function getNextGrade($current)
+{
     $levels = [
-        "Pre-Prime 1","Pre-Prime 2","Kindergarten","Grade 1","Grade 2","Grade 3","Grade 4","Grade 5","Grade 6",
-        "Grade 7","Grade 8","Grade 9","Grade 10","Grade 11","Grade 12"
+        'Kindergarten',
+        'Grade 1',
+        'Grade 2',
+        'Grade 3',
+        'Grade 4',
+        'Grade 5',
+        'Grade 6',
+        'Grade 7',
+        'Grade 8',
+        'Grade 9',
+        'Grade 10',
+        'Grade 11',
+        'Grade 12'
     ];
-    $index = array_search($current, $levels);
+
+    $index = array_search($current, $levels, true);
     return ($index !== false && isset($levels[$index + 1])) ? $levels[$index + 1] : $current;
 }
