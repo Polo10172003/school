@@ -45,6 +45,15 @@ function cashier_dashboard_plan_labels(): array
     ];
 }
 
+/**
+ * Normalize payment status checks in one place so dashboards, portals, and emails stay in sync.
+ */
+function cashier_payment_status_is_paid(?string $status): bool
+{
+    $normalized = strtolower(trim((string) $status));
+    return in_array($normalized, ['paid', 'completed', 'approved', 'cleared'], true);
+}
+
 function cashier_dashboard_pricing_labels(): array
 {
     return [
@@ -987,13 +996,39 @@ function cashier_grade_synonyms(string $normalized): array
 
     if ($normalized === 'preprime1') {
         $synonyms[] = 'preprime12';
+        $synonyms[] = 'preprimary1';
+        $synonyms[] = 'preprimary12';
         return array_values(array_unique($synonyms));
     }
     if ($normalized === 'preprime2') {
         $synonyms[] = 'preprime12';
+        $synonyms[] = 'preprimary2';
+        $synonyms[] = 'preprimary12';
         return array_values(array_unique($synonyms));
     }
     if ($normalized === 'preprime12') {
+        $synonyms[] = 'preprime1';
+        $synonyms[] = 'preprime2';
+        $synonyms[] = 'preprimary1';
+        $synonyms[] = 'preprimary2';
+        $synonyms[] = 'preprimary12';
+        return array_values(array_unique($synonyms));
+    }
+
+    if ($normalized === 'preprimary1') {
+        $synonyms[] = 'preprime1';
+        $synonyms[] = 'preprime12';
+        $synonyms[] = 'preprimary12';
+        return array_values(array_unique($synonyms));
+    }
+    if ($normalized === 'preprimary2') {
+        $synonyms[] = 'preprime2';
+        $synonyms[] = 'preprime12';
+        $synonyms[] = 'preprimary12';
+        return array_values(array_unique($synonyms));
+    }
+    if ($normalized === 'preprimary12') {
+        $synonyms[] = 'preprime12';
         $synonyms[] = 'preprime1';
         $synonyms[] = 'preprime2';
         return array_values(array_unique($synonyms));
@@ -1570,7 +1605,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         if (!empty($row['grade_level'])) {
             $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
         }
-        if (strtolower($row['payment_status']) === 'paid') {
+        if (cashier_payment_status_is_paid($row['payment_status'] ?? '')) {
             $paid[] = $row;
             if ($normalizedPaymentGrade !== '') {
                 $paidByGrade[$normalizedPaymentGrade][] = $row;
@@ -1624,11 +1659,26 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         return $total;
     };
 
+    $sumByGrade = static function (array $map, string $gradeKey) use ($sumAmounts): float {
+        if ($gradeKey === '') {
+            return isset($map['']) ? $sumAmounts($map['']) : 0.0;
+        }
+
+        $total = 0.0;
+        foreach (cashier_grade_synonyms($gradeKey) as $synonym) {
+            if (isset($map[$synonym])) {
+                $total += $sumAmounts($map[$synonym]);
+            }
+        }
+
+        return $total;
+    };
+
     $current_grade_key = $grade_key;
     $previous_grade_key = $previous_label ? cashier_normalize_grade_key($previous_label) : null;
 
-    $paid_current_total = isset($paidByGrade[$current_grade_key]) ? $sumAmounts($paidByGrade[$current_grade_key]) : 0.0;
-    $paid_previous_total = ($previous_grade_key && isset($paidByGrade[$previous_grade_key])) ? $sumAmounts($paidByGrade[$previous_grade_key]) : 0.0;
+    $paid_current_total = $current_grade_key !== '' ? $sumByGrade($paidByGrade, $current_grade_key) : $sumAmounts($paidByGrade[''] ?? []);
+    $paid_previous_total = ($previous_grade_key) ? $sumByGrade($paidByGrade, $previous_grade_key) : 0.0;
     $paid_unassigned_total = $sumAmounts($unassignedPaid);
 
     $paid_other_total = 0.0;
@@ -1821,6 +1871,9 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $paid_history_previous = [];
     $paid_history_current = [];
 
+    $current_grade_synonyms = $current_grade_key !== '' ? cashier_grade_synonyms($current_grade_key) : [];
+    $previous_grade_synonyms = $previous_grade_key ? cashier_grade_synonyms($previous_grade_key) : [];
+
     foreach ($paid_chronological as $entry) {
         $amount_remaining = (float) ($entry['amount'] ?? 0);
         if ($amount_remaining <= 0) {
@@ -1833,9 +1886,12 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             $normalizedPaymentGrade = cashier_normalize_grade_key((string) $entry['grade_level']);
         }
 
+        $matchesCurrentGrade = $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $current_grade_synonyms, true);
+        $matchesPreviousGrade = $previous_grade_key && $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $previous_grade_synonyms, true) && !$matchesCurrentGrade;
+
         if (
             $previous_grade_key &&
-            $normalizedPaymentGrade === $previous_grade_key &&
+            $matchesPreviousGrade &&
             $remaining_prev_allocation > 0
         ) {
             $apply_prev = min($amount_remaining, $remaining_prev_allocation);
@@ -1870,7 +1926,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             }
         } elseif (
             $previous_grade_key &&
-            $normalizedPaymentGrade === $current_grade_key &&
+            $matchesCurrentGrade &&
             $remaining_prev_from_current > 0 &&
             $remaining_prev_allocation > 0
         ) {
@@ -1895,12 +1951,12 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         $apply_current = 0.0;
         $applied_to_label = $studentRow['year'];
 
-        if ($normalizedPaymentGrade === $current_grade_key) {
+        if ($matchesCurrentGrade) {
             $apply_current = min($amount_remaining, $remaining_current_allocation);
         } elseif ($normalizedPaymentGrade === '' && $remaining_unassigned_current > 0) {
             $apply_current = min($amount_remaining, $remaining_unassigned_current, $remaining_current_allocation);
             $remaining_unassigned_current -= $apply_current;
-        } elseif ($normalizedPaymentGrade !== '' && $normalizedPaymentGrade !== $previous_grade_key) {
+        } elseif ($normalizedPaymentGrade !== '' && !$matchesPreviousGrade) {
             $applied_to_label = $entry['grade_level'] ?? $studentRow['year'];
             $apply_current = min($amount_remaining, $remaining_current_allocation);
         } elseif ($remaining_current_allocation > 0) {

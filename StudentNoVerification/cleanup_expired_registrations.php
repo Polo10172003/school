@@ -1,6 +1,6 @@
 <?php
 /**
- * Remove pending registration records that have been inactive beyond the grace period.
+ * tatanggaling lahat ng students na hindi nagverify ng email after 14 days
  */
 function cleanupExpiredRegistrations(mysqli $conn, int $expiryDays = 14): void
 {

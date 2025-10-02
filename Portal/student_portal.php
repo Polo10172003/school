@@ -58,6 +58,12 @@ function gradeSynonyms(string $normalized): array
     return cashier_grade_synonyms($normalized);
 }
 
+function portal_payment_status_is_paid(?string $status): bool
+{
+    $normalized = strtolower(trim((string) $status));
+    return in_array($normalized, ['paid', 'completed', 'approved', 'cleared'], true);
+}
+
 foreach (gradeSynonyms($normalized_year) as $gradeKey) {
     foreach ($typeCandidates as $candidateType) {
         $stmt = $conn->prepare($sql);
@@ -122,7 +128,7 @@ while ($row = $result->fetch_assoc()) {
         $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
     }
 
-    if (strtolower((string) $row['payment_status']) === 'paid') {
+    if (portal_payment_status_is_paid($row['payment_status'] ?? '')) {
         $paid[] = $row;
         if ($normalizedPaymentGrade !== '') {
             $paidByGrade[$normalizedPaymentGrade][] = $row;
@@ -165,18 +171,38 @@ $sumAmounts = static function (array $rows): float {
     return $total;
 };
 
-$previous_grade_key = $previous_grade_label ? cashier_normalize_grade_key((string) $previous_grade_label) : null;
+$sumByGrade = static function (array $map, string $gradeKey) use ($sumAmounts): float {
+    if ($gradeKey === '') {
+        return isset($map['']) ? $sumAmounts($map['']) : 0.0;
+    }
 
-$paid_current_total = isset($paidByGrade[$grade_key]) ? $sumAmounts($paidByGrade[$grade_key]) : 0.0;
-$paid_previous_total = ($previous_grade_key && isset($paidByGrade[$previous_grade_key])) ? $sumAmounts($paidByGrade[$previous_grade_key]) : 0.0;
+    $total = 0.0;
+    foreach (cashier_grade_synonyms($gradeKey) as $synonym) {
+        if (isset($map[$synonym])) {
+            $total += $sumAmounts($map[$synonym]);
+        }
+    }
+
+    return $total;
+};
+
+$previous_grade_key = $previous_grade_label ? cashier_normalize_grade_key((string) $previous_grade_label) : null;
+$current_synonyms = $grade_key !== '' ? cashier_grade_synonyms($grade_key) : [];
+$previous_synonyms = $previous_grade_key ? cashier_grade_synonyms($previous_grade_key) : [];
+
+$paid_current_total = $grade_key !== '' ? $sumByGrade($paidByGrade, $grade_key) : $sumAmounts($paidByGrade[''] ?? []);
+$paid_previous_total = ($previous_grade_key) ? $sumByGrade($paidByGrade, $previous_grade_key) : 0.0;
 $paid_unassigned_total = $sumAmounts($unassignedPaid);
 
 $paid_other_total = 0.0;
 foreach ($paidByGrade as $gradeKey => $rows) {
-    if ($gradeKey === $grade_key) {
+    if ($gradeKey === '' && $grade_key === '') {
         continue;
     }
-    if ($previous_grade_key && $gradeKey === $previous_grade_key) {
+    if (in_array($gradeKey, $current_synonyms, true)) {
+        continue;
+    }
+    if ($previous_grade_key && in_array($gradeKey, $previous_synonyms, true)) {
         continue;
     }
     $paid_other_total += $sumAmounts($rows);
@@ -236,9 +262,12 @@ foreach ($paid_chronological as $entry) {
         $normalizedPaymentGrade = cashier_normalize_grade_key((string) $entry['grade_level']);
     }
 
+    $matchesCurrentGrade = $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $current_synonyms, true);
+    $matchesPreviousGrade = $previous_grade_key && $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $previous_synonyms, true) && !$matchesCurrentGrade;
+
     if (
         $previous_grade_key &&
-        $normalizedPaymentGrade === $previous_grade_key &&
+        $matchesPreviousGrade &&
         $remaining_prev_allocation > 0
     ) {
         $apply_prev = min($amount_remaining, $remaining_prev_allocation);
@@ -273,7 +302,7 @@ foreach ($paid_chronological as $entry) {
         }
     } elseif (
         $previous_grade_key &&
-        $normalizedPaymentGrade === $grade_key &&
+        $matchesCurrentGrade &&
         $remaining_prev_from_current > 0 &&
         $remaining_prev_allocation > 0
     ) {
@@ -289,26 +318,6 @@ foreach ($paid_chronological as $entry) {
             $remaining_prev_allocation -= $apply_prev;
             $amount_remaining -= $apply_prev;
         }
-    } elseif (
-        $previous_grade_key &&
-        $normalizedPaymentGrade !== '' &&
-        $normalizedPaymentGrade !== $previous_grade_key &&
-        $normalizedPaymentGrade !== $grade_key &&
-        $remaining_prev_from_other > 0 &&
-        $remaining_prev_allocation > 0
-    ) {
-        $apply_prev = min($amount_remaining, $remaining_prev_from_other, $remaining_prev_allocation);
-        if ($apply_prev > 0) {
-            $record = $entry;
-            $record['applied_amount'] = $apply_prev;
-            $record['source_amount'] = $original_amount;
-            $record['applied_to'] = $previous_grade_label;
-            $record['is_partial'] = $apply_prev < $original_amount;
-            $paid_history_previous[] = $record;
-            $remaining_prev_from_other -= $apply_prev;
-            $remaining_prev_allocation -= $apply_prev;
-            $amount_remaining -= $apply_prev;
-        }
     }
 
     if ($amount_remaining <= 0) {
@@ -318,12 +327,12 @@ foreach ($paid_chronological as $entry) {
     $apply_current = 0.0;
     $applied_to_label = $year;
 
-    if ($normalizedPaymentGrade === $grade_key) {
+    if ($matchesCurrentGrade) {
         $apply_current = min($amount_remaining, $remaining_current_allocation);
     } elseif ($normalizedPaymentGrade === '' && $remaining_unassigned_current > 0) {
         $apply_current = min($amount_remaining, $remaining_unassigned_current, $remaining_current_allocation);
         $remaining_unassigned_current -= $apply_current;
-    } elseif ($normalizedPaymentGrade !== '' && $normalizedPaymentGrade !== $previous_grade_key) {
+    } elseif ($normalizedPaymentGrade !== '' && !$matchesPreviousGrade) {
         $applied_to_label = $entry['grade_level'] ?? $year;
         $apply_current = min($amount_remaining, $remaining_current_allocation);
     } elseif ($remaining_current_allocation > 0) {

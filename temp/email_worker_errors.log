@@ -1,0 +1,1 @@
+[2025-10-02 16:34:05] Email worker error for student_id=67: SMTP Error: Could not connect to SMTP host. Connection failed. stream_socket_enable_crypto(): SSL: Connection reset by peer

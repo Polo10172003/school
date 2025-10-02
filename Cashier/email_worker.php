@@ -47,7 +47,7 @@ $shouldAttachSchedule = false;
 if (empty($schedule_sent_at)) {
     // Build cumulative totals of paid receipts per grade so we can tell when the current grade crosses due-upon-enrollment
     $totalPaidPerGrade = [];
-    $paymentsStmt = $conn->prepare('SELECT amount, grade_level, created_at FROM student_payments WHERE student_id = ? AND LOWER(payment_status) = "paid" ORDER BY created_at ASC');
+    $paymentsStmt = $conn->prepare('SELECT amount, grade_level, created_at FROM student_payments WHERE student_id = ? AND LOWER(payment_status) IN ("paid","completed","approved","cleared") ORDER BY created_at ASC');
     if ($paymentsStmt) {
         $paymentsStmt->bind_param('i', $student_id);
         $paymentsStmt->execute();
@@ -66,8 +66,32 @@ if (empty($schedule_sent_at)) {
         $paymentsStmt->close();
     }
 
-    $currentGradePaidCount = $totalPaidPerGrade[$currentGradeKey]['count'] ?? 0;
-    $currentGradePaidSum   = $totalPaidPerGrade[$currentGradeKey]['sum'] ?? 0.0;
+    $aggregateTotals = static function (array $map, string $gradeKey): array {
+        $totalCount = 0;
+        $totalSum   = 0.0;
+        $keys = [];
+
+        if ($gradeKey !== '') {
+            $keys = array_merge($keys, cashier_grade_synonyms($gradeKey));
+        }
+        $keys[] = $gradeKey;
+        $keys = array_values(array_unique(array_filter($keys, static function ($key) {
+            return $key !== null && $key !== '';
+        })));
+
+        foreach ($keys as $key) {
+            if (isset($map[$key])) {
+                $totalCount += (int) ($map[$key]['count'] ?? 0);
+                $totalSum   += (float) ($map[$key]['sum'] ?? 0);
+            }
+        }
+
+        return ['count' => $totalCount, 'sum' => $totalSum];
+    };
+
+    $currentTotals = $aggregateTotals($totalPaidPerGrade, $currentGradeKey);
+    $currentGradePaidCount = $currentTotals['count'];
+    $currentGradePaidSum   = $currentTotals['sum'];
 
     if ($currentGradePaidCount > 0) {
         $studentTypeNormalized = strtolower(trim((string) $student_type));
@@ -127,19 +151,21 @@ if (empty($schedule_sent_at)) {
         $schoolYear = null;
 
         foreach ($gradeCandidates as $gradeCandidate) {
-            $gradeToken = strtolower(str_replace([' ', '-', '_'], '', $gradeCandidate));
+        $gradeToken = strtolower(str_replace([' ', '-', '_'], '', $gradeCandidate));
 
-            $yearStmt = $conn->prepare("
-                SELECT school_year
-                FROM class_schedules
-                WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                ORDER BY updated_at DESC
-                LIMIT 1
-            ");
-            if (!$yearStmt) {
-                continue;
-            }
-            $yearStmt->bind_param('s', $gradeToken);
+        $yearStmt = $conn->prepare("
+            SELECT school_year
+            FROM class_schedules
+            WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+               OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+            ORDER BY updated_at DESC
+            LIMIT 1
+        ");
+        if (!$yearStmt) {
+            continue;
+        }
+        $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
+        $yearStmt->bind_param('ss', $gradeToken, $gradeTokenAdjusted);
             $yearStmt->execute();
             $yearStmt->bind_result($foundYear);
             if ($yearStmt->fetch()) {
@@ -151,18 +177,21 @@ if (empty($schedule_sent_at)) {
                 continue;
             }
 
-            $scheduleStmt = $conn->prepare("
-                SELECT section, subject, teacher, day_of_week, start_time, end_time, room
-                FROM class_schedules
-                WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                  AND school_year = ?
-                ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time
-            ");
-            if (!$scheduleStmt) {
-                $schoolYear = null;
-                continue;
-            }
-            $scheduleStmt->bind_param('ss', $gradeToken, $schoolYear);
+        $scheduleStmt = $conn->prepare("
+            SELECT section, subject, teacher, day_of_week, start_time, end_time, room
+            FROM class_schedules
+            WHERE (
+                    REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+                 OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+                  )
+              AND school_year = ?
+            ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time
+        ");
+        if (!$scheduleStmt) {
+            $schoolYear = null;
+            continue;
+        }
+        $scheduleStmt->bind_param('sss', $gradeToken, $gradeTokenAdjusted, $schoolYear);
             $scheduleStmt->execute();
             $result = $scheduleStmt->get_result();
             if ($result) {
@@ -296,8 +325,15 @@ $mail->Host = 'smtp.gmail.com';
 $mail->SMTPAuth = true;
 $mail->Username = 'deadpoolvictorio@gmail.com';
 $mail->Password = 'ldcmeapjfuonxypu';
-$mail->SMTPSecure = 'tls';
+$mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
 $mail->Port = 587;
+$mail->SMTPOptions = [
+    'ssl' => [
+        'verify_peer' => false,
+        'verify_peer_name' => false,
+        'allow_self_signed' => true,
+    ],
+];
 
 $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
 $mail->addAddress($email, "$firstname $lastname");

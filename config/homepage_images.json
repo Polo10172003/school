@@ -5,12 +5,15 @@
         "campus": "EsrBanner.jpg"
     },
     "events": {
-        "slide1": "assets/homepage/event1tlga_1759327928_events_slide1.png",
-        "slide2": "assets/homepage/event2_1759327928_events_slide2.png",
-        "slide3": "assets/homepage/event1_1759327928_events_slide3.png",
+        "slide1": "assets/homepage/event1tlga_1759415795_events_slide1.png",
+        "slide2": "assets/homepage/event2_1759415795_events_slide2.png",
+        "slide3": "assets/homepage/event1_1759415795_events_slide3.png",
         "slide4": "assets/homepage/event3_1759327928_events_slide4.png",
         "slide5": "assets/homepage/event4_1759327928_events_slide5.png",
-        "slide6": "assets/homepage/event5_1759327928_events_slide6.png"
+        "slide6": "assets/homepage/event5_1759327928_events_slide6.png",
+        "slide7": "assets/homepage/event3_1759415795_events_slide7.png",
+        "slide8": "assets/homepage/event4_1759415795_events_slide8.png",
+        "slide9": "assets/homepage/event5_1759415795_events_slide9.png"
     },
     "achievements": {
         "slide1": "EsrBanner.jpg",
