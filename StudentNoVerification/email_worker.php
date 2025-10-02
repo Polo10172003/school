@@ -158,6 +158,7 @@ try {
             <li>Parents' Marriage Contract</li>
             <li>Student Baptismal Certificate <em>(if the last two are unavailable, kindly inform the registrar)</em></li>
         </ul>
+        <p><strong>Important:</strong> Early registration records remain active for 14 days. If you are unable to visit the school to submit the requirements and complete the interview within that period, your application will be automatically removed from our system.</p>
         <p>If you have already submitted these documents, you may disregard this reminder.</p>
         <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>
     ";

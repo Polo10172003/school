@@ -2,6 +2,9 @@
 require __DIR__ . '/../vendor/autoload.php';
 include __DIR__ . '/../db_connection.php';
 
+require_once __DIR__ . '/cleanup_expired_registrations.php';
+cleanupExpiredRegistrations($conn);
+
 session_start();
 
 $data = $_SESSION['registration'] ?? null;

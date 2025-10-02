@@ -34,7 +34,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           <div class="carousel-item <?= $i === 0 ? 'active' : '' ?>" data-bs-interval="5000">
             <img src="<?= htmlspecialchars($_path) ?>"<?php if ($imageClass !== ''): ?> class="<?= htmlspecialchars($imageClass) ?>"<?php endif; ?> alt="<?= htmlspecialchars($altPrefix . ' ' . ($i + 1)) ?>"<?php if ($imageStyle !== ''): ?> style="<?= htmlspecialchars($imageStyle, ENT_QUOTES) ?>"<?php endif; ?>>
             <?php if (!empty($captions[$i]) && (isset($captions[$i]['title']) || isset($captions[$i]['text']))): ?>
-              <div class="carousel-caption d-none d-md-block">
+              <div class="carousel-caption caption-overlay d-none d-md-block">
                 <?php if (!empty($captions[$i]['title'])): ?><h5><?= htmlspecialchars($captions[$i]['title']) ?></h5><?php endif; ?>
                 <?php if (!empty($captions[$i]['text'])): ?><p><?= htmlspecialchars($captions[$i]['text']) ?></p><?php endif; ?>
               </div>
@@ -204,6 +204,34 @@ $page_title = 'Escuela de Sto. Rosario - Home';
     transform: translateY(-2px);
     box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
     color: var(--brand-green);
+  }
+
+  .carousel-caption.caption-overlay {
+    background: linear-gradient(135deg, rgba(20, 90, 50, 0.85), rgba(0, 0, 0, 0.75));
+    border-radius: 1.25rem;
+    padding: 1.75rem;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+  }
+
+  .carousel-caption.caption-overlay h5,
+  .carousel-caption.caption-overlay p {
+    color: #fff;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.65);
+  }
+
+  .carousel-caption.caption-overlay h5 {
+    font-size: 1.55rem;
+    font-weight: 700;
+  }
+
+  .carousel-caption.caption-overlay p {
+    font-size: 1.05rem;
+    margin-bottom: 0;
+  }
+
+  .carousel-indicators [data-bs-target] {
+    background-color: rgba(255, 255, 255, 0.9);
   }
 
   .soft-section {
