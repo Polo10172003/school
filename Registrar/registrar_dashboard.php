@@ -31,6 +31,39 @@ include __DIR__ . '/../db_connection.php';
       </div>
     </header>
 
+    <?php
+    $flashMsg = $_GET['msg'] ?? '';
+    $flashText = '';
+    $flashType = 'info';
+    switch ($flashMsg) {
+        case 'student_added_pending_cash':
+            $flashText = 'Student marked for onsite payment. Please coordinate with the cashier to complete enrollment.';
+            $flashType = 'success';
+            break;
+        case 'no_payment_option_selected':
+            $flashText = 'Select a payment option when processing onsite enrollment for returning students.';
+            $flashType = 'warning';
+            break;
+        case 'payment_record_error':
+            $flashText = 'Unable to prepare the onsite payment record. Please retry or contact the administrator.';
+            $flashType = 'danger';
+            break;
+        case 'old_student_not_found':
+            $flashText = 'No record matched that student number. Please double-check and try again.';
+            $flashType = 'danger';
+            break;
+        case 'update_status_required':
+            $flashText = 'Please run Update Student Status for this learner before processing onsite enrollment.';
+            $flashType = 'warning';
+            break;
+    }
+    if ($flashText !== ''): ?>
+        <div class="alert alert-<?= htmlspecialchars($flashType) ?> alert-dismissible fade show" role="alert">
+            <?= htmlspecialchars($flashText) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
+
 
 <?php
 $grade_filter = isset($_GET['grade_filter']) ? $_GET['grade_filter'] : '';

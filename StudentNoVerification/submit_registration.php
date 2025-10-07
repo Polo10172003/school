@@ -63,66 +63,118 @@ if (in_array($yearlevel, ['Grade 11', 'Grade 12'], true) && $course === '') {
 
 $student_type = 'New';
 $academic_status = 'Ongoing';
+$onsitePaymentType = $_SESSION['onsite_payment_type'] ?? '';
+$returningSourceId = isset($_SESSION['returning_source_id']) ? (int) $_SESSION['returning_source_id'] : null;
 
-$lookup = $conn->prepare('SELECT year, academic_status FROM students_registration WHERE firstname = ? AND lastname = ? AND dob = ? ORDER BY id DESC LIMIT 1');
-$lookup->bind_param('sss', $firstname, $lastname, $dob);
-$lookup->execute();
-$result = $lookup->get_result();
-if ($result && $result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $lastYear = $row['year'];
-    $lastStatus = strtolower($row['academic_status'] ?? 'ongoing');
+if ($returningSourceId) {
     $student_type = 'Old';
-    if ($lastStatus === 'passed' || $lastStatus === 'ongoing') {
-        $yearlevel = getNextGrade($lastYear);
-    } else {
-        $yearlevel = $lastYear;
+} else {
+    $lookup = $conn->prepare('SELECT year, academic_status FROM students_registration WHERE firstname = ? AND lastname = ? AND dob = ? ORDER BY id DESC LIMIT 1');
+    $lookup->bind_param('sss', $firstname, $lastname, $dob);
+    $lookup->execute();
+    $result = $lookup->get_result();
+    if ($result && $result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $lastYear = $row['year'];
+        $lastStatus = strtolower($row['academic_status'] ?? 'ongoing');
+        $student_type = 'Old';
+        if ($lastStatus === 'passed' || $lastStatus === 'ongoing') {
+            $yearlevel = getNextGrade($lastYear);
+        } else {
+            $yearlevel = $lastYear;
+        }
     }
+    $lookup->close();
 }
-$lookup->close();
 
 if (!in_array($yearlevel, ['Grade 11', 'Grade 12'], true)) {
     $course = '';
 }
 
-$sql = 'INSERT INTO students_registration 
-    (school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+$student_id = null;
 
-$stmt = $conn->prepare($sql);
-if (!$stmt) {
-    die('Prepare failed: ' . $conn->error);
-}
+if ($returningSourceId) {
+    $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, academic_status = ?, section = NULL, adviser = NULL, schedule_sent_at = NULL WHERE id = ?';
+    $stmt = $conn->prepare($updateSql);
+    if (!$stmt) {
+        die('Prepare failed: ' . $conn->error);
+    }
+    $typeString = str_repeat('s', 22) . 'i';
+    $stmt->bind_param(
+        $typeString,
+        $school_year,
+        $yearlevel,
+        $course,
+        $student_type,
+        $lastname,
+        $firstname,
+        $middlename,
+        $gender,
+        $dob,
+        $religion,
+        $emailaddress,
+        $telephone,
+        $address,
+        $last_school_attended,
+        $academic_honors,
+        $father_name,
+        $father_occupation,
+        $mother_name,
+        $mother_occupation,
+        $guardian_name,
+        $guardian_occupation,
+        $academic_status,
+        $returningSourceId
+    );
+    if (!$stmt->execute()) {
+        die('Update failed: ' . $stmt->error);
+    }
+    $stmt->close();
+    $student_id = $returningSourceId;
+} else {
+    $sql = 'INSERT INTO students_registration 
+        (school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
-$stmt->bind_param(
-    'ssssssssssssssssssssss',
-    $school_year,
-    $yearlevel,
-    $course,
-    $student_type,
-    $lastname,
-    $firstname,
-    $middlename,
-    $gender,
-    $dob,
-    $religion,
-    $emailaddress,
-    $telephone,
-    $address,
-    $last_school_attended,
-    $academic_honors,
-    $father_name,
-    $father_occupation,
-    $mother_name,
-    $mother_occupation,
-    $guardian_name,
-    $guardian_occupation,
-    $academic_status
-);
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        die('Prepare failed: ' . $conn->error);
+    }
 
-if ($stmt->execute()) {
+    $stmt->bind_param(
+        'ssssssssssssssssssssss',
+        $school_year,
+        $yearlevel,
+        $course,
+        $student_type,
+        $lastname,
+        $firstname,
+        $middlename,
+        $gender,
+        $dob,
+        $religion,
+        $emailaddress,
+        $telephone,
+        $address,
+        $last_school_attended,
+        $academic_honors,
+        $father_name,
+        $father_occupation,
+        $mother_name,
+        $mother_occupation,
+        $guardian_name,
+        $guardian_occupation,
+        $academic_status
+    );
+
+    if (!$stmt->execute()) {
+        die('Insert failed: ' . $stmt->error);
+    }
     $student_id = $conn->insert_id;
     $stmt->close();
+}
+
+if ($student_id) {
 
     $php_path = '/Applications/XAMPP/bin/php';
     $worker   = __DIR__ . '/email_worker.php';
@@ -144,6 +196,68 @@ if ($stmt->execute()) {
     error_log('RETURN: ' . $return_var);
 
     unset($_SESSION['registration']);
+    unset($_SESSION['returning_source_id'], $_SESSION['returning_student_number']);
+
+    if ($onsitePaymentType === 'onsite' || $onsitePaymentType === 'online') {
+        $statusStmt = $conn->prepare("UPDATE students_registration SET enrollment_status = 'waiting' WHERE id = ?");
+        if ($statusStmt) {
+            $statusStmt->bind_param('i', $student_id);
+            $statusStmt->execute();
+            $statusStmt->close();
+        }
+    }
+
+    $schoolYearParam = $school_year !== '' ? $school_year : null;
+    if ($onsitePaymentType === 'onsite' || $onsitePaymentType === 'online') {
+        $studentIdForPayment = (string) $student_id;
+        $feeSnapshot = fetchTuitionFeeSnapshot($conn, $yearlevel, $student_type, $schoolYearParam);
+        $tuitionFeeId = $feeSnapshot['id'] ?? null;
+
+        $checkPlanTable = $conn->query("SHOW TABLES LIKE 'student_plan_selections'");
+        if ($checkPlanTable && $checkPlanTable->num_rows > 0) {
+            if ($tuitionFeeId) {
+                $deletePlan = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ?');
+                if ($deletePlan) {
+                    $deletePlan->bind_param('ii', $student_id, $tuitionFeeId);
+                    $deletePlan->execute();
+                    $deletePlan->close();
+                }
+            }
+
+            if ($schoolYearParam !== null && $schoolYearParam !== '') {
+                $deletePlanByGrade = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND grade_level = ? AND school_year = ?');
+                if ($deletePlanByGrade) {
+                    $deletePlanByGrade->bind_param('iss', $student_id, $yearlevel, $schoolYearParam);
+                    $deletePlanByGrade->execute();
+                    $deletePlanByGrade->close();
+                }
+            } else {
+                $deletePlanByGrade = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND grade_level = ? AND (school_year IS NULL OR school_year = \'\')');
+                if ($deletePlanByGrade) {
+                    $deletePlanByGrade->bind_param('is', $student_id, $yearlevel);
+                    $deletePlanByGrade->execute();
+                    $deletePlanByGrade->close();
+                }
+            }
+        }
+        if ($checkPlanTable instanceof mysqli_result) {
+            $checkPlanTable->free_result();
+        }
+    }
+
+    if ($onsitePaymentType === 'onsite') {
+        unset($_SESSION['onsite_payment_type']);
+        header('Location: ../Registrar/registrar_dashboard.php?msg=student_added_pending_cash');
+        exit();
+    }
+
+    if ($onsitePaymentType === 'online') {
+        unset($_SESSION['onsite_payment_type']);
+        header('Location: ../Portal/choose_payment.php?student_id=' . urlencode((string) $student_id));
+        exit();
+    }
+
+    unset($_SESSION['onsite_payment_type']);
     header('Location: success.php');
     exit();
 }
@@ -172,4 +286,68 @@ function getNextGrade($current)
 
     $index = array_search($current, $levels, true);
     return ($index !== false && isset($levels[$index + 1])) ? $levels[$index + 1] : $current;
+}
+
+function normalizeGradeLabel(string $label): string
+{
+    $normalized = strtolower(trim($label));
+    $normalized = str_replace(['-', '_'], '', $normalized);
+    $normalized = preg_replace('/\s+/', '', $normalized);
+    return $normalized;
+}
+
+function fetchTuitionFeeSnapshot(mysqli $conn, string $gradeLevel, string $studentType, ?string $schoolYear = null): ?array
+{
+    $normalizedGrade = normalizeGradeLabel($gradeLevel);
+    $studentType = strtolower(trim($studentType));
+
+    $sql = "SELECT id, school_year, entrance_fee, tuition_fee, miscellaneous_fee, LOWER(student_type) AS st
+            FROM tuition_fees
+            WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+            ORDER BY school_year DESC";
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('s', $normalizedGrade);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    $selectedRow = null;
+    while ($row = $result->fetch_assoc()) {
+        $rowType = strtolower(trim((string) ($row['st'] ?? '')));
+        if ($rowType !== $studentType && $rowType !== 'all') {
+            continue;
+        }
+
+        $total = 0.0;
+        $total += (float) ($row['entrance_fee'] ?? 0);
+        $total += (float) ($row['tuition_fee'] ?? 0);
+        $total += (float) ($row['miscellaneous_fee'] ?? 0);
+
+        if ($schoolYear !== null && $schoolYear !== '' && isset($row['school_year']) && trim((string) $row['school_year']) !== $schoolYear) {
+            if ($selectedRow === null) {
+                $selectedRow = ['row' => $row, 'total' => $total];
+            }
+            continue;
+        }
+
+        $selectedRow = ['row' => $row, 'total' => $total];
+        break;
+    }
+
+    $stmt->close();
+
+    if ($selectedRow === null) {
+        return null;
+    }
+
+    return [
+        'id' => isset($selectedRow['row']['id']) ? (int) $selectedRow['row']['id'] : null,
+        'school_year' => $selectedRow['row']['school_year'] ?? null,
+        'total' => (float) ($selectedRow['total'] ?? 0),
+        'details' => $selectedRow['row'],
+    ];
 }
