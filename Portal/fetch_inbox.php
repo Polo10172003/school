@@ -102,7 +102,7 @@ function map_grade_code($label)
 $gradeCodes = map_grade_code($gradeLevel);
 
 
-$query = "SELECT sa.id, sa.subject, sa.body, sa.target_scope, sa.created_at,
+$query = "SELECT sa.id, sa.subject, sa.body, sa.target_scope, sa.image_path, sa.created_at,
                   COALESCE(sas.is_read, 0) AS is_read,
                   COALESCE(sas.is_deleted, 0) AS is_deleted
            FROM student_announcements sa
@@ -146,6 +146,7 @@ if ($result) {
         $body = trim((string) ($row['body'] ?? ''));
         $subject = trim((string) ($row['subject'] ?? 'Announcement'));
 
+        $imagePath = trim((string) ($row['image_path'] ?? ''));
         $items[] = [
             'id' => (int) $row['id'],
             'subject' => $subject === '' ? 'Announcement' : $subject,
@@ -153,6 +154,7 @@ if ($result) {
             'body_plain' => $body,
             'sent_at' => date('M d, Y g:i A', strtotime($row['created_at'] ?? 'now')),
             'is_read' => $isRead ? 1 : 0,
+            'image_path' => $imagePath,
         ];
     }
 }

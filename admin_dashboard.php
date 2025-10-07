@@ -408,12 +408,15 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
     <section class="dashboard-card" id="announcements">
       <span class="dashboard-section-title">Communication</span>
       <h2>Post Announcement</h2>
-      <form class="dashboard-form" action="submit_announcement.php" method="POST">
+      <form class="dashboard-form" action="submit_announcement.php" method="POST" enctype="multipart/form-data">
         <label for="subject">Subject</label>
         <input type="text" name="subject" required>
 
         <label for="message">Message</label>
         <textarea name="message" required></textarea>
+
+        <label for="announcement_image">Attach Image (optional)</label>
+        <input type="file" name="announcement_image" accept="image/*">
 
         <label for="grades">Send To</label>
         <div class="dashboard-checkbox-grid" style="margin-top:10px;">

@@ -1122,6 +1122,48 @@ unset($finance_view_ref);
             return normalized.slice(0, 100) + '…';
         }
 
+        const portalBasePath = (() => {
+            const path = window.location.pathname || '/';
+            const marker = '/Portal/student_portal.php';
+            const idx = path.toLowerCase().indexOf(marker.toLowerCase());
+            if (idx !== -1) {
+                return path.substring(0, idx + 1);
+            }
+            const lastSlash = path.lastIndexOf('/');
+            return lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '/';
+        })();
+
+        function resolveAnnouncementImage(path) {
+            if (!path) {
+                return '';
+            }
+            const trimmed = String(path).trim();
+            if (trimmed === '') {
+                return '';
+            }
+            if (/^https?:\/\//i.test(trimmed)) {
+                return trimmed;
+            }
+            if (trimmed.startsWith('/')) {
+                return trimmed;
+            }
+            return portalBasePath + trimmed.replace(/^\/+/g, '');
+        }
+
+        function appendAnnouncementBody(contentContainer, item) {
+            contentContainer.innerHTML = item.body_html || '<p class="mb-0">No content available.</p>';
+            if (item.image_url) {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'mt-3 text-center';
+                const imageEl = document.createElement('img');
+                imageEl.src = item.image_url;
+                imageEl.alt = 'Announcement image';
+                imageEl.className = 'img-fluid rounded';
+                wrapper.appendChild(imageEl);
+                contentContainer.appendChild(wrapper);
+            }
+        }
+
         function isValidAnnouncementId(value) {
             return typeof value === 'number' && isFinite(value) && value > 0;
         }
@@ -1174,6 +1216,13 @@ unset($finance_view_ref);
                 snippetEl.style.whiteSpace = 'normal';
                 snippetEl.textContent = buildPreview(item.body_plain || '');
                 textCol.appendChild(snippetEl);
+
+                if (item.image_url) {
+                    const attachmentNote = document.createElement('div');
+                    attachmentNote.className = 'small text-primary fst-italic';
+                    attachmentNote.textContent = 'Contains image';
+                    textCol.appendChild(attachmentNote);
+                }
 
                 row.appendChild(textCol);
 
@@ -1289,10 +1338,14 @@ unset($finance_view_ref);
             if (announcementModal) {
                 announcementModalTitle.textContent = item.subject || 'Announcement';
                 announcementModalTime.textContent = item.sent_at || '';
-                announcementModalBody.innerHTML = item.body_html || '<p class="mb-0">No content available.</p>';
+                announcementModalBody.innerHTML = '';
+                appendAnnouncementBody(announcementModalBody, item);
                 announcementModal.show();
             } else {
-                const message = (item.subject || 'Announcement') + '\n\n' + (item.body_plain || '');
+                let message = (item.subject || 'Announcement') + '\n\n' + (item.body_plain || '');
+                if (item.image_url) {
+                    message += '\n\n[Image attached] ' + item.image_url;
+                }
                 alert(message);
             }
         }
@@ -1317,6 +1370,7 @@ unset($finance_view_ref);
                     body_plain: typeof raw.body_plain === 'string' ? raw.body_plain : '',
                     sent_at: raw.sent_at || '',
                     is_read: Boolean(Number(raw.is_read ?? 0)),
+                    image_url: resolveAnnouncementImage(raw.image_path || '')
                 })).filter(item => isValidAnnouncementId(item.id));
                 inboxState.unreadCount = Number(data.unread_count || 0);
 
