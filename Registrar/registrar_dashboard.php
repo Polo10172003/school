@@ -197,14 +197,26 @@ if ($grade_filter) {
 
 <script>
 // Check/uncheck all checkboxes
-document.getElementById('checkAll').addEventListener('change', function() {
-    const boxes = document.querySelectorAll('input[name="student_ids[]"]');
-    boxes.forEach(b => b.checked = this.checked);
-});
+const masterCheckbox = document.getElementById('checkAll');
+const studentCheckboxes = () => document.querySelectorAll('input[name="student_ids[]"]');
+
+function clearSelections() {
+    if (masterCheckbox) {
+        masterCheckbox.checked = false;
+    }
+    studentCheckboxes().forEach(cb => cb.checked = false);
+}
+
+if (masterCheckbox) {
+    masterCheckbox.addEventListener('change', function() {
+        studentCheckboxes().forEach(b => b.checked = this.checked);
+    });
+}
 </script>
 <script>
   document.getElementById('bulkActivateBtn').addEventListener('click', async () => {
-    const checked = [...document.querySelectorAll('input[name="student_ids[]"]:checked')].map(cb => cb.value);
+    const checkedBoxes = [...studentCheckboxes()].filter(cb => cb.checked);
+    const checked = checkedBoxes.map(cb => cb.value);
     if (checked.length === 0) {
         alert("Please select at least one student.");
         return;
@@ -226,6 +238,7 @@ document.getElementById('checkAll').addEventListener('change', function() {
               span.classList.add('success');
             }
         });
+        clearSelections();
         let msg = `✅ ${data.activated} accounts activated.`;
       if (data.errors && data.errors.length > 0) {
           msg += `\n⚠ Some issues:\n- ${data.errors.join("\n- ")}`;

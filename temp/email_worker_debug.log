@@ -25,3 +25,4 @@
 [2025-10-02 17:51:46] student=67 grade=preprime2 schedule_sent_at=2025-10-02 23:36:22 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-02 17:56:58] student=67 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=12860.00 due_threshold=14,720.00 attach=no included=no
 [2025-10-02 18:00:28] student=67 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=14720.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-07 07:44:30] student=68 grade=grade1 schedule_sent_at=NULL paid_count=1 paid_sum=19920.00 due_threshold=19,920.00 attach=yes included=yes

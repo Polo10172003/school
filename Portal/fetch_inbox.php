@@ -101,20 +101,31 @@ function map_grade_code($label)
 
 $gradeCodes = map_grade_code($gradeLevel);
 
-$conn->query("CREATE TABLE IF NOT EXISTS student_announcements (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    subject VARCHAR(255) NOT NULL,
-    body TEXT NOT NULL,
-    target_scope TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-$result = $conn->query('SELECT subject, body, target_scope, created_at FROM student_announcements ORDER BY created_at DESC LIMIT 50');
+$query = "SELECT sa.id, sa.subject, sa.body, sa.target_scope, sa.created_at,
+                  COALESCE(sas.is_read, 0) AS is_read,
+                  COALESCE(sas.is_deleted, 0) AS is_deleted
+           FROM student_announcements sa
+           LEFT JOIN student_announcement_status sas
+             ON sas.announcement_id = sa.id AND sas.student_number = ?
+           ORDER BY sa.created_at DESC
+           LIMIT 100";
+
+$stmt = $conn->prepare($query);
+$stmt->bind_param('s', $student_number);
+$stmt->execute();
+$result = $stmt->get_result();
 
 $items = [];
+$unreadCount = 0;
+
 if ($result) {
     while ($row = $result->fetch_assoc()) {
-        $scope = $row['target_scope'];
+        if ((int) ($row['is_deleted'] ?? 0) === 1) {
+            continue;
+        }
+
+        $scope = $row['target_scope'] ?? '';
         $audiences = array_filter(array_map('trim', explode(',', $scope)));
         $should_include = in_array('everyone', $audiences, true);
         if (!$should_include && !empty($gradeCodes)) {
@@ -122,14 +133,34 @@ if ($result) {
                 $should_include = true;
             }
         }
-        if ($should_include) {
-            $items[] = [
-                'subject' => htmlspecialchars($row['subject']),
-                'body' => nl2br(htmlspecialchars($row['body'])),
-                'sent_at' => date('M d, Y g:i A', strtotime($row['created_at'])),
-            ];
+
+        if (!$should_include) {
+            continue;
         }
+
+        $isRead = ((int) ($row['is_read'] ?? 0) === 1);
+        if (!$isRead) {
+            $unreadCount++;
+        }
+
+        $body = trim((string) ($row['body'] ?? ''));
+        $subject = trim((string) ($row['subject'] ?? 'Announcement'));
+
+        $items[] = [
+            'id' => (int) $row['id'],
+            'subject' => $subject === '' ? 'Announcement' : $subject,
+            'body_html' => nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')),
+            'body_plain' => $body,
+            'sent_at' => date('M d, Y g:i A', strtotime($row['created_at'] ?? 'now')),
+            'is_read' => $isRead ? 1 : 0,
+        ];
     }
 }
 
-echo json_encode(['success' => true, 'items' => $items]);
+$stmt->close();
+
+echo json_encode([
+    'success' => true,
+    'items' => $items,
+    'unread_count' => $unreadCount,
+]);

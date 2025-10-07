@@ -981,11 +981,24 @@ unset($finance_view_ref);
         const inboxToggle = document.getElementById('studentInboxToggle');
         const inboxMenu = document.getElementById('studentInboxMenu');
         const inboxCountEl = document.getElementById('studentInboxCount');
+        const inboxHeaderEl = inboxMenu ? inboxMenu.querySelector('.dropdown-header') : null;
+        const announcementModalEl = document.getElementById('announcementModal');
+        const announcementModalTitle = document.getElementById('announcementModalTitle');
+        const announcementModalTime = document.getElementById('announcementModalTime');
+        const announcementModalBody = document.getElementById('announcementModalBody');
+
         let inboxLoaded = false;
+        let markingInboxRead = false;
+        let inboxState = { items: [], unreadCount: 0 };
         let changePasswordModal = null;
+        let announcementModal = null;
 
         if (changePasswordModalEl && typeof bootstrap !== 'undefined') {
             changePasswordModal = new bootstrap.Modal(changePasswordModalEl);
+        }
+
+        if (announcementModalEl && typeof bootstrap !== 'undefined') {
+            announcementModal = new bootstrap.Modal(announcementModalEl);
         }
 
         function showChangePasswordAlert(message, type) {
@@ -1073,7 +1086,222 @@ unset($finance_view_ref);
             });
         }
 
-        async function loadInbox() {
+        function updateInboxBadge() {
+            if (!inboxCountEl) {
+                return;
+            }
+            if (inboxState.unreadCount > 0) {
+                inboxCountEl.textContent = String(inboxState.unreadCount);
+                inboxCountEl.style.display = 'inline-block';
+            } else {
+                inboxCountEl.textContent = '0';
+                inboxCountEl.style.display = 'none';
+            }
+        }
+
+        function clearInboxMenu() {
+            if (!inboxMenu) {
+                return;
+            }
+            Array.from(inboxMenu.children).forEach(child => {
+                if (child === inboxHeaderEl) {
+                    return;
+                }
+                child.remove();
+            });
+        }
+
+        function buildPreview(text) {
+            if (!text) {
+                return '';
+            }
+            const normalized = String(text).replace(/\s+/g, ' ').trim();
+            if (normalized.length <= 100) {
+                return normalized;
+            }
+            return normalized.slice(0, 100) + '…';
+        }
+
+        function isValidAnnouncementId(value) {
+            return typeof value === 'number' && isFinite(value) && value > 0;
+        }
+
+        function renderInbox() {
+            if (!inboxMenu) {
+                return;
+            }
+
+            clearInboxMenu();
+
+            if (inboxState.items.length === 0) {
+                const emptyState = document.createElement('div');
+                emptyState.className = 'dropdown-item-text text-muted small';
+                emptyState.setAttribute('data-empty-state', '');
+                emptyState.textContent = "You're all caught up.";
+                inboxMenu.appendChild(emptyState);
+                return;
+            }
+
+            inboxState.items.forEach(item => {
+                const itemWrapper = document.createElement('div');
+                itemWrapper.className = 'dropdown-item-text portal-inbox-item py-2 border-bottom';
+                itemWrapper.dataset.id = String(item.id);
+                if (!item.is_read) {
+                    itemWrapper.classList.add('portal-inbox-unread', 'bg-light');
+                }
+
+                const row = document.createElement('div');
+                row.className = 'd-flex align-items-start';
+
+                const textCol = document.createElement('div');
+                textCol.className = 'flex-grow-1 me-2';
+
+                const subjectEl = document.createElement('div');
+                subjectEl.className = 'fw-semibold';
+                if (!item.is_read) {
+                    subjectEl.classList.add('text-success');
+                }
+                subjectEl.textContent = item.subject || 'Announcement';
+                textCol.appendChild(subjectEl);
+
+                const timeEl = document.createElement('div');
+                timeEl.className = 'small text-muted';
+                timeEl.textContent = item.sent_at || '';
+                textCol.appendChild(timeEl);
+
+                const snippetEl = document.createElement('div');
+                snippetEl.className = 'small text-body-secondary';
+                snippetEl.style.whiteSpace = 'normal';
+                snippetEl.textContent = buildPreview(item.body_plain || '');
+                textCol.appendChild(snippetEl);
+
+                row.appendChild(textCol);
+
+                const actionsCol = document.createElement('div');
+                actionsCol.className = 'd-flex flex-column gap-1 align-items-end text-nowrap';
+
+                const viewBtn = document.createElement('button');
+                viewBtn.type = 'button';
+                viewBtn.className = 'btn btn-sm btn-link p-0 portal-inbox-view';
+                viewBtn.dataset.action = 'view';
+                viewBtn.textContent = 'View';
+                viewBtn.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    openAnnouncementModal(item);
+                });
+                actionsCol.appendChild(viewBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'btn btn-sm btn-link text-danger p-0 portal-inbox-delete';
+                deleteBtn.dataset.action = 'delete';
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.addEventListener('click', async function (event) {
+                    event.preventDefault();
+                    await handleDelete(item.id);
+                });
+                actionsCol.appendChild(deleteBtn);
+
+                row.appendChild(actionsCol);
+                itemWrapper.appendChild(row);
+                inboxMenu.appendChild(itemWrapper);
+            });
+        }
+
+        async function updateInboxStatus(action, ids) {
+            const response = await fetch('Portal/update_inbox.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ action, ids })
+            });
+            const data = await response.json();
+            if (!data || !data.success) {
+                throw new Error(data && data.error ? data.error : 'Unable to update inbox right now.');
+            }
+            return data;
+        }
+
+        async function markInboxItemsRead(ids) {
+            if (!Array.isArray(ids) || ids.length === 0) {
+                return;
+            }
+            try {
+                await updateInboxStatus('mark_read', ids);
+                let changed = false;
+                inboxState.items = inboxState.items.map(item => {
+                    if (ids.includes(item.id) && !item.is_read) {
+                        changed = true;
+                        return { ...item, is_read: true };
+                    }
+                    return item;
+                });
+
+                if (changed) {
+                    inboxState.unreadCount = inboxState.items.reduce((count, item) => count + (item.is_read ? 0 : 1), 0);
+                    updateInboxBadge();
+                    renderInbox();
+                }
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        async function handleDelete(id) {
+            if (!id) {
+                return;
+            }
+            if (!window.confirm('Delete this message?')) {
+                return;
+            }
+            try {
+                await updateInboxStatus('delete', [id]);
+                const wasUnread = inboxState.items.some(item => item.id === id && !item.is_read);
+                inboxState.items = inboxState.items.filter(item => item.id !== id);
+                if (wasUnread && inboxState.unreadCount > 0) {
+                    inboxState.unreadCount -= 1;
+                }
+                updateInboxBadge();
+                renderInbox();
+            } catch (error) {
+                console.error(error);
+                alert(error.message || 'Unable to delete this message right now.');
+            }
+        }
+
+        function openAnnouncementModal(item) {
+            if (!item) {
+                return;
+            }
+
+            if (!item.is_read) {
+                markInboxItemsRead([item.id]);
+            }
+
+            if (inboxToggle && typeof bootstrap !== 'undefined') {
+                const dropdownInstance = bootstrap.Dropdown.getInstance(inboxToggle);
+                if (dropdownInstance) {
+                    dropdownInstance.hide();
+                }
+            }
+
+            if (announcementModal) {
+                announcementModalTitle.textContent = item.subject || 'Announcement';
+                announcementModalTime.textContent = item.sent_at || '';
+                announcementModalBody.innerHTML = item.body_html || '<p class="mb-0">No content available.</p>';
+                announcementModal.show();
+            } else {
+                const message = (item.subject || 'Announcement') + '\n\n' + (item.body_plain || '');
+                alert(message);
+            }
+        }
+
+        async function loadInbox(options = {}) {
+            if (!inboxMenu) {
+                return;
+            }
+
             try {
                 const response = await fetch('Portal/fetch_inbox.php');
                 const data = await response.json();
@@ -1081,40 +1309,50 @@ unset($finance_view_ref);
                     throw new Error(data && data.error ? data.error : 'Unable to load announcements');
                 }
 
-                const items = data.items || [];
-                inboxMenu.querySelectorAll('[data-empty-state]').forEach(el => el.remove());
-                if (items.length === 0) {
-                    const emptyState = document.createElement('div');
-                    emptyState.className = 'dropdown-item-text text-muted small';
-                    emptyState.setAttribute('data-empty-state', '');
-                    emptyState.textContent = "You're all caught up.";
-                    inboxMenu.appendChild(emptyState);
-                } else {
-                    items.forEach(item => {
-                        const wrapper = document.createElement('div');
-                        wrapper.className = 'dropdown-item-text';
-                        wrapper.innerHTML = `<div class="fw-semibold">${item.subject}</div>
-                            <div class="small text-muted">${item.sent_at}</div>
-                            <div class="small" style="white-space: normal;">${item.body}</div>`;
-                        inboxMenu.appendChild(wrapper);
-                    });
-                }
+                const items = Array.isArray(data.items) ? data.items : [];
+                inboxState.items = items.map(raw => ({
+                    id: Number(raw.id),
+                    subject: raw.subject || 'Announcement',
+                    body_html: raw.body_html || '',
+                    body_plain: typeof raw.body_plain === 'string' ? raw.body_plain : '',
+                    sent_at: raw.sent_at || '',
+                    is_read: Boolean(Number(raw.is_read ?? 0)),
+                })).filter(item => isValidAnnouncementId(item.id));
+                inboxState.unreadCount = Number(data.unread_count || 0);
 
-                if (items.length > 0 && inboxCountEl) {
-                    inboxCountEl.textContent = items.length;
-                    inboxCountEl.style.display = 'inline-block';
-                }
-
+                updateInboxBadge();
+                renderInbox();
                 inboxLoaded = true;
             } catch (error) {
                 console.error(error);
-                if (!inboxLoaded) {
+                if (!options.silent) {
                     alert(error.message || 'Cannot load announcements right now.');
                 }
             }
         }
 
+        async function markAllInboxAsRead() {
+            if (markingInboxRead) {
+                return;
+            }
+            const unreadIds = inboxState.items.filter(item => !item.is_read).map(item => item.id);
+            if (unreadIds.length === 0) {
+                return;
+            }
+            markingInboxRead = true;
+            try {
+                await markInboxItemsRead(unreadIds);
+            } finally {
+                markingInboxRead = false;
+            }
+        }
+
         if (inboxToggle) {
+            inboxToggle.addEventListener('show.bs.dropdown', async function () {
+                await loadInbox({ silent: true });
+                await markAllInboxAsRead();
+            });
+
             inboxToggle.addEventListener('click', function () {
                 if (!inboxLoaded) {
                     loadInbox();
@@ -1153,6 +1391,24 @@ unset($finance_view_ref);
                         <button type="submit" class="btn btn-success">Update Password</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="announcementModal" tabindex="-1" aria-labelledby="announcementModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="announcementModalTitle">Announcement</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="small text-muted" id="announcementModalTime"></div>
+                <div class="mt-3" id="announcementModalBody"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

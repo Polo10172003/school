@@ -44,7 +44,6 @@ $required = [
     'emailaddress' => $emailaddress,
     'telephone' => $telephone,
     'address' => $address,
-    'father_name' => $father_name,
     'mother_name' => $mother_name,
 ];
 
