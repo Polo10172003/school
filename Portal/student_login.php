@@ -1,6 +1,6 @@
 <?php
+require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
-session_start();
 
 $error = '';
 
@@ -49,12 +49,42 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $account = $accountResult->fetch_assoc();
 
         if ($account['is_first_login']) {
+            session_regenerate_id(true);
             $_SESSION['student_number'] = $student_number;
             header("Location: set_student_password.php");
             exit();
         }
 
-        if (password_verify($password, $account['password'])) {
+        $storedPassword = $account['password'] ?? '';
+        $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
+        $authenticated = false;
+
+        if ($isHashed && password_verify($password, $storedPassword)) {
+            $authenticated = true;
+
+            if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                $rehash = password_hash($password, PASSWORD_DEFAULT);
+                $update = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
+                if ($update) {
+                    $update->bind_param('ss', $rehash, $student_number);
+                    $update->execute();
+                    $update->close();
+                }
+            }
+        } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
+            $authenticated = true;
+
+            $rehash = password_hash($password, PASSWORD_DEFAULT);
+            $updateLegacy = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
+            if ($updateLegacy) {
+                $updateLegacy->bind_param('ss', $rehash, $student_number);
+                $updateLegacy->execute();
+                $updateLegacy->close();
+            }
+        }
+
+        if ($authenticated) {
+            session_regenerate_id(true);
             $_SESSION['student_number'] = $student_number;
             header('Location: student_portal.php');
             exit();

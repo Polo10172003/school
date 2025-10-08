@@ -1,8 +1,5 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-  session_start();
-}
-
+require_once __DIR__ . '/includes/session.php';
 include 'db_connection.php';
 require_once __DIR__ . '/admin_functions.php';
 
@@ -482,8 +479,9 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
 
         <label for="role">Role</label>
         <select name="role" required>
-          <option value="cashier">Cashier</option>
+          <option value="admin">Administrator</option>
           <option value="registrar">Registrar</option>
+          <option value="cashier">Cashier</option>
         </select>
 
         <div class="dashboard-actions">

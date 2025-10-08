@@ -1,6 +1,6 @@
 <?php
-session_start();
-include 'db_connection.php';
+require_once __DIR__ . '/../includes/session.php';
+include __DIR__ . '/../db_connection.php';
 
 if (!isset($_GET['id'], $_GET['type'])) {
     die("Missing parameters.");

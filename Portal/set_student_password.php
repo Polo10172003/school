@@ -1,8 +1,7 @@
 <?php
+require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 date_default_timezone_set('Asia/Manila');
-
-session_start();
 
 $error = '';
 $success = '';
@@ -69,6 +68,7 @@ if (isset($_GET['token'])) {
                 $update = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE student_number = ?");
                 $update->bind_param("ss", $hashed, $studentNumber);
                 if ($update->execute()) {
+                    session_regenerate_id(true);
                     header('Location: student_portal.php');
                     exit();
                 }
@@ -93,6 +93,7 @@ if (isset($_GET['token'])) {
             $stmt = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE email = ?");
             $stmt->bind_param("ss", $hashed, $email);
             $stmt->execute();
+            session_regenerate_id(true);
             header('Location: student_portal.php');
             exit();
         } else {

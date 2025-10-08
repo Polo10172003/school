@@ -7,6 +7,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $password = $_POST['password'];
     $role = $_POST['role'];
 
+    $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
 
     $sql = "INSERT INTO users (username, password, fullname, role) VALUES (?, ?, ?, ?)";
     $stmt = $conn->prepare($sql);
@@ -15,7 +16,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         die("Prepare failed: " . $conn->error); // show if query is invalid
     }
 
-    $stmt->bind_param("ssss", $username, $password, $fullname, $role);
+    $stmt->bind_param("ssss", $username, $hashedPassword, $fullname, $role);
 
     if ($stmt->execute()) {
         echo "<script>alert('User added successfully!'); window.location.href='admin_dashboard.php';</script>";

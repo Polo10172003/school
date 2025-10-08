@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 
 $student_type  = $_GET['student_type']  ?? '';

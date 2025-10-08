@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 
 $error = '';
@@ -14,12 +14,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $stmt->get_result();
     $registrar = $result->fetch_assoc();
 
-    if ($registrar && ($password) == $registrar['password']) {
-        $_SESSION['registrar_username'] = $registrar['username'];
-        $_SESSION['registrar_fullname'] = $registrar['fullname'] ?? $registrar['username'];
-        $_SESSION['registrar_role'] = $registrar['role'] ?? 'registrar';
-        header("Location: registrar_dashboard.php");
-        exit;
+    if ($registrar) {
+        $storedPassword = $registrar['password'] ?? '';
+        $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
+        $authenticated = false;
+
+        if ($isHashed && password_verify($password, $storedPassword)) {
+            $authenticated = true;
+            if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                $rehash = password_hash($password, PASSWORD_DEFAULT);
+                $update = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+                if ($update) {
+                    $update->bind_param('si', $rehash, $registrar['id']);
+                    $update->execute();
+                    $update->close();
+                }
+            }
+        } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
+            $authenticated = true;
+            $rehash = password_hash($password, PASSWORD_DEFAULT);
+            $updateLegacy = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+            if ($updateLegacy) {
+                $updateLegacy->bind_param('si', $rehash, $registrar['id']);
+                $updateLegacy->execute();
+                $updateLegacy->close();
+            }
+        }
+
+        if ($authenticated) {
+            session_regenerate_id(true);
+            $_SESSION['registrar_username'] = $registrar['username'];
+            $_SESSION['registrar_fullname'] = $registrar['fullname'] ?? $registrar['username'];
+            $_SESSION['registrar_role'] = $registrar['role'] ?? 'registrar';
+            header("Location: registrar_dashboard.php");
+            exit;
+        }
     }
 
     $error = "Invalid registrar credentials.";

@@ -88,6 +88,72 @@
   min-width: 200px;
 }
 
+.cashier-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 240px;
+  padding: 4px 14px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(20, 90, 50, 0.05), rgba(20, 90, 50, 0.15));
+  box-shadow: 0 10px 24px rgba(20, 90, 50, 0.12);
+  border: 1px solid rgba(20, 90, 50, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.cashier-select--placeholder {
+  background: linear-gradient(135deg, rgba(20, 90, 50, 0.03), rgba(255, 255, 255, 0.9));
+  border-color: rgba(20, 90, 50, 0.1);
+  box-shadow: 0 6px 16px rgba(20, 90, 50, 0.08);
+}
+
+.cashier-select:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(20, 90, 50, 0.16);
+  border-color: rgba(20, 90, 50, 0.25);
+}
+
+.cashier-select:focus-within {
+  transform: translateY(-1px);
+  box-shadow: 0 0 0 3px rgba(20, 90, 50, 0.18);
+  border-color: rgba(20, 90, 50, 0.45);
+}
+
+.payment-plan-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: none;
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--dash-green);
+  padding: 10px 28px 10px 6px;
+  cursor: pointer;
+  width: 100%;
+  outline: none;
+}
+
+.payment-plan-select option {
+  color: #1f2d27;
+  font-weight: 500;
+}
+
+.cashier-select__chevron {
+  position: absolute;
+  right: 12px;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 40%, rgba(20, 90, 50, 0.9), rgba(20, 90, 50, 0.35));
+  mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="white" d="M7 10l5 5 5-5z"/></svg>') center/contain no-repeat;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="white" d="M7 10l5 5 5-5z"/></svg>') center/contain no-repeat;
+}
+
+.cashier-select--placeholder .payment-plan-select {
+  color: rgba(31, 45, 39, 0.6);
+  font-weight: 500;
+}
+
 .cashier-pill {
   display: inline-flex;
   align-items: center;

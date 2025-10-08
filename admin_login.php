@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/includes/session.php';
 include 'db_connection.php';
 
 $error = '';
@@ -16,12 +16,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $admin = $result ? $result->fetch_assoc() : null;
         $stmt->close();
 
-        if ($admin && $admin['password'] === $password) {
-            $_SESSION['admin_username'] = $admin['username'];
-            $_SESSION['admin_fullname'] = $admin['fullname'] ?? $admin['username'];
-            $_SESSION['admin_role'] = 'Administrator';
-            header("Location: admin_dashboard.php");
-            exit();
+        if ($admin) {
+            $storedPassword = $admin['password'] ?? '';
+            $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
+            $authenticated = false;
+
+            if ($isHashed && password_verify($password, $storedPassword)) {
+                $authenticated = true;
+                if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                    $rehash = password_hash($password, PASSWORD_DEFAULT);
+                    $update = $conn->prepare('UPDATE users SET password = ? WHERE username = ?');
+                    if ($update) {
+                        $update->bind_param('ss', $rehash, $username);
+                        $update->execute();
+                        $update->close();
+                    }
+                }
+            } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
+                $authenticated = true;
+                $rehash = password_hash($password, PASSWORD_DEFAULT);
+                $updateLegacy = $conn->prepare('UPDATE users SET password = ? WHERE username = ?');
+                if ($updateLegacy) {
+                    $updateLegacy->bind_param('ss', $rehash, $username);
+                    $updateLegacy->execute();
+                    $updateLegacy->close();
+                }
+            }
+
+            if ($authenticated) {
+                session_regenerate_id(true);
+                $_SESSION['admin_username'] = $admin['username'];
+                $_SESSION['admin_fullname'] = $admin['fullname'] ?? $admin['username'];
+                $_SESSION['admin_role'] = 'Administrator';
+                header("Location: admin_dashboard.php");
+                exit();
+            }
         }
     }
 

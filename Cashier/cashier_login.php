@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 
 $error = '';
@@ -14,12 +14,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $result = $stmt->get_result();
     $cashier = $result->fetch_assoc();
 
-    if ($cashier && ($password) == $cashier['password']) {
-        $_SESSION['cashier_username'] = $cashier['username'];
-        $_SESSION['cashier_fullname'] = $cashier['fullname'] ?? $cashier['username'];
-        $_SESSION['cashier_role'] = $cashier['role'] ?? 'cashier';
-        header("Location: cashier_dashboard.php");
-        exit;
+    if ($cashier) {
+        $storedPassword = $cashier['password'] ?? '';
+        $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
+        $authenticated = false;
+
+        if ($isHashed && password_verify($password, $storedPassword)) {
+            $authenticated = true;
+            if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                $rehash = password_hash($password, PASSWORD_DEFAULT);
+                $update = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+                if ($update) {
+                    $update->bind_param('si', $rehash, $cashier['id']);
+                    $update->execute();
+                    $update->close();
+                }
+            }
+        } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
+            $authenticated = true;
+            $rehash = password_hash($password, PASSWORD_DEFAULT);
+            $updateLegacy = $conn->prepare('UPDATE users SET password = ? WHERE id = ?');
+            if ($updateLegacy) {
+                $updateLegacy->bind_param('si', $rehash, $cashier['id']);
+                $updateLegacy->execute();
+                $updateLegacy->close();
+            }
+        }
+
+        if ($authenticated) {
+            session_regenerate_id(true);
+            $_SESSION['cashier_username'] = $cashier['username'];
+            $_SESSION['cashier_fullname'] = $cashier['fullname'] ?? $cashier['username'];
+            $_SESSION['cashier_role'] = $cashier['role'] ?? 'cashier';
+            header("Location: cashier_dashboard.php");
+            exit;
+        }
     }
 
     $error = "Invalid cashier credentials.";

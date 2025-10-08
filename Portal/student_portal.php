@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 // Auto logout after 15 minutes of inactivity
 $timeout_duration = 300; // 900 seconds = 15 minutes

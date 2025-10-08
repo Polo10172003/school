@@ -242,6 +242,7 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
       }
 
       const panels = new Map();
+      const wrapper = dropdown.closest('.cashier-select');
       container.querySelectorAll('[data-plan-panel]').forEach((panel) => {
         panels.set(panel.dataset.planPanel, panel);
       });
@@ -281,6 +282,14 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         }
       };
 
+      const updatePlaceholderState = () => {
+        if (!wrapper) {
+          return;
+        }
+        const hasValue = (dropdown.value || '').trim() !== '';
+        wrapper.classList.toggle('cashier-select--placeholder', !hasValue);
+      };
+
       const applySelection = (planKey) => {
         setActivePlan(planKey);
 
@@ -290,6 +299,8 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
             : null;
           labelDisplay.textContent = selectedOption ? selectedOption.textContent : '';
         }
+
+        updatePlaceholderState();
       };
 
       applySelection(dropdown.value || '');

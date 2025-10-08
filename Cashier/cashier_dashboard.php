@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -243,16 +243,25 @@ $gradeOptions = [
                   <?php if ($canChoosePlan): ?>
                     <div class="cashier-inline-field">
                       <label>Choose Payment Plan</label>
-                      <select class="payment-plan-select" data-student="<?= $s['id'] ?>" data-target="payment_plan_<?= $s['id'] ?>">
-                        <?php if (empty($activePlanKey)): ?>
-                          <option value="" selected disabled>-- Select a payment plan --</option>
-                        <?php endif; ?>
-                        <?php foreach ($planOptions as $planType => $planLabel):
-                          $isSelected = $planType === $activePlanKey;
-                        ?>
-                          <option value="<?= htmlspecialchars($planType) ?>" <?= $isSelected ? 'selected' : '' ?>><?= htmlspecialchars($planLabel) ?></option>
-                        <?php endforeach; ?>
-                      </select>
+                      <?php
+                        $selectWrapperClass = 'cashier-select';
+                        if (empty($activePlanKey)) {
+                          $selectWrapperClass .= ' cashier-select--placeholder';
+                        }
+                      ?>
+                      <div class="<?= $selectWrapperClass ?>">
+                        <select class="payment-plan-select" data-student="<?= $s['id'] ?>" data-target="payment_plan_<?= $s['id'] ?>">
+                          <?php if (empty($activePlanKey)): ?>
+                            <option value="" selected disabled>-- Select a payment plan --</option>
+                          <?php endif; ?>
+                          <?php foreach ($planOptions as $planType => $planLabel):
+                            $isSelected = $planType === $activePlanKey;
+                          ?>
+                            <option value="<?= htmlspecialchars($planType) ?>" <?= $isSelected ? 'selected' : '' ?>><?= htmlspecialchars($planLabel) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                        <span class="cashier-select__chevron" aria-hidden="true"></span>
+                      </div>
                     </div>
                   <?php else: ?>
                     <div class="cashier-inline-field">

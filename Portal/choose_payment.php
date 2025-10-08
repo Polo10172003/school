@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../includes/session.php';
 
 if (isset($_GET['student_number'])) {
     $_SESSION['student_number'] = $_GET['student_number'];

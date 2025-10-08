@@ -1,6 +1,6 @@
 <?php
 // payment_form.php
-session_start();
+require_once __DIR__ . '/includes/session.php';
 
 // Get the LRN from GET parameter (passed after registration)
 $lrn = $_GET['lrn'] ?? '';
