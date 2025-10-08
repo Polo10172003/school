@@ -39,3 +39,10 @@
 [2025-10-07 11:05:50] student=68 grade=grade5 schedule_sent_at=NULL paid_count=1 paid_sum=28500.00 due_threshold=28,500.00 attach=yes included=yes
 [2025-10-07 11:06:06] student=68 grade=grade5 schedule_sent_at=2025-10-07 17:05:53 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-07 11:07:21] student=68 grade=grade6 schedule_sent_at=NULL paid_count=1 paid_sum=21920.00 due_threshold=21,420.00 attach=yes included=yes
+[2025-10-07 11:11:50] student=68 grade=grade4 schedule_sent_at=NULL paid_count=1 paid_sum=41750.00 due_threshold=41,750.00 attach=yes included=yes
+[2025-10-07 11:13:43] student=68 grade=grade4 schedule_sent_at=NULL paid_count=1 paid_sum=41750.00 due_threshold=41,750.00 attach=yes included=yes
+[2025-10-08 08:25:40] student=68 grade=grade4 schedule_sent_at=NULL paid_count=1 paid_sum=41750.00 due_threshold=41,750.00 attach=yes included=yes
+[2025-10-08 08:34:16] student=68 grade=grade4 schedule_sent_at=NULL paid_count=1 paid_sum=41750.00 due_threshold=41,750.00 attach=yes included=yes
+[2025-10-08 08:37:03] student=68 grade=grade5 schedule_sent_at=NULL paid_count=1 paid_sum=42000.00 due_threshold=42,250.00 attach=no included=no
+[2025-10-08 08:37:30] student=68 grade=grade5 schedule_sent_at=NULL paid_count=2 paid_sum=42250.00 due_threshold=42,250.00 attach=yes included=yes
+[2025-10-08 08:39:22] student=68 grade=grade6 schedule_sent_at=NULL paid_count=1 paid_sum=21420.00 due_threshold=21,420.00 attach=yes included=yes

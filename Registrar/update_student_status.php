@@ -58,6 +58,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $current_type = $row['student_type'];
 
     // --- PROMOTION / FAIL LOGIC ---
+    $enrollment_status = null;
     if ($status === "Passed") {
         if ($current_year === "Grade 12") {
             $next_year = "Graduated";
@@ -66,9 +67,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $next_year = nextYear($current_year);
             $academic_status = "Ongoing"; // always reset to Ongoing after promotion
         }
+        $enrollment_status = 'ready';
     } elseif ($status === "Failed") {
         $next_year = $current_year;     // stay same grade
         $academic_status = "Failed";    // mark Failed
+        $enrollment_status = 'waiting';
     }
 
     $new_student_type = $current_type;
@@ -84,11 +87,21 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     if ($resetSchedule) {
         $toBeAssigned = 'To be assigned';
-        $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
-        $stmt->bind_param("sssssi", $next_year, $academic_status, $new_student_type, $toBeAssigned, $toBeAssigned, $id);
+        if ($enrollment_status === null) {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
+            $stmt->bind_param("sssssi", $next_year, $academic_status, $new_student_type, $toBeAssigned, $toBeAssigned, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
+            $stmt->bind_param("ssssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $toBeAssigned, $toBeAssigned, $id);
+        }
     } else {
-        $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+        if ($enrollment_status === null) {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
+        } else {
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ? WHERE id = ?");
+            $stmt->bind_param("ssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $id);
+        }
     }
     if ($stmt->execute()) {
         echo "<script>

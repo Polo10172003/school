@@ -78,7 +78,7 @@ if ($student_type === 'old') {
         exit();
     }
 
-    $suggestedGrade = ($academicStatus === 'passed' || $academicStatus === 'ongoing')
+    $suggestedGrade = ($academicStatus === 'passed')
         ? $nextGrade($currentYear)
         : $currentYear;
 
