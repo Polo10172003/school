@@ -16,6 +16,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($registrar && ($password) == $registrar['password']) {
         $_SESSION['registrar_username'] = $registrar['username'];
+        $_SESSION['registrar_fullname'] = $registrar['fullname'] ?? $registrar['username'];
+        $_SESSION['registrar_role'] = $registrar['role'] ?? 'registrar';
         header("Location: registrar_dashboard.php");
         exit;
     }

@@ -1,5 +1,34 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
+
 include 'db_connection.php';
+require_once __DIR__ . '/admin_functions.php';
+
+$userManagementMessage = $_SESSION['admin_users_success'] ?? '';
+$userManagementError   = $_SESSION['admin_users_error'] ?? '';
+if ($userManagementMessage !== '') {
+  unset($_SESSION['admin_users_success']);
+}
+if ($userManagementError !== '') {
+  unset($_SESSION['admin_users_error']);
+}
+
+$currentAdmin = admin_get_current_user($conn);
+if ($currentAdmin) {
+  if (!empty($currentAdmin['fullname'])) {
+    $_SESSION['admin_fullname'] = $currentAdmin['fullname'];
+  }
+  if (!empty($currentAdmin['role']) && empty($_SESSION['admin_role'])) {
+    $_SESSION['admin_role'] = ucwords($currentAdmin['role']);
+  }
+}
+
+$userRows = admin_get_user_list($conn);
+
+$adminDisplayName = $_SESSION['admin_fullname'] ?? ($_SESSION['admin_username'] ?? 'Administrator');
+$adminRoleLabel = $_SESSION['admin_role'] ?? 'Administrator';
 require_once __DIR__ . '/includes/homepage_images.php';
 
 $scheduleMessage = '';
@@ -326,43 +355,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['homepage_images_form'
   }
 }
 
-$scheduleFilterGrade   = trim((string) ($_GET['schedule_grade_filter'] ?? ''));
-$scheduleFilterSection = trim((string) ($_GET['schedule_section_filter'] ?? ''));
-$scheduleFilterYear    = trim((string) ($_GET['schedule_year_filter'] ?? ''));
-
 $scheduleRows = [];
-$scheduleSql = 'SELECT id, grade_level, section, school_year, subject, teacher, day_of_week, start_time, end_time, room FROM class_schedules WHERE 1=1';
-$scheduleTypes = '';
-$scheduleParams = [];
-
-if ($scheduleFilterGrade !== '') {
-  $scheduleSql   .= ' AND grade_level = ?';
-  $scheduleTypes .= 's';
-  $scheduleParams[] = $scheduleFilterGrade;
-}
-if ($scheduleFilterSection !== '') {
-  $scheduleSql   .= ' AND section = ?';
-  $scheduleTypes .= 's';
-  $scheduleParams[] = $scheduleFilterSection;
-}
-if ($scheduleFilterYear !== '') {
-  $scheduleSql   .= ' AND school_year = ?';
-  $scheduleTypes .= 's';
-  $scheduleParams[] = $scheduleFilterYear;
-}
-
 $dayOrdering = "FIELD(day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')";
-$scheduleSql .= " ORDER BY grade_level, section, $dayOrdering, start_time IS NULL, start_time";
+$scheduleSql = "SELECT id, grade_level, section, school_year, subject, teacher, day_of_week, start_time, end_time, room
+               FROM class_schedules
+               ORDER BY grade_level, section, $dayOrdering, start_time IS NULL, start_time";
 
-if ($stmtSchedules = $conn->prepare($scheduleSql)) {
-  if (!empty($scheduleParams)) {
-    $stmtSchedules->bind_param($scheduleTypes, ...$scheduleParams);
-  }
-  if ($stmtSchedules->execute()) {
-    $resultSchedules = $stmtSchedules->get_result();
-    $scheduleRows = $resultSchedules ? $resultSchedules->fetch_all(MYSQLI_ASSOC) : [];
-  }
-  $stmtSchedules->close();
+if ($resultSchedules = $conn->query($scheduleSql)) {
+  $scheduleRows = $resultSchedules->fetch_all(MYSQLI_ASSOC);
+  $resultSchedules->close();
 }
 ?>
 <!DOCTYPE html>
@@ -396,6 +397,12 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
       <div>
         <h1>Admin Dashboard</h1>
         <p>Oversee school-wide data, publish announcements, and curate the public website content.</p>
+      </div>
+      <div class="dashboard-user-chip" title="Logged in as <?= htmlspecialchars($adminDisplayName); ?>">
+        <span class="chip-label">Logged in as</span>
+        <span class="chip-name"><?= htmlspecialchars($adminDisplayName); ?></span>
+        <span class="chip-divider">•</span>
+        <span class="chip-role"><?= htmlspecialchars($adminRoleLabel); ?></span>
       </div>
     </header>
 
@@ -457,6 +464,12 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
     <section class="dashboard-card" id="users">
       <span class="dashboard-section-title">Access Control</span>
       <h2>Add New User</h2>
+      <?php if ($userManagementMessage !== ''): ?>
+        <div class="dashboard-alert success"><?= htmlspecialchars($userManagementMessage) ?></div>
+      <?php endif; ?>
+      <?php if ($userManagementError !== ''): ?>
+        <div class="dashboard-alert error"><?= htmlspecialchars($userManagementError) ?></div>
+      <?php endif; ?>
       <form class="dashboard-form" action="admin_addusers.php" method="POST">
         <label for="fullname">Full Name</label>
         <input type="text" name="fullname" required>
@@ -477,6 +490,41 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
           <button type="submit" class="dashboard-btn">Add User</button>
         </div>
       </form>
+      <?php if (!empty($userRows)): ?>
+        <hr style="margin:24px 0; border:none; border-top:1px solid #d4dce1;">
+        <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Users" data-toggle-active-label="Hide Users" data-toggle-target="userList" onclick="toggleSection(this);">
+          View Users
+        </button>
+        <div class="table-responsive collapsible" id="userList" style="display:none; margin-top:16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Role</th>
+                <th style="width:120px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($userRows as $user): ?>
+                <tr>
+                  <td><?= htmlspecialchars($user['fullname'] ?? '') ?></td>
+                  <td><?= htmlspecialchars($user['username'] ?? '') ?></td>
+                  <td style="text-transform:capitalize;"><?= htmlspecialchars($user['role'] ?? '') ?></td>
+                  <td>
+                    <form action="admin_delete_user.php" method="POST" onsubmit="return confirm('Remove this user?');" style="display:inline;">
+                      <input type="hidden" name="user_id" value="<?= (int) ($user['id'] ?? 0) ?>">
+                      <button type="submit" class="dashboard-btn secondary" style="padding:6px 12px;">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php else: ?>
+        <p class="text-muted" style="margin-top:16px;">No users have been added yet.</p>
+      <?php endif; ?>
     </section>
     <section class="dashboard-card" id="schedules">
       <span class="dashboard-section-title">Schedule Planner</span>
@@ -556,34 +604,10 @@ if ($stmtSchedules = $conn->prepare($scheduleSql)) {
 
       <hr style="margin:32px 0; border:none; border-top:1px solid #d4dce1;">
 
-      <form class="dashboard-form" method="GET" action="#schedules">
-      <div class="dashboard-grid two">
-        <div>
-          <label for="schedule_grade_filter">Grade Filter</label>
-          <select name="schedule_grade_filter" id="schedule_grade_filter" onchange="this.form.submit()">
-            <option value="">All</option>
-            <?php foreach ($scheduleGradeOptions as $gradeOption):
-              $sel = ($scheduleFilterGrade === $gradeOption) ? 'selected' : '';
-            ?>
-              <option value="<?= htmlspecialchars($gradeOption) ?>" <?= $sel ?>><?= htmlspecialchars($gradeOption) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div>
-          <label for="schedule_section_filter">Section Filter</label>
-          <input type="text" name="schedule_section_filter" id="schedule_section_filter" value="<?= htmlspecialchars($scheduleFilterSection) ?>" placeholder="e.g., Section A" onchange="this.form.submit()">
-        </div>
-        <div>
-          <label for="schedule_year_filter">School Year Filter</label>
-          <input type="text" name="schedule_year_filter" id="schedule_year_filter" value="<?= htmlspecialchars($scheduleFilterYear) ?>" placeholder="e.g., 2024-2025" onchange="this.form.submit()">
-        </div>
-      </div>
-      <div class="dashboard-actions">
-        <a href="admin_dashboard.php#schedules" class="dashboard-btn secondary dashboard-btn--small">Clear Filters</a>
-      </div>
-      </form>
-
-      <div class="table-responsive">
+      <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin-bottom:16px;">
+        View Schedule List
+      </button>
+      <div class="table-responsive collapsible" id="scheduleList" style="display:none;">
         <table>
         <thead>
           <tr>
@@ -958,6 +982,21 @@ unset($sections);
 <?php $conn->close(); ?>
 
 <script>
+  function toggleSection(button) {
+    if (!button) return;
+    var targetId = button.getAttribute('data-toggle-target');
+    if (!targetId) return;
+    var target = document.getElementById(targetId);
+    if (!target) return;
+
+    var isHidden = target.style.display === 'none' || getComputedStyle(target).display === 'none';
+    target.style.display = isHidden ? '' : 'none';
+
+    var defaultLabel = button.getAttribute('data-toggle-label') || button.textContent || 'View';
+    var activeLabel = button.getAttribute('data-toggle-active-label') || 'Hide';
+    button.textContent = isHidden ? activeLabel : defaultLabel;
+  }
+
   function printRoster(targetId) {
     var block = document.getElementById(targetId);
     if (!block) {

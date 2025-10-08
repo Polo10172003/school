@@ -87,7 +87,7 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
 
             if ($stmt->execute()) {
                 $_SESSION['payment_success'] = true;
-                $_SESSION['payment_success_message'] = "Thank you for your payment. Your transaction is now being reviewed by our finance department.\nPlease keep your reference number and wait for confirmation via SMS or Email.";
+                $_SESSION['payment_success_message'] = "Thank you for your payment. Your transaction is now being reviewed by our finance department.\nPlease keep your reference number and wait for confirmation via Email.";
                 header("Location: choose_payment.php");
                 exit();
             } else {

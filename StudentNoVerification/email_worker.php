@@ -147,10 +147,9 @@ try {
     $mail->isHTML(true);
     $mail->Subject = 'Registration Acknowledgment - ESR';
     $student_type_label = ucfirst(strtolower($student_type)) === 'Old' ? 'Old' : 'New';
-    $mail->Body = "
-        <p>Dear <strong>$firstname $lastname</strong>,</p>
-        <p>Thank you for registering as a <strong>$student_type_label student</strong> of Escuela De Sto. Rosario.</p>
-        <p>Attached is a copy of your submitted enrollment form for your records.</p>
+    $requirementsSection = '';
+    if (strtolower(trim($student_type)) === 'new') {
+        $requirementsSection = "
         <p>Please visit the school to submit the following documents for verification:</p>
         <ul>
             <li>Certificate of Good Moral Character</li>
@@ -158,6 +157,14 @@ try {
             <li>Parents' Marriage Contract</li>
             <li>Student Baptismal Certificate <em>(if the last two are unavailable, kindly inform the registrar)</em></li>
         </ul>
+        ";
+    }
+
+    $mail->Body = "
+        <p>Dear <strong>$firstname $lastname</strong>,</p>
+        <p>Thank you for registering as a <strong>$student_type_label student</strong> of Escuela De Sto. Rosario.</p>
+        <p>Attached is a copy of your submitted enrollment form for your records.</p>
+        {$requirementsSection}
         <p><strong>Important:</strong> Early registration records remain active for 14 days. If you are unable to visit the school to submit the requirements and complete the interview within that period, your application will be automatically removed from our system.</p>
         <p>If you have already submitted these documents, you may disregard this reminder.</p>
         <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>

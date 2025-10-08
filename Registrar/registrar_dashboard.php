@@ -1,5 +1,7 @@
 <?php
+session_start();
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../admin_functions.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -24,10 +26,39 @@ include __DIR__ . '/../db_connection.php';
   </aside>
 
   <main class="dashboard-main">
+    <?php
+      $registrarDisplayName = $_SESSION['registrar_fullname'] ?? ($_SESSION['registrar_username'] ?? 'Registrar');
+      $registrarRoleLabel = ucwords($_SESSION['registrar_role'] ?? 'registrar');
+      $registrarUsername = $_SESSION['registrar_username'] ?? null;
+      if ($registrarUsername) {
+        $registrarRow = dashboard_fetch_user($conn, $registrarUsername);
+      if ($registrarRow) {
+        if (!empty($registrarRow['fullname'])) {
+          $_SESSION['registrar_fullname'] = $registrarRow['fullname'];
+          $registrarDisplayName = $registrarRow['fullname'];
+        }
+        if (!empty($registrarRow['role'])) {
+          $roleKey = strtolower($registrarRow['role']);
+          $roleMap = [
+            'registrar' => 'Registrar',
+            'cashier' => 'Cashier',
+            'admin' => 'Administrator',
+          ];
+          $registrarRoleLabel = $roleMap[$roleKey] ?? ucwords($registrarRow['role']);
+        }
+      }
+    }
+    ?>
     <header class="dashboard-header">
       <div>
         <h1>Registrar Dashboard</h1>
         <p>Track enrollment records, promote students in batches, and onboard families who register onsite.</p>
+      </div>
+      <div class="dashboard-user-chip" title="Logged in as <?= htmlspecialchars($registrarDisplayName); ?>">
+        <span class="chip-label">Logged in as</span>
+        <span class="chip-name"><?= htmlspecialchars($registrarDisplayName); ?></span>
+        <span class="chip-divider">•</span>
+        <span class="chip-role"><?= htmlspecialchars($registrarRoleLabel); ?></span>
       </div>
     </header>
 

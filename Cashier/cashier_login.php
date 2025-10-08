@@ -16,6 +16,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($cashier && ($password) == $cashier['password']) {
         $_SESSION['cashier_username'] = $cashier['username'];
+        $_SESSION['cashier_fullname'] = $cashier['fullname'] ?? $cashier['username'];
+        $_SESSION['cashier_role'] = $cashier['role'] ?? 'cashier';
         header("Location: cashier_dashboard.php");
         exit;
     }

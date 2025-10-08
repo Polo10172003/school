@@ -9,6 +9,24 @@ if ($conn->connect_error) {
 }
 
 require_once __DIR__ . '/cashier_dashboard_logic.php';
+require_once __DIR__ . '/../admin_functions.php';
+
+$cashierUsername = $_SESSION['cashier_username'] ?? null;
+$cashierDisplayName = $_SESSION['cashier_fullname'] ?? ($cashierUsername ?? 'Cashier');
+$cashierRoleLabel = ucwords($_SESSION['cashier_role'] ?? 'cashier');
+if ($cashierUsername) {
+    $cashierRow = dashboard_fetch_user($conn, $cashierUsername);
+    if ($cashierRow) {
+        if (!empty($cashierRow['fullname'])) {
+            $_SESSION['cashier_fullname'] = $cashierRow['fullname'];
+            $cashierDisplayName = $cashierRow['fullname'];
+        }
+        if (!empty($cashierRow['role'])) {
+            $_SESSION['cashier_role'] = $cashierRow['role'];
+            $cashierRoleLabel = ucwords($cashierRow['role']);
+        }
+    }
+}
 
 $redirect = cashier_dashboard_handle_payment_submission($conn);
 if ($redirect) {
@@ -40,6 +58,15 @@ if ($payments instanceof mysqli_result) {
         $paymentRows[] = $row;
     }
 }
+$pendingPaymentCount = 0;
+foreach ($paymentRows as $row) {
+    $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
+    if (in_array($status, ['pending', 'processing', 'review'], true)) {
+        $pendingPaymentCount++;
+    }
+}
+$paymentToggleLabel = 'View Payment Records' . ($pendingPaymentCount > 0 ? " ({$pendingPaymentCount} pending)" : '');
+$paymentToggleActiveLabel = 'Hide Payment Records';
 $planOptions = cashier_dashboard_plan_labels();
 $tuitionPackages = cashier_dashboard_fetch_tuition_packages($conn);
 $pricingCategories = [
@@ -70,6 +97,7 @@ $gradeOptions = [
   'grade11' => 'Grade 11',
   'grade12' => 'Grade 12',
 ];
+
 ?>
 
 
@@ -91,7 +119,7 @@ $gradeOptions = [
     </div>
     <nav class="dashboard-nav">
       <a href="#record">Record Payment</a>
-      <a href="#records">Payment Records</a>
+      <a href="#records">Payment Records<?php if ($pendingPaymentCount > 0): ?><span class="nav-indicator"><?= $pendingPaymentCount ?></span><?php endif; ?></a>
       <a href="#fees">Manage Fees</a>
     </nav>
     <a href="cashier_login.php" class="dashboard-logout">Logout</a>
@@ -101,6 +129,12 @@ $gradeOptions = [
       <div>
         <h1>Cashier Dashboard</h1>
         <p>Record onsite payments, verify online submissions, and keep tuition fees up to date.</p>
+      </div>
+      <div class="dashboard-user-chip" title="Logged in as <?= htmlspecialchars($cashierDisplayName); ?>">
+        <span class="chip-label">Logged in as</span>
+        <span class="chip-name"><?= htmlspecialchars($cashierDisplayName); ?></span>
+        <span class="chip-divider">•</span>
+        <span class="chip-role"><?= htmlspecialchars($cashierRoleLabel); ?></span>
       </div>
     </header>
 
@@ -438,9 +472,17 @@ $gradeOptions = [
       <span class="dashboard-section-title">Payments Oversight</span>
       <h2>Payment Records</h2>
       <p class="text-muted">Review online submissions and onsite receipts queued for verification.</p>
+      <?php if ($pendingPaymentCount > 0): ?>
+        <div class="dashboard-alert warning" style="margin-bottom:12px;">
+          <?= $pendingPaymentCount ?> payment<?= $pendingPaymentCount > 1 ? 's' : '' ?> awaiting review.
+        </div>
+      <?php endif; ?>
 
       <?php if (!empty($paymentRows)): ?>
-        <div class="table-responsive">
+        <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="<?= htmlspecialchars($paymentToggleLabel, ENT_QUOTES, 'UTF-8'); ?>" data-toggle-active-label="<?= htmlspecialchars($paymentToggleActiveLabel, ENT_QUOTES, 'UTF-8'); ?>" data-toggle-target="paymentRecords" onclick="toggleSection(this);" style="margin-bottom:16px;">
+          <?= htmlspecialchars($paymentToggleLabel); ?>
+        </button>
+        <div class="table-responsive collapsible" id="paymentRecords" style="display:none;">
           <table id="paymentTable">
             <thead>
               <tr>
@@ -575,8 +617,10 @@ $gradeOptions = [
     </form>
 
     <?php if (!empty($tuitionPackages)): ?>
-      <h3 class="tuition-table-title">Saved tuition matrix</h3>
-      <div class="tuition-matrix-wrapper">
+      <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Saved Tuition Matrix" data-toggle-active-label="Hide Saved Tuition Matrix" data-toggle-target="tuitionMatrix" onclick="toggleSection(this);" style="margin:16px 0;">
+        View Saved Tuition Matrix
+      </button>
+      <div class="tuition-matrix-wrapper collapsible" id="tuitionMatrix" style="display:none;">
         <table class="tuition-matrix-table">
           <thead>
             <tr>
@@ -674,6 +718,21 @@ $gradeOptions = [
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="cashier_dashboard.js"></script>
 <script>
+function toggleSection(button) {
+  if (!button) return;
+  var targetId = button.getAttribute('data-toggle-target');
+  if (!targetId) return;
+  var target = document.getElementById(targetId);
+  if (!target) return;
+
+  var isHidden = target.style.display === 'none' || getComputedStyle(target).display === 'none';
+  target.style.display = isHidden ? '' : 'none';
+
+  var defaultLabel = button.getAttribute('data-toggle-label') || button.dataset.toggleLabel || button.textContent || 'View';
+  var activeLabel = button.getAttribute('data-toggle-active-label') || button.dataset.toggleActiveLabel || 'Hide';
+  button.textContent = isHidden ? activeLabel : defaultLabel;
+}
+
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.payment-plan-select').forEach(function(select) {
     var targetId = select.getAttribute('data-target');

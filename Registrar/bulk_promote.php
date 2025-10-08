@@ -4,7 +4,6 @@ include __DIR__ . '/../db_connection.php';
 // Promotion map
 function nextYear($year) {
     $map = [
-        "Preschool" => "Pre-Prime 1",
         "Pre-Prime 1"  => "Pre-Prime 2",
         "Pre-Prime 2"  => "Kindergarten",
         "Pre-Prime 1 & 2" => "Kindergarten",
@@ -55,8 +54,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
             $academic_status = "Ongoing"; // reset after promotion
         }
 
-        $enrollment_status = ($academic_status === 'Graduated') ? 'enrolled' : 'ready';
-
         $new_student_type = 'old';
         $resetSchedule = ($next_year !== $current_year);
         if ($next_year === $current_year) {
@@ -66,11 +63,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
 
         if ($resetSchedule) {
             $toBeAssigned = 'To be assigned';
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
-            $stmt->bind_param("ssssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $toBeAssigned, $toBeAssigned, $id);
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
+            $stmt->bind_param("sssssi", $next_year, $academic_status, $new_student_type, $toBeAssigned, $toBeAssigned, $id);
         } else {
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $id);
+            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
+            $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
         }
         $stmt->execute();
         $stmt->close();

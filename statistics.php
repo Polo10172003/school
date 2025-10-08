@@ -28,38 +28,6 @@ $other_years_count = array_sum($enrollment_data) - $current_year_count - $previo
 $labels_years = ["This Year ($current_year)", "Last Year (" . ($current_year - 1) . ")", "Other Years"];
 $data_years = [$current_year_count, $previous_year, $other_years_count];
 
-/* ---------------- Monthly Enrollment Trend ---------------- */
-$query = "
-    SELECT MONTH(created_at) AS month, COUNT(*) AS count
-    FROM students_registration
-    WHERE YEAR(created_at) = YEAR(CURDATE())
-    GROUP BY MONTH(created_at)
-    ORDER BY month
-";
-$result = $conn->query($query);
-$months = array_fill(1, 12, 0);
-while ($row = $result->fetch_assoc()) {
-    $months[(int)$row['month']] = (int)$row['count'];
-}
-$labels_months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-$data_months = array_values($months);
-
-/* ---------------- Grade Distribution ---------------- */
-$query = "
-    SELECT year AS grade, COUNT(*) AS count
-    FROM students_registration
-    WHERE enrollment_status = 'enrolled'
-    GROUP BY year
-    ORDER BY grade
-";
-$result = $conn->query($query);
-$grades = [];
-while ($row = $result->fetch_assoc()) {
-    $grades[$row['grade']] = (int)$row['count'];
-}
-$labels_grades = array_keys($grades);
-$data_grades = array_values($grades);
-
 /* ---------------- Payment Overview ---------------- */
 $query = "
     SELECT payment_status, SUM(amount) AS total
@@ -105,15 +73,41 @@ $data_payments = [
         .card h3 { margin: 10px 0; font-size: 28px; }
         .card p { color: #666; margin: 0; }
 
+        .chart-toggle {
+            text-align: center;
+            margin: 20px 0 30px;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .chart-toggle button {
+            padding: 10px 20px;
+            border-radius: 999px;
+            border: 2px solid #145A32;
+            background: transparent;
+            color: #145A32;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .chart-toggle button.active,
+        .chart-toggle button:hover {
+            background: linear-gradient(135deg, rgba(20, 90, 50, 0.85), rgba(20, 90, 50, 0.65));
+            color: #ffffff;
+        }
+
         .chart-container {
-            width: 45%;
-            display: inline-block;
-            margin: 20px;
-            vertical-align: top;
+            width: 100%;
+            max-width: 620px;
+            margin: 0 auto 30px;
             background:white;
-            padding:20px;
-            border-radius:10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding:24px;
+            border-radius:16px;
+            box-shadow: 0 12px 25px rgba(12, 68, 49, 0.12);
         }
     </style>
 </head>
@@ -142,69 +136,47 @@ $data_payments = [
 </div>
 
 <!-- Chart Toggle Buttons -->
-<div style="text-align:center; margin:20px;">
-  <button onclick="showChart('enrollmentYearChart')">Enrollment by Year</button>
-  <button onclick="showChart('monthlyTrendChart')">Monthly Trend</button>
-  <button onclick="showChart('gradeDistributionChart')">Grade Distribution</button>
-  <button onclick="showChart('paymentOverviewChart')">Payment Overview</button>
+<div class="chart-toggle">
+  <button class="active" data-chart="enrollmentYearChart" onclick="showChart(event, 'enrollmentYearChart')">Enrollment by Year</button>
+  <button data-chart="paymentOverviewChart" onclick="showChart(event, 'paymentOverviewChart')">Payment Overview</button>
 </div>
 
 <!-- Chart Containers -->
 <div id="enrollmentYearChartDiv" class="chart-container"><canvas id="enrollmentYearChart"></canvas></div>
-<div id="monthlyTrendChartDiv" class="chart-container" style="display:none;"><canvas id="monthlyTrendChart"></canvas></div>
-<div id="gradeDistributionChartDiv" class="chart-container" style="display:none;"><canvas id="gradeDistributionChart"></canvas></div>
 <div id="paymentOverviewChartDiv" class="chart-container" style="display:none;"><canvas id="paymentOverviewChart"></canvas></div>
 
 <script>
-function showChart(chartId) {
+function showChart(evt, chartId) {
   document.querySelectorAll('.chart-container').forEach(c => c.style.display = 'none');
-  document.getElementById(chartId+'Div').style.display = 'block';
+  var target = document.getElementById(chartId + 'Div');
+  if (target) {
+    target.style.display = 'block';
+  }
+  document.querySelectorAll('.chart-toggle button').forEach(btn => btn.classList.remove('active'));
+  if (evt && evt.currentTarget) {
+    evt.currentTarget.classList.add('active');
+  }
 }
 </script>
 
 
 <script>
-/* Enrollment by Year (Pie) */
+/* Enrollment by Year (Doughnut) */
 new Chart(document.getElementById('enrollmentYearChart'), {
-    type: 'pie',
+    type: 'doughnut',
     data: {
         labels: <?php echo json_encode($labels_years); ?>,
         datasets: [{
             data: <?php echo json_encode($data_years); ?>,
-            backgroundColor: ['#36A2EB', '#FF6384', '#C9CBCF']
+            backgroundColor: ['#2ecc71', '#3498db', '#95a5a6']
         }]
     },
-    options: { plugins: { title: { display: true, text: 'Enrollment by Year' } } }
-});
-
-/* Monthly Enrollment Trend (Line) */
-new Chart(document.getElementById('monthlyTrendChart'), {
-    type: 'line',
-    data: {
-        labels: <?php echo json_encode($labels_months); ?>,
-        datasets: [{
-            label: 'New Enrollments',
-            data: <?php echo json_encode($data_months); ?>,
-            borderColor: '#36A2EB',
-            fill: false,
-            tension:0.3
-        }]
-    },
-    options: { plugins: { title: { display: true, text: 'Monthly Enrollment Trend (This Year)' } } }
-});
-
-/* Grade Distribution (Bar) */
-new Chart(document.getElementById('gradeDistributionChart'), {
-    type: 'bar',
-    data: {
-        labels: <?php echo json_encode($labels_grades); ?>,
-        datasets: [{
-            label: 'Students Enrolled',
-            data: <?php echo json_encode($data_grades); ?>,
-            backgroundColor: '#4CAF50'
-        }]
-    },
-    options: { plugins: { title: { display: true, text: 'Students per Grade' } } }
+    options: {
+        plugins: {
+            title: { display: true, text: 'Enrollment by Year' },
+            legend: { position: 'bottom' }
+        }
+    }
 });
 
 /* Payment Overview (Bar) */
@@ -215,10 +187,18 @@ new Chart(document.getElementById('paymentOverviewChart'), {
         datasets: [{
             label: 'Total Amount (₱)',
             data: <?php echo json_encode($data_payments); ?>,
-            backgroundColor: ['#4CAF50', '#FFC107', '#F44336']
+            backgroundColor: ['#27ae60', '#f1c40f', '#e74c3c']
         }]
     },
-    options: { plugins: { title: { display: true, text: 'Payment Overview' } } }
+    options: {
+        plugins: {
+            title: { display: true, text: 'Payment Overview' },
+            legend: { display: false }
+        },
+        scales: {
+            y: { beginAtZero: true }
+        }
+    }
 });
 </script>
 

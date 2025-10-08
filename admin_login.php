@@ -5,17 +5,24 @@ include 'db_connection.php';
 $error = '';
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $username = $_POST['username'];
-    $password = $_POST['password'];
+    $username = trim($_POST['username'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-    $sql = "SELECT * FROM users WHERE username = '$username' AND password = '$password'";
-    $result = $conn->query($sql);
+    $stmt = $conn->prepare('SELECT username, password, fullname FROM users WHERE username = ?');
+    if ($stmt) {
+        $stmt->bind_param('s', $username);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $admin = $result ? $result->fetch_assoc() : null;
+        $stmt->close();
 
-    if ($result && $result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        $_SESSION['admin_name'] = $row['name'] ?? $row['username'];
-        header("Location: admin_dashboard.php");
-        exit();
+        if ($admin && $admin['password'] === $password) {
+            $_SESSION['admin_username'] = $admin['username'];
+            $_SESSION['admin_fullname'] = $admin['fullname'] ?? $admin['username'];
+            $_SESSION['admin_role'] = 'Administrator';
+            header("Location: admin_dashboard.php");
+            exit();
+        }
     }
 
     $error = "Invalid login credentials.";
