@@ -88,6 +88,24 @@ if ($status === 'paid') {
     $enroll_stmt->bind_param('i', $student_id);
     $enroll_stmt->execute();
     $enroll_stmt->close();
+
+    $statusCheck = $conn->prepare('SELECT academic_status FROM students_registration WHERE id = ?');
+    if ($statusCheck) {
+        $statusCheck->bind_param('i', $student_id);
+        $statusCheck->execute();
+        $statusCheck->bind_result($currentAcademic);
+        if ($statusCheck->fetch() && strcasecmp(trim((string) $currentAcademic), 'Failed') === 0) {
+            $statusCheck->close();
+            $restoreStatus = $conn->prepare("UPDATE students_registration SET academic_status = 'Ongoing' WHERE id = ?");
+            if ($restoreStatus) {
+                $restoreStatus->bind_param('i', $student_id);
+                $restoreStatus->execute();
+                $restoreStatus->close();
+            }
+        } else {
+            $statusCheck->close();
+        }
+    }
 }
 
 if (!empty($email)) {

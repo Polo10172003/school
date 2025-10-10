@@ -304,3 +304,30 @@ Array
     [4] => Samantha
     [5] => Pereira
 )
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 70
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 71
+    [2] => New
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 72
+    [2] => New
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)

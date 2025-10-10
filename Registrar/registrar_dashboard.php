@@ -79,6 +79,14 @@ require_once __DIR__ . '/../admin_functions.php';
             $flashText = 'Unable to prepare the onsite payment record. Please retry or contact the administrator.';
             $flashType = 'danger';
             break;
+        case 'student_updated':
+            $flashText = 'Student details were updated successfully.';
+            $flashType = 'success';
+            break;
+        case 'student_missing':
+            $flashText = 'Unable to locate that student record. Please refresh the list and try again.';
+            $flashType = 'danger';
+            break;
         case 'old_student_not_found':
             $flashText = 'No record matched that student number. Please double-check and try again.';
             $flashType = 'danger';

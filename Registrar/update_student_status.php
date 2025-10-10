@@ -31,7 +31,7 @@ if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
     // Fetch current student info
-    $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type` FROM students_registration WHERE id = ?");
+    $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `school_year` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $student = $stmt->get_result()->fetch_assoc();
@@ -56,6 +56,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmt->close();
     $current_year = $row['year'];
     $current_type = $row['student_type'];
+    $current_school_year = $row['school_year'] ?? '';
 
     // --- PROMOTION / FAIL LOGIC ---
     $enrollment_status = null;
@@ -104,6 +105,59 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
     if ($stmt->execute()) {
+        if ($status === 'Failed') {
+            // Reset placement details for repeaters
+            $clearPlacement = $conn->prepare('UPDATE students_registration SET schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?');
+            if ($clearPlacement) {
+                $clearPlacement->bind_param('i', $id);
+                $clearPlacement->execute();
+                $clearPlacement->close();
+            }
+
+            // Remove any saved payment plan selections so the cashier can choose again
+            $hasPlanTable = $conn->query("SHOW TABLES LIKE 'student_plan_selections'");
+            if ($hasPlanTable && $hasPlanTable->num_rows > 0) {
+                $deletePlan = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ?');
+                if ($deletePlan) {
+                    $deletePlan->bind_param('i', $id);
+                    $deletePlan->execute();
+                    $deletePlan->close();
+                }
+            }
+            if ($hasPlanTable instanceof mysqli_result) {
+                $hasPlanTable->close();
+            }
+
+            // Expire paid payments for the repeated grade so the student can settle again
+            $paidStatuses = ['paid', 'completed', 'approved', 'cleared'];
+            $gradeParam = trim((string) $current_year);
+            $schoolYearParam = trim((string) $current_school_year);
+            $placeholders = "'" . implode("','", $paidStatuses) . "'";
+            $expireSql = "UPDATE student_payments SET payment_status = 'expired', payment_date = NULL WHERE student_id = ? AND LOWER(payment_status) IN ($placeholders)";
+            $bindTypes = 'i';
+            $bindValues = [$id];
+            if ($gradeParam !== '') {
+                $expireSql .= ' AND (grade_level IS NULL OR TRIM(grade_level) = ?)';
+                $bindTypes .= 's';
+                $bindValues[] = $gradeParam;
+            }
+            if ($schoolYearParam !== '') {
+                $expireSql .= ' AND (school_year IS NULL OR school_year = ?)';
+                $bindTypes .= 's';
+                $bindValues[] = $schoolYearParam;
+            }
+            $expireStmt = $conn->prepare($expireSql);
+            if ($expireStmt) {
+                $params = [$bindTypes];
+                foreach ($bindValues as $idx => $value) {
+                    $params[] = &$bindValues[$idx];
+                }
+                call_user_func_array([$expireStmt, 'bind_param'], $params);
+                $expireStmt->execute();
+                $expireStmt->close();
+            }
+        }
+
         echo "<script>
                 alert('Student status updated successfully!');
                 window.location.href='registrar_dashboard.php';

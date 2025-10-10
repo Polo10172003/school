@@ -610,6 +610,28 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
             $upd->execute();
             $upd->close();
 
+            $statusCheck = $conn->prepare('SELECT academic_status FROM students_registration WHERE id = ?');
+            if ($statusCheck) {
+                $statusCheck->bind_param('i', $student_id);
+                $statusCheck->execute();
+                $statusCheck->bind_result($currentAcademic);
+                if ($statusCheck->fetch()) {
+                    if (strcasecmp(trim((string) $currentAcademic), 'Failed') === 0) {
+                        $statusCheck->close();
+                        $restoreStatus = $conn->prepare("UPDATE students_registration SET academic_status = 'Ongoing' WHERE id = ?");
+                        if ($restoreStatus) {
+                            $restoreStatus->bind_param('i', $student_id);
+                            $restoreStatus->execute();
+                            $restoreStatus->close();
+                        }
+                    } else {
+                        $statusCheck->close();
+                    }
+                } else {
+                    $statusCheck->close();
+                }
+            }
+
             // ✅ Always save plan selection too
             if ($posted_plan !== '' && isset(cashier_dashboard_plan_labels()[$posted_plan])) {
                 error_log('[cashier] saving plan selection fee=' . $plan_context['tuition_fee_id'] . ' plan=' . $posted_plan);
@@ -1472,7 +1494,7 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
 
     if ($searchQuery !== '') {
         $search_name_like = "%" . $conn->real_escape_string($searchQuery) . "%";
-        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE lastname LIKE ? ORDER BY lastname');
+        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status, academic_status, school_year FROM students_registration WHERE lastname LIKE ? ORDER BY lastname');
         $stmt->bind_param('s', $search_name_like);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -1521,7 +1543,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 {
     $studentRow = $options['student_row'] ?? null;
     if (!$studentRow) {
-        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status FROM students_registration WHERE id = ? LIMIT 1');
+        $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status, academic_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
         if (!$stmt) {
             return null;
         }
@@ -1536,6 +1558,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     }
 
     $gradeLevel = $studentRow['year'];
+    $academicStatus = strtolower(trim((string) ($studentRow['academic_status'] ?? '')));
     $studentType = strtolower($studentRow['student_type'] ?? 'new');
     $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
     $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
@@ -1605,7 +1628,12 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         if (!empty($row['grade_level'])) {
             $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
         }
-        if (cashier_payment_status_is_paid($row['payment_status'] ?? '')) {
+        $isPaidStatus = cashier_payment_status_is_paid($row['payment_status'] ?? '');
+        if ($academicStatus === 'failed' && $isPaidStatus) {
+            // Ignore prior payments when student is repeating the grade.
+            continue;
+        }
+        if ($isPaidStatus) {
             $paid[] = $row;
             if ($normalizedPaymentGrade !== '') {
                 $paidByGrade[$normalizedPaymentGrade][] = $row;
