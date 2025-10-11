@@ -97,7 +97,7 @@ if (!function_exists('cashier_email_worker_process')) {
             $student_number,
             $grade_level,
             $student_section,
-            $schedule_sent_at,
+            $schedule_sent_at_raw,
             $student_type
         );
         $stmt->fetch();
@@ -129,6 +129,11 @@ if (!function_exists('cashier_email_worker_process')) {
         $currentGradePaidSum = 0.0;
         $dueThreshold = null;
         $shouldAttachSchedule = false;
+
+        $schedule_sent_at = $schedule_sent_at_raw;
+        if ($schedule_sent_at === '0000-00-00 00:00:00') {
+            $schedule_sent_at = null;
+        }
 
         if (empty($schedule_sent_at)) {
             $totalPaidPerGrade = [];
