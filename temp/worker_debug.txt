@@ -331,3 +331,138 @@ Array
     [4] => Samantha
     [5] => Pereira
 )
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 72
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 73
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 74
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 75
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 76
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 77
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 78
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 79
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 80
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 81
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 82
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 83
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 83
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 83
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 83
+    [2] => Old
+    [3] => samiarrapereira@gmail.com
+    [4] => Samantha
+    [5] => Pereira
+)

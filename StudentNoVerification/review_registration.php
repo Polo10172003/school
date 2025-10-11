@@ -6,6 +6,8 @@ use PHPMailer\PHPMailer\PHPMailer;
 $mode = isset($_GET['mode']) && $_GET['mode'] === 'registrar' ? 'registrar' : null;
 $registrarId = $_SESSION['registrar_edit_student_id'] ?? null;
 $fromRegistrar = $mode === 'registrar' || ($registrarId !== null);
+$returningTag = $_SESSION['registration_returning_tag'] ?? '';
+$previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
 
 if ($fromRegistrar) {
     include __DIR__ . '/../db_connection.php';
@@ -478,6 +480,14 @@ include '../includes/header.php';
 
 <main>
     <div class="review-wrapper">
+        <?php if ($fromRegistrar && $returningTag !== ''): ?>
+            <div class="alert alert-warning" role="alert" style="margin-top: -10px;">
+                <strong><?= htmlspecialchars($returningTag); ?></strong>
+                <?php if ($previousSchoolYear !== ''): ?>
+                    — last enrolled S.Y.: <?= htmlspecialchars($previousSchoolYear); ?>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
         <?php if ($fromRegistrar && isset($isEditMode) && $isEditMode): ?>
             <h1>Edit Student Record</h1>
             <p class="subtext">Update the student's information below. Parents will receive a confirmation when changes are saved.</p>

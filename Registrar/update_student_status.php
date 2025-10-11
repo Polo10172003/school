@@ -49,7 +49,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $status = $_POST['status'];
 
     // Fetch current year again (safety)
-    $stmt = $conn->prepare("SELECT `year`, `student_type` FROM students_registration WHERE id = ?");
+$stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname`, `lastname` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -57,9 +57,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $current_year = $row['year'];
     $current_type = $row['student_type'];
     $current_school_year = $row['school_year'] ?? '';
+    $current_firstname = $row['firstname'] ?? '';
+    $current_lastname = $row['lastname'] ?? '';
 
     // --- PROMOTION / FAIL LOGIC ---
     $enrollment_status = null;
+    $moveToInactive = false;
+
     if ($status === "Passed") {
         if ($current_year === "Grade 12") {
             $next_year = "Graduated";
@@ -73,6 +77,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $next_year = $current_year;     // stay same grade
         $academic_status = "Failed";    // mark Failed
         $enrollment_status = 'waiting';
+    } elseif ($status === "Dropped") {
+        $next_year = $current_year;
+        $academic_status = "Dropped";
+        $enrollment_status = 'dropped';
+        $moveToInactive = true;
     }
 
     $new_student_type = $current_type;
@@ -105,8 +114,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
     if ($stmt->execute()) {
-        if ($status === 'Failed') {
-            // Reset placement details for repeaters
+        $shouldClearPlanSelections = ($status === 'Failed') || (($status !== 'Dropped') && $moveToInactive) || ($status === 'Passed' && $resetSchedule);
+
+        if ($shouldClearPlanSelections) {
+            // Reset placement details
             $clearPlacement = $conn->prepare('UPDATE students_registration SET schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?');
             if ($clearPlacement) {
                 $clearPlacement->bind_param('i', $id);
@@ -127,34 +138,45 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             if ($hasPlanTable instanceof mysqli_result) {
                 $hasPlanTable->close();
             }
+        }
 
-            // Expire paid payments for the repeated grade so the student can settle again
-            $paidStatuses = ['paid', 'completed', 'approved', 'cleared'];
-            $gradeParam = trim((string) $current_year);
-            $schoolYearParam = trim((string) $current_school_year);
-            $placeholders = "'" . implode("','", $paidStatuses) . "'";
-            $expireSql = "UPDATE student_payments SET payment_status = 'expired', payment_date = NULL WHERE student_id = ? AND LOWER(payment_status) IN ($placeholders)";
-            $bindTypes = 'i';
-            $bindValues = [$id];
-            if ($gradeParam !== '') {
-                $expireSql .= ' AND (grade_level IS NULL OR TRIM(grade_level) = ?)';
-                $bindTypes .= 's';
-                $bindValues[] = $gradeParam;
-            }
-            if ($schoolYearParam !== '') {
-                $expireSql .= ' AND (school_year IS NULL OR school_year = ?)';
-                $bindTypes .= 's';
-                $bindValues[] = $schoolYearParam;
-            }
-            $expireStmt = $conn->prepare($expireSql);
-            if ($expireStmt) {
-                $params = [$bindTypes];
-                foreach ($bindValues as $idx => $value) {
-                    $params[] = &$bindValues[$idx];
+
+        if ($moveToInactive) {
+            $conn->begin_transaction();
+            try {
+                $copyStmt = $conn->prepare('INSERT INTO inactive_students SELECT * FROM students_registration WHERE id = ?');
+                if (!$copyStmt) {
+                    throw new Exception('Unable to copy student to inactive list.');
                 }
-                call_user_func_array([$expireStmt, 'bind_param'], $params);
-                $expireStmt->execute();
-                $expireStmt->close();
+                $copyStmt->bind_param('i', $id);
+                if (!$copyStmt->execute()) {
+                    throw new Exception('Unable to copy student to inactive list.');
+                }
+                $copyStmt->close();
+
+                $deleteStmt = $conn->prepare('DELETE FROM students_registration WHERE id = ?');
+                if (!$deleteStmt) {
+                    throw new Exception('Unable to remove student from active list.');
+                }
+                $deleteStmt->bind_param('i', $id);
+                if (!$deleteStmt->execute()) {
+                    throw new Exception('Unable to remove student from active list.');
+                }
+                $deleteStmt->close();
+
+                $conn->commit();
+                echo "<script>
+                        alert('Student marked as dropped and moved to inactive records.');
+                        window.location.href='registrar_dashboard.php';
+                      </script>";
+                exit();
+            } catch (Exception $e) {
+                $conn->rollback();
+                echo "<script>
+                        alert('" . addslashes($e->getMessage()) . "');
+                        window.location.href='registrar_dashboard.php';
+                      </script>";
+                exit();
             }
         }
 
@@ -190,6 +212,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     <select name="status" id="status" class="form-select" required>
                         <option value="Passed" <?= ($current_status === 'Ongoing' || $current_status === 'Passed') ? 'selected' : '' ?>>Passed</option>
                         <option value="Failed" <?= ($current_status === 'Failed') ? 'selected' : '' ?>>Failed</option>
+                        <option value="Dropped" <?= ($current_status === 'Dropped') ? 'selected' : '' ?>>Dropped</option>
                     </select>
                 </div>
 

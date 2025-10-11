@@ -131,6 +131,84 @@ function cashier_dashboard_table_exists(mysqli $conn, string $table): bool
     return $exists;
 }
 
+function cashier_reactivate_inactive_student(mysqli $conn, int $inactiveId): ?array
+{
+    if ($inactiveId <= 0) {
+        return null;
+    }
+
+    $fetch = $conn->prepare('SELECT * FROM inactive_students WHERE id = ? LIMIT 1');
+    if (!$fetch) {
+        return null;
+    }
+    $fetch->bind_param('i', $inactiveId);
+    $fetch->execute();
+    $inactiveRow = $fetch->get_result()->fetch_assoc();
+    $fetch->close();
+
+    if (!$inactiveRow) {
+        return null;
+    }
+
+    $conn->begin_transaction();
+    try {
+        $copy = $conn->prepare('INSERT INTO students_registration SELECT * FROM inactive_students WHERE id = ?');
+        if (!$copy) {
+            throw new Exception('Unable to copy inactive student.');
+        }
+        $copy->bind_param('i', $inactiveId);
+        if (!$copy->execute()) {
+            throw new Exception('Unable to copy inactive student.');
+        }
+        $copy->close();
+
+        $update = $conn->prepare("UPDATE students_registration SET enrollment_status = 'ready', academic_status = 'Ongoing', student_type = 'Old', schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?");
+        if ($update) {
+            $update->bind_param('i', $inactiveId);
+            $update->execute();
+            $update->close();
+        }
+
+        $delete = $conn->prepare('DELETE FROM inactive_students WHERE id = ?');
+        if (!$delete) {
+            throw new Exception('Unable to clean up inactive student record.');
+        }
+        $delete->bind_param('i', $inactiveId);
+        if (!$delete->execute()) {
+            throw new Exception('Unable to clean up inactive student record.');
+        }
+        $delete->close();
+
+        $conn->commit();
+    } catch (Throwable $e) {
+        $conn->rollback();
+        error_log('[cashier] inactive reactivation failed: ' . $e->getMessage());
+        return null;
+    }
+
+    $expire = $conn->prepare("UPDATE student_payments SET payment_status = 'pending', payment_date = NULL WHERE student_id = ? AND LOWER(payment_status) IN ('paid','completed','approved','cleared')");
+    if ($expire) {
+        $expire->bind_param('i', $inactiveId);
+        $expire->execute();
+        $expire->close();
+    }
+
+    $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status, academic_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param('i', $inactiveId);
+    $stmt->execute();
+    $reactivatedRow = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if ($reactivatedRow) {
+        $reactivatedRow['reactivated_source'] = 'inactive';
+    }
+
+    return $reactivatedRow;
+}
+
 function cashier_dashboard_ensure_plan_selection_table(mysqli $conn): bool
 {
     static $ensured = false;
@@ -163,7 +241,7 @@ function cashier_dashboard_ensure_plan_selection_table(mysqli $conn): bool
     return true;
 }
 
-function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tuitionFeeId): ?array
+function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tuitionFeeId, ?string $schoolYearFilter = null): ?array
 {
     $studentIdInt = (int) $studentId;
 
@@ -175,11 +253,19 @@ function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tu
         return null;
     }
 
-    $stmt = $conn->prepare('SELECT plan_type, pricing_category FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ? LIMIT 1');
-    if (!$stmt) {
-        return null;
+    if ($schoolYearFilter !== null && $schoolYearFilter !== '') {
+        $stmt = $conn->prepare('SELECT plan_type, pricing_category FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ? AND school_year = ? ORDER BY selected_at DESC LIMIT 1');
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('iis', $studentIdInt, $tuitionFeeId, $schoolYearFilter);
+    } else {
+        $stmt = $conn->prepare('SELECT plan_type, pricing_category FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ? ORDER BY selected_at DESC LIMIT 1');
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('ii', $studentIdInt, $tuitionFeeId);
     }
-    $stmt->bind_param('ii', $studentIdInt, $tuitionFeeId);
     $stmt->execute();
     $stmt->bind_result($planType, $pricingCategory);
     $found = $stmt->fetch();
@@ -193,6 +279,126 @@ function cashier_dashboard_fetch_selected_plan(mysqli $conn, $studentId, int $tu
         'plan_type' => strtolower((string) $planType),
         'pricing_category' => strtolower((string) ($pricingCategory ?? '')),
     ];
+}
+
+function cashier_dashboard_calculate_previous_plan_outstanding(mysqli $conn, int $studentId, ?string $currentSchoolYear, ?string $currentGradeLevel): array
+{
+    $results = [];
+
+    if (!cashier_dashboard_ensure_plan_selection_table($conn)) {
+        return $results;
+    }
+
+    $planSelectionsStmt = $conn->prepare(
+        'SELECT tuition_fee_id, plan_type, school_year, grade_level
+         FROM student_plan_selections
+         WHERE student_id = ?
+         ORDER BY selected_at DESC'
+    );
+    if (!$planSelectionsStmt) {
+        return $results;
+    }
+    $planSelectionsStmt->bind_param('i', $studentId);
+    $planSelectionsStmt->execute();
+    $planSelectionsRes = $planSelectionsStmt->get_result();
+
+    $planCache = [];
+
+    while ($planSelectionsRes && ($selection = $planSelectionsRes->fetch_assoc())) {
+        $feeId = (int) ($selection['tuition_fee_id'] ?? 0);
+        $planTypeRaw = (string) ($selection['plan_type'] ?? '');
+        $planTypeKey = strtolower(str_replace([' ', '-'], '_', $planTypeRaw));
+        if ($feeId <= 0 || $planTypeKey === '') {
+            continue;
+        }
+
+        $selSchoolYear = trim((string) ($selection['school_year'] ?? ''));
+        $selGradeLevel = trim((string) ($selection['grade_level'] ?? ''));
+
+        if ($currentSchoolYear !== null && $currentSchoolYear !== '') {
+            if ($selSchoolYear !== '' && strcasecmp($selSchoolYear, $currentSchoolYear) === 0) {
+                continue;
+            }
+        } else {
+            if ($selSchoolYear === '' || $selSchoolYear === null) {
+                continue;
+            }
+        }
+
+        $selectionGradeKey = cashier_normalize_grade_key($selGradeLevel);
+        $currentGradeKey = cashier_normalize_grade_key((string) ($currentGradeLevel ?? ''));
+        if ($selectionGradeKey !== '' && $currentGradeKey !== '' && $selectionGradeKey === $currentGradeKey && $selSchoolYear === $currentSchoolYear) {
+            continue;
+        }
+
+        if (!isset($planCache[$feeId])) {
+            $planCache[$feeId] = cashier_dashboard_fetch_student_plans($conn, $feeId);
+        }
+        $planMap = $planCache[$feeId];
+        if (empty($planMap) || !isset($planMap[$planTypeKey])) {
+            continue;
+        }
+
+        $planData = $planMap[$planTypeKey];
+        $planBase = $planData['base'] ?? [];
+        $planTotal = (float) ($planBase['overall_total'] ?? 0.0);
+        if ($planTotal <= 0.0) {
+            $planTotal = (float) ($planBase['due_total'] ?? 0.0);
+            if (!empty($planData['entries']) && is_array($planData['entries'])) {
+                foreach ($planData['entries'] as $entryInfo) {
+                    $planTotal += (float) ($entryInfo['amount'] ?? 0);
+                }
+            }
+        }
+        if ($planTotal <= 0.0) {
+            continue;
+        }
+
+        if ($selSchoolYear !== '') {
+            $paidStmt = $conn->prepare(
+                "SELECT COALESCE(SUM(amount),0)
+                 FROM student_payments
+                 WHERE student_id = ?
+                   AND LOWER(payment_status) IN ('paid','completed','approved','cleared')
+                   AND school_year = ?"
+            );
+            if (!$paidStmt) {
+                continue;
+            }
+            $paidStmt->bind_param('is', $studentId, $selSchoolYear);
+        } else {
+            $paidStmt = $conn->prepare(
+                "SELECT COALESCE(SUM(amount),0)
+                 FROM student_payments
+                 WHERE student_id = ?
+                   AND LOWER(payment_status) IN ('paid','completed','approved','cleared')
+                   AND (school_year IS NULL OR school_year = '')"
+            );
+            if (!$paidStmt) {
+                continue;
+            }
+            $paidStmt->bind_param('i', $studentId);
+        }
+        $paidStmt->execute();
+        $paidStmt->bind_result($paidTotal);
+        $paidStmt->fetch();
+        $paidStmt->close();
+
+        $outstanding = max($planTotal - (float) $paidTotal, 0.0);
+        if ($outstanding <= 0.009) {
+            continue;
+        }
+
+        $results[] = [
+            'school_year' => $selSchoolYear,
+            'grade_level' => $selGradeLevel,
+            'plan_type'   => $planTypeKey,
+            'amount'      => $outstanding,
+        ];
+    }
+
+    $planSelectionsStmt->close();
+    return $results;
 }
 
 function cashier_dashboard_save_plan_selection(mysqli $conn, $studentId, int $tuitionFeeId, string $planType, array $context): void
@@ -451,7 +657,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     }
 
     // student_id in student_payments is VARCHAR
-$student_id = (int) ($_POST['student_id'] ?? 0);
+    $student_id = (int) ($_POST['student_id'] ?? 0);
     $student_id_str = trim((string) ($_POST['student_id'] ?? ''));
     if ($student_id_str === '' && $student_id > 0) {
         $student_id_str = (string) $student_id;
@@ -488,16 +694,105 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
 
     $message = '';
     $saveSuccess = false;
+    $flashTypeOverride = null;
+
+    $student_number = $_POST['student_number'] ?? null;
+
+    $original_amount = $amount;
+    $carry_applied = 0.0;
+    $pastDueApplied = 0.0;
+    $carry_stmt = null;
+    if ($student_number !== null && $student_number !== '') {
+        $carry_stmt = $conn->prepare("
+            SELECT sp.id, sp.amount
+            FROM student_payments sp
+            JOIN students_registration sr ON sr.id = sp.student_id
+            WHERE sr.student_number = ? AND sp.payment_status = 'pending' AND sp.payment_type LIKE 'Carry-over%'
+            ORDER BY sp.created_at ASC, sp.id ASC
+        ");
+    } else {
+        $carry_stmt = $conn->prepare("
+            SELECT id, amount
+            FROM student_payments
+            WHERE student_id = ? AND payment_status = 'pending' AND payment_type LIKE 'Carry-over%'
+            ORDER BY created_at ASC, id ASC
+        ");
+    }
+    if ($carry_stmt) {
+        if ($student_number !== null && $student_number !== '') {
+            $carry_stmt->bind_param('s', $student_number);
+        } else {
+            $carry_stmt->bind_param('s', $student_id_str);
+        }
+        $carry_stmt->execute();
+        $carry_result = $carry_stmt->get_result();
+        while ($carry_result && $amount > 0 && ($carry_row = $carry_result->fetch_assoc())) {
+            $carry_id = (int) ($carry_row['id'] ?? 0);
+            $carry_amount = (float) ($carry_row['amount'] ?? 0);
+            if ($carry_id <= 0 || $carry_amount <= 0) {
+                continue;
+            }
+            $apply = min($amount, $carry_amount);
+            if ($apply <= 0) {
+                continue;
+            }
+            $carry_applied += $apply;
+            $amount -= $apply;
+
+            if (abs($apply - $carry_amount) < 0.009) {
+                $closeSql = "UPDATE student_payments
+                             SET payment_status = 'paid',
+                                 payment_date = ?,
+                                 or_number = COALESCE(?, or_number),
+                                 reference_number = COALESCE(?, reference_number),
+                                 student_id = ?,
+                                 grade_level = CASE WHEN grade_level IS NULL OR grade_level = '' THEN ? ELSE grade_level END,
+                                 school_year = CASE WHEN school_year IS NULL OR school_year = '' THEN ? ELSE school_year END
+                             WHERE id = ?";
+                $closeCarry = $conn->prepare($closeSql);
+                if ($closeCarry) {
+                    $closeCarry->bind_param('sssissi', $payment_date, $or_number, $reference_number, $student_id_str, $grade_level, $school_year, $carry_id);
+                    $closeCarry->execute();
+                    $closeCarry->close();
+                }
+            } else {
+                $remainingCarry = max($carry_amount - $apply, 0.0);
+                $updateSql = "UPDATE student_payments
+                              SET amount = ?,
+                                  student_id = ?,
+                                  grade_level = CASE WHEN grade_level IS NULL OR grade_level = '' THEN ? ELSE grade_level END,
+                                  school_year = CASE WHEN school_year IS NULL OR school_year = '' THEN ? ELSE school_year END
+                              WHERE id = ?";
+                $updateCarry = $conn->prepare($updateSql);
+                if ($updateCarry) {
+                    $updateCarry->bind_param('dsssi', $remainingCarry, $student_id_str, $grade_level, $school_year, $carry_id);
+                    $updateCarry->execute();
+                    $updateCarry->close();
+                }
+            }
+        }
+        if ($carry_result instanceof mysqli_result) {
+            $carry_result->free();
+        }
+        $carry_stmt->close();
+    }
 
     // Validation
-    if (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
+    if ($amount <= 0.009 && $pastDueApplied > 0 && $original_amount > 0.009) {
+        $message = 'Payment applied fully to outstanding past due balance. Remaining enrollment dues are unchanged.';
+        $flashTypeOverride = 'info';
+    } elseif ($amount <= 0.009 && $carry_applied > 0 && $original_amount > 0.009) {
+        $message = 'Payment applied fully to past due balance. Remaining enrollment dues are unchanged.';
+        $flashTypeOverride = 'info';
+    } elseif (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
         error_log('[cashier] validation failed: missing OR number');
         $message = 'Official receipt number is required for cash payments.';
     } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null)) {
         error_log('[cashier] validation failed: missing reference number');
         $message = 'Reference number is required for non-cash payments.';
     } else {
-        $validation = cashier_dashboard_validate_payment($conn, $student_id, $amount, $payment_type, $plan_context['pricing_category']);
+        $validationAmount = $amount;
+        $validation = cashier_dashboard_validate_payment($conn, $student_id, $validationAmount, $payment_type, $plan_context['pricing_category']);
         if (!$validation['valid']) {
             error_log('[cashier] amount validation failed: ' . $validation['message']);
             $message = $validation['message'];
@@ -508,103 +803,240 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
     }
     if ($message === '') {
         // Lookup student info
-        $stud = $conn->prepare('SELECT firstname, lastname, student_number, emailaddress, year FROM students_registration WHERE id = ?');
+        $stud = $conn->prepare('SELECT firstname, lastname, student_number, emailaddress, year, school_year FROM students_registration WHERE id = ?');
         $stud->bind_param('i', $student_id); // id in students_registration is INT
         $stud->execute();
-        $stud->bind_result($firstname, $lastname, $student_number, $email, $current_grade_level);
+        $stud->bind_result($firstname, $lastname, $student_number, $email, $current_grade_level, $current_school_year);
         $stud->fetch();
         $stud->close();
         error_log('[cashier] student lookup firstname=' . ($firstname ?? 'null') . ' lastname=' . ($lastname ?? 'null') . ' student_number=' . ($student_number ?? 'null'));
 
         $grade_level = $plan_context['grade_level'] !== '' ? $plan_context['grade_level'] : ($current_grade_level ?? null);
         $school_year = $plan_context['school_year'] !== '' ? $plan_context['school_year'] : null;
-
-        // Generate student number if missing
-        $new_number = null;
-        if (empty($student_number)) {
-            do {
-                $new_number = 'ESR-' . str_pad((string) rand(1, 99999), 5, '0', STR_PAD_LEFT);
-                $checkNum = $conn->prepare('SELECT id FROM students_registration WHERE student_number = ? LIMIT 1');
-                $checkNum->bind_param('s', $new_number);
-                $checkNum->execute();
-                $checkNum->store_result();
-                $exists = $checkNum->num_rows > 0;
-                $checkNum->close();
-            } while ($exists);
-
-            $updNum = $conn->prepare('UPDATE students_registration SET student_number = ? WHERE id = ?');
-            $updNum->bind_param('ss', $new_number, $student_id);
-            $updNum->execute();
-            $updNum->close();
-
-            $student_number = $new_number;
+        if ($school_year === null || $school_year === '') {
+            $school_year = $current_school_year ?? null;
         }
 
-        // Check pending payments
-        $check = $conn->prepare('
-            SELECT id 
-            FROM student_payments 
-            WHERE student_id = ? AND payment_status = "pending"
-            ORDER BY created_at DESC LIMIT 1
-        ');
-        $check->bind_param('s', $student_id_str); // varchar
-        $check->execute();
-        $check->bind_result($pending_payment_id);
-        $check->fetch();
-        $check->close();
+        // Apply payment to outstanding balances from previous school years first.
+        $previousOutstandingChunks = cashier_dashboard_calculate_previous_plan_outstanding(
+            $conn,
+            (int) $student_id,
+            $current_school_year ?? null,
+            $current_grade_level ?? null
+        );
+        if (!empty($previousOutstandingChunks) && $amount > 0.009) {
+            $studentIdInt = (int) $student_id;
+            foreach ($previousOutstandingChunks as $chunk) {
+                if ($amount <= 0.009) {
+                    break;
+                }
+                $chunkOutstanding = (float) ($chunk['amount'] ?? 0.0);
+                if ($chunkOutstanding <= 0.009) {
+                    continue;
+                }
 
-        error_log('[cashier] pending payment id = ' . ($pending_payment_id ?? 'none'));
+                $applyPast = min($amount, $chunkOutstanding);
+                if ($applyPast <= 0.009) {
+                    continue;
+                }
+
+                $pastGrade = ($chunk['grade_level'] ?? '') !== '' ? (string) $chunk['grade_level'] : (string) ($current_grade_level ?? '');
+                $pastYear = ($chunk['school_year'] ?? '') !== '' ? (string) $chunk['school_year'] : (string) ($current_school_year ?? '');
+                $pastType = trim(($payment_type ?: 'Payment') . ' - Past Due');
+
+                $pastInsert = $conn->prepare(
+                    'INSERT INTO student_payments
+                        (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "paid", ?, ?, ?, NOW())'
+                );
+                if ($pastInsert) {
+                    $pastInsert->bind_param(
+                        'isssssdsss',
+                        $studentIdInt,
+                        $pastGrade,
+                        $pastYear,
+                        $firstname,
+                        $lastname,
+                        $pastType,
+                        $applyPast,
+                        $payment_date,
+                        $or_number,
+                        $reference_number
+                    );
+                    if ($pastInsert->execute()) {
+                        $pastDueApplied += $applyPast;
+                        $amount -= $applyPast;
+                    }
+                    $pastInsert->close();
+                }
+            }
+        }
+
+        $previousOutstandingChunks = cashier_dashboard_calculate_previous_plan_outstanding(
+            $conn,
+            (int) $student_id,
+            $current_school_year ?? null,
+            $current_grade_level ?? null
+        );
+        if (!empty($previousOutstandingChunks) && $amount > 0.009) {
+            $studentIdInt = (int) $student_id;
+            foreach ($previousOutstandingChunks as $chunk) {
+                if ($amount <= 0.009) {
+                    break;
+                }
+                $chunkOutstanding = (float) ($chunk['amount'] ?? 0.0);
+                if ($chunkOutstanding <= 0.009) {
+                    continue;
+                }
+                $applyPast = min($amount, $chunkOutstanding);
+                if ($applyPast <= 0.009) {
+                    continue;
+                }
+
+                $pastGrade = ($chunk['grade_level'] ?? '') !== '' ? (string) $chunk['grade_level'] : (string) ($current_grade_level ?? '');
+                $pastYear = ($chunk['school_year'] ?? '') !== '' ? (string) $chunk['school_year'] : (string) ($current_school_year ?? '');
+                $pastType = trim($payment_type . ' - Past Due');
+                $pastPaymentDate = $payment_date;
+                $pastOr = $or_number;
+                $pastRef = $reference_number;
+
+                $pastInsert = $conn->prepare(
+                    'INSERT INTO student_payments
+                        (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "paid", ?, ?, ?, NOW())'
+                );
+                if ($pastInsert) {
+                    $pastInsert->bind_param(
+                        'isssssdsss',
+                        $studentIdInt,
+                        $pastGrade,
+                        $pastYear,
+                        $firstname,
+                        $lastname,
+                        $pastType,
+                        $applyPast,
+                        $pastPaymentDate,
+                        $pastOr,
+                        $pastRef
+                    );
+                    if ($pastInsert->execute()) {
+                        $pastDueApplied += $applyPast;
+                        $amount -= $applyPast;
+                    }
+                    $pastInsert->close();
+                }
+            }
+        }
 
         $recordedPaymentId = null;
 
-        if ($pending_payment_id) {
-            if (strcasecmp($payment_type, 'Cash') === 0) {
-                $updPay = $conn->prepare('
-                    UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", or_number = ?, payment_date = ?,
-                        grade_level = COALESCE(?, grade_level),
-                        school_year = COALESCE(?, school_year)
-                    WHERE id = ?
-                ');
-                $updPay->bind_param('sssssi', $payment_type, $or_number, $payment_date, $grade_level, $school_year, $pending_payment_id);
-            } else {
-                $updPay = $conn->prepare('
-                    UPDATE student_payments 
-                    SET payment_type = ?, payment_status = "paid", reference_number = ?, payment_date = ?,
-                        grade_level = COALESCE(?, grade_level),
-                        school_year = COALESCE(?, school_year)
-                    WHERE id = ?
-                ');
-                $updPay->bind_param('sssssi', $payment_type, $reference_number, $payment_date, $grade_level, $school_year, $pending_payment_id);
+        if ($amount > 0.009) {
+            // Generate student number if missing
+            $new_number = null;
+            if (empty($student_number)) {
+                do {
+                    $new_number = 'ESR-' . str_pad((string) rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                    $checkNum = $conn->prepare('SELECT id FROM students_registration WHERE student_number = ? LIMIT 1');
+                    $checkNum->bind_param('s', $new_number);
+                    $checkNum->execute();
+                    $checkNum->store_result();
+                    $exists = $checkNum->num_rows > 0;
+                    $checkNum->close();
+                } while ($exists);
+
+                $updNum = $conn->prepare('UPDATE students_registration SET student_number = ? WHERE id = ?');
+                $updNum->bind_param('si', $new_number, $student_id);
+                $updNum->execute();
+                $updNum->close();
+
+                $student_number = $new_number;
             }
-            $updPay->execute();
-            $updPay->close();
+
+            if ($school_year !== null && $school_year !== '') {
+                $check = $conn->prepare('
+                    SELECT id 
+                    FROM student_payments 
+                    WHERE student_id = ? 
+                      AND payment_status = "pending"
+                      AND (school_year IS NULL OR school_year = ?)
+                    ORDER BY created_at DESC LIMIT 1
+                ');
+                $check->bind_param('ss', $student_id_str, $school_year);
+            } else {
+                $check = $conn->prepare('
+                    SELECT id 
+                    FROM student_payments 
+                    WHERE student_id = ? 
+                      AND payment_status = "pending"
+                    ORDER BY created_at DESC LIMIT 1
+                ');
+                $check->bind_param('s', $student_id_str);
+            }
+            $check->execute();
+            $check->bind_result($pending_payment_id);
+            $check->fetch();
+            $check->close();
+
+            error_log('[cashier] pending payment id = ' . ($pending_payment_id ?? 'none'));
+
+            if ($pending_payment_id) {
+                $updatePendingSql = "
+                    UPDATE student_payments
+                    SET payment_type = ?,
+                        payment_status = 'paid',
+                        or_number = COALESCE(?, or_number),
+                        reference_number = COALESCE(?, reference_number),
+                        payment_date = ?,
+                        grade_level = CASE WHEN grade_level IS NULL OR grade_level = '' THEN ? ELSE grade_level END,
+                        school_year = CASE WHEN school_year IS NULL OR school_year = '' THEN ? ELSE school_year END
+                    WHERE id = ?
+                ";
+                $gradeParam = $grade_level !== null ? (string) $grade_level : '';
+                $schoolYearParam = $school_year !== null ? (string) $school_year : '';
+                $updPay = $conn->prepare($updatePendingSql);
+                if ($updPay) {
+                    $updPay->bind_param('ssssssi', $payment_type, $or_number, $reference_number, $payment_date, $gradeParam, $schoolYearParam, $pending_payment_id);
+                    $updPay->execute();
+                    $updPay->close();
+                    $saveSuccess = true;
+                    $message = 'Pending payment updated to Paid. Student enrolled.';
+                    $recordedPaymentId = (int) $pending_payment_id;
+                }
+            }
+
+            if (!$saveSuccess) {
+                $ins = $conn->prepare('
+                    INSERT INTO student_payments
+                        (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, NOW())
+                ');
+                if ($ins) {
+                    $gradeParam = $grade_level !== null ? $grade_level : '';
+                    $schoolYearParam = $school_year !== null ? $school_year : '';
+                    $ins->bind_param('isssssdsss', $student_id_str, $gradeParam, $schoolYearParam, $firstname, $lastname, $payment_type, $amount, $payment_status, $or_number, $reference_number);
+
+                    if ($ins->execute()) {
+                        $recordedPaymentId = (int) $ins->insert_id;
+                        error_log('[cashier] inserted payment id=' . $recordedPaymentId);
+                        $saveSuccess = true;
+                        $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.';
+                    } else {
+                        error_log('[cashier] insert error: ' . $conn->error);
+                        $message = 'Error: ' . $conn->error;
+                    }
+                    $ins->close();
+                }
+            }
+        } elseif ($pastDueApplied > 0) {
             $saveSuccess = true;
-            $message = 'Pending payment updated to Paid. Student enrolled.';
-            $recordedPaymentId = (int) $pending_payment_id;
-        } else {
-            $ins = $conn->prepare('
-                INSERT INTO student_payments
-                    (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURDATE(), ?, ?, NOW())
-            ');
-            $ins->bind_param('ssssssdsss', $student_id_str, $grade_level, $school_year, $firstname, $lastname, $payment_type, $amount, $payment_status, $or_number, $reference_number);
-
-            if ($ins->execute()) {
-                $recordedPaymentId = (int) $ins->insert_id;
-                error_log('[cashier] inserted payment id=' . $recordedPaymentId);
-                $saveSuccess = true;
-                $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.';
-            } else {
-                error_log('[cashier] insert error: ' . $conn->error);
-                $message = 'Error: ' . $conn->error;
+            $message = 'Payment applied to outstanding past due balance. Remaining enrollment dues are unchanged.';
+            if ($flashTypeOverride === null) {
+                $flashTypeOverride = 'info';
             }
-            $ins->close();
+        } else {
+            $recordedPaymentId = null;
         }
-
-        // ✅ Always update student enrollment status
         if ($saveSuccess) {
-            error_log('[cashier] updating enrollment status for student ' . $student_id);
             $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
             $upd->bind_param('i', $student_id);
             $upd->execute();
@@ -616,7 +1048,8 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
                 $statusCheck->execute();
                 $statusCheck->bind_result($currentAcademic);
                 if ($statusCheck->fetch()) {
-                    if (strcasecmp(trim((string) $currentAcademic), 'Failed') === 0) {
+                    $normalizedAcademic = strtolower(trim((string) $currentAcademic));
+                    if (in_array($normalizedAcademic, ['failed', 'dropped'], true)) {
                         $statusCheck->close();
                         $restoreStatus = $conn->prepare("UPDATE students_registration SET academic_status = 'Ongoing' WHERE id = ?");
                         if ($restoreStatus) {
@@ -632,9 +1065,7 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
                 }
             }
 
-            // ✅ Always save plan selection too
             if ($posted_plan !== '' && isset(cashier_dashboard_plan_labels()[$posted_plan])) {
-                error_log('[cashier] saving plan selection fee=' . $plan_context['tuition_fee_id'] . ' plan=' . $posted_plan);
                 cashier_dashboard_save_plan_selection(
                     $conn,
                     $student_id,
@@ -657,13 +1088,24 @@ $student_id = (int) ($_POST['student_id'] ?? 0);
                 exec($cmd . ' > /dev/null 2>&1 &');
                 error_log('[cashier] queued email worker for student ' . $student_id . ' payment ' . $recordedPaymentId);
             }
+
+            if ($carry_applied > 0) {
+                $message .= ' ₱' . number_format($carry_applied, 2) . ' was applied to carry-over balances first.';
+            }
+            if ($pastDueApplied > 0) {
+                $message .= ' ₱' . number_format($pastDueApplied, 2) . ' was applied to previous school year balances first.';
+            }
         }
     }
 
     if ($message !== '') {
         error_log('[cashier] final flash message: ' . $message . ' success=' . ($saveSuccess ? 'yes' : 'no'));
         $_SESSION['cashier_flash'] = $message;
-        $_SESSION['cashier_flash_type'] = $saveSuccess ? 'success' : 'error';
+        if ($flashTypeOverride !== null) {
+            $_SESSION['cashier_flash_type'] = $flashTypeOverride;
+        } else {
+            $_SESSION['cashier_flash_type'] = $saveSuccess ? 'success' : 'error';
+        }
     }
 
     $redirectUrl = 'cashier_dashboard.php';
@@ -1509,6 +1951,33 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
             $search_results[] = $row;
         }
         $stmt->close();
+
+        $inactive_stmt = $conn->prepare('SELECT id FROM inactive_students WHERE lastname LIKE ? AND LOWER(academic_status) = "dropped" ORDER BY lastname');
+        if ($inactive_stmt) {
+            $inactive_stmt->bind_param('s', $search_name_like);
+            $inactive_stmt->execute();
+            $inactive_res = $inactive_stmt->get_result();
+            $reactivatedCount = 0;
+            while ($inactive_row = $inactive_res->fetch_assoc()) {
+                $reactivated = cashier_reactivate_inactive_student($conn, (int) $inactive_row['id']);
+                if ($reactivated) {
+                    $rowType = strtolower($reactivated['student_type'] ?? '');
+                    if ($rowType === '') {
+                        $rowType = 'new';
+                    }
+                    if ($searchType !== 'all' && $rowType !== $searchType) {
+                        continue;
+                    }
+                    $reactivatedCount++;
+                    $search_results[] = $reactivated;
+                }
+            }
+            $inactive_stmt->close();
+            if (!empty($reactivatedCount)) {
+                $_SESSION['cashier_flash'] = 'Dropped student record reactivated for processing.';
+                $_SESSION['cashier_flash_type'] = 'info';
+            }
+        }
     }
 
     if (!empty($search_results)) {
@@ -1542,6 +2011,7 @@ function cashier_dashboard_prepare_search(mysqli $conn): array
 function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId, array $options = []): ?array
 {
     $studentRow = $options['student_row'] ?? null;
+    $requireExplicitPlan = !empty($options['require_explicit_plan']);
     if (!$studentRow) {
         $stmt = $conn->prepare('SELECT id, student_number, firstname, lastname, year, section, adviser, student_type, enrollment_status, academic_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
         if (!$stmt) {
@@ -1562,6 +2032,26 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $studentType = strtolower($studentRow['student_type'] ?? 'new');
     $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
     $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
+    $studentSchoolYear = trim((string) ($studentRow['school_year'] ?? ''));
+
+    $currentGradeKeyLoop = cashier_normalize_grade_key($gradeLevel);
+
+    $planSelections = [];
+    $planSelectionStmt = $conn->prepare(
+        'SELECT tuition_fee_id, plan_type, school_year, grade_level, pricing_category, selected_at
+         FROM student_plan_selections
+         WHERE student_id = ?
+         ORDER BY selected_at DESC'
+    );
+    if ($planSelectionStmt) {
+        $planSelectionStmt->bind_param('i', $studentId);
+        $planSelectionStmt->execute();
+        $planSelectionResult = $planSelectionStmt->get_result();
+        while ($planSelectionResult && ($rowSel = $planSelectionResult->fetch_assoc())) {
+            $planSelections[] = $rowSel;
+        }
+        $planSelectionStmt->close();
+    }
 
     $requestedPricingVariant = isset($options['pricing_variant']) ? strtolower(trim((string) $options['pricing_variant'])) : null;
     $requestedPricingStudent = isset($options['pricing_student']) ? (int) $options['pricing_student'] : null;
@@ -1580,7 +2070,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $storedPlanType = null;
     $storedPricingKey = null;
     foreach ($availablePricing as $pricingKey => $feeCandidate) {
-        $selectionRow = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int) $feeCandidate['id']);
+        $selectionRow = cashier_dashboard_fetch_selected_plan($conn, $studentId, (int) $feeCandidate['id'], $studentSchoolYear);
         if ($selectionRow) {
             $storedPlanType = $selectionRow['plan_type'] ?? null;
             $storedPricingKey = $selectionRow['pricing_category'] ?: $pricingKey;
@@ -1608,8 +2098,12 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $stored_plan = ($storedPlanType && $storedPricingKey && $selectedPricing === $storedPricingKey) ? $storedPlanType : null;
 
+    $planCache = [];
+    $paidByYear = [];
+    $pendingByYear = [];
+
     $studentIdStr = (string) $studentId;
-    $payments_stmt = $conn->prepare('SELECT id, payment_type, amount, payment_status, payment_date, created_at, grade_level, school_year FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
+    $payments_stmt = $conn->prepare('SELECT id, payment_type, amount, payment_status, payment_date, created_at, grade_level, school_year, reference_number, or_number FROM student_payments WHERE student_id = ? ORDER BY created_at DESC');
     $payments_stmt->bind_param('s', $studentIdStr);
     $payments_stmt->execute();
     $payments_res = $payments_stmt->get_result();
@@ -1619,6 +2113,8 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $pendingByGrade = [];
     $unassignedPaid = [];
     $unassignedPending = [];
+    $carryoverPendingTotal = 0.0;
+    $carryoverPaidTotal = 0.0;
     while ($row = $payments_res->fetch_assoc()) {
         $row['amount'] = (float) ($row['amount'] ?? 0);
         if (empty($row['payment_date']) && !empty($row['created_at'])) {
@@ -1629,7 +2125,43 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             $normalizedPaymentGrade = cashier_normalize_grade_key((string) $row['grade_level']);
         }
         $isPaidStatus = cashier_payment_status_is_paid($row['payment_status'] ?? '');
-        if ($academicStatus === 'failed' && $isPaidStatus) {
+        $paymentTypeRaw = strtolower(trim((string) ($row['payment_type'] ?? '')));
+        $isCarryOver = strpos($paymentTypeRaw, 'carry-over') !== false;
+        $paymentSchoolYearRaw = trim((string) ($row['school_year'] ?? ''));
+        $paymentYearKey = $paymentSchoolYearRaw !== '' ? strtolower($paymentSchoolYearRaw) : '__empty__';
+        $matchesCurrentSchoolYear = true;
+        if ($studentSchoolYear !== '') {
+            if ($paymentSchoolYearRaw !== '' && strcasecmp($paymentSchoolYearRaw, $studentSchoolYear) !== 0) {
+                $matchesCurrentSchoolYear = false;
+            }
+        }
+
+        if ($isCarryOver) {
+            if ($isPaidStatus) {
+                $carryoverPaidTotal += (float) ($row['amount'] ?? 0);
+            } else {
+                $carryoverPendingTotal += (float) ($row['amount'] ?? 0);
+            }
+            continue;
+        }
+
+        if ($isPaidStatus) {
+            $paidByYear[$paymentYearKey][] = $row;
+        } else {
+            $pendingByYear[$paymentYearKey][] = $row;
+        }
+
+        $isSameGradeAsCurrent = false;
+        if ($currentGradeKeyLoop !== '') {
+            $currentGradeSynonymsLoop = cashier_grade_synonyms($currentGradeKeyLoop);
+            $isSameGradeAsCurrent = ($normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $currentGradeSynonymsLoop, true));
+        }
+
+        if (!$matchesCurrentSchoolYear && $isSameGradeAsCurrent) {
+            continue;
+        }
+
+        if (in_array($enrollmentStatus, ['waiting', 'dropped'], true) && $isPaidStatus && $academicStatus !== 'graduated') {
             // Ignore prior payments when student is repeating the grade.
             continue;
         }
@@ -1650,6 +2182,8 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
     }
     $payments_stmt->close();
+
+    $carry_over_total = $carryoverPendingTotal;
 
     $previous_label = null;
     $previous_fee = null;
@@ -1725,7 +2259,92 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $allocated_previous_from_other = 0.0;
 
     $previous_paid_applied = $previous_grade_total - max($remaining_previous_need, 0.0);
-    $previous_outstanding = max($remaining_previous_need, 0.0);
+    $previous_outstanding_base = max($remaining_previous_need, 0.0);
+    if ($carry_over_total > 0.0 || $carryoverPaidTotal > 0.0) {
+        $previous_outstanding_base = max($previous_outstanding_base + $carry_over_total - $carryoverPaidTotal, 0.0);
+    }
+
+    $previousPlanOutstanding = 0.0;
+    $processedPlanKeys = [];
+    $previousPlanLabels = [];
+    foreach ($planSelections as $selection) {
+        $selYear = trim((string) ($selection['school_year'] ?? ''));
+        $yearKey = $selYear !== '' ? strtolower($selYear) : '__empty__';
+        $isCurrentYearSelection = false;
+        if ($studentSchoolYear !== '') {
+            $isCurrentYearSelection = ($selYear !== '' && strcasecmp($selYear, $studentSchoolYear) === 0);
+        }
+        if ($studentSchoolYear === '' && $selYear === '') {
+            $isCurrentYearSelection = true;
+        }
+        if ($isCurrentYearSelection) {
+            continue;
+        }
+
+        $selectionGradeKey = cashier_normalize_grade_key((string) ($selection['grade_level'] ?? ''));
+        if ($selectionGradeKey !== '' && $currentGradeKeyLoop !== '' && $selectionGradeKey !== $currentGradeKeyLoop) {
+            continue;
+        }
+
+        $feeIdSel = (int) ($selection['tuition_fee_id'] ?? 0);
+        $planTypeSel = strtolower(str_replace([' ', '-'], '_', (string) ($selection['plan_type'] ?? '')));
+        if ($feeIdSel <= 0 || $planTypeSel === '') {
+            continue;
+        }
+        if (!isset($planCache[$feeIdSel])) {
+            $planCache[$feeIdSel] = cashier_dashboard_fetch_student_plans($conn, $feeIdSel);
+        }
+        $planMap = $planCache[$feeIdSel];
+        if (empty($planMap) || !isset($planMap[$planTypeSel])) {
+            continue;
+        }
+        $planInfo = $planMap[$planTypeSel];
+        $planKeyProcessed = $yearKey . '::' . $planTypeSel;
+        if (isset($processedPlanKeys[$planKeyProcessed])) {
+            continue;
+        }
+        $processedPlanKeys[$planKeyProcessed] = true;
+        $planBase = $planInfo['base'] ?? [];
+        $planTotal = (float) ($planBase['overall_total'] ?? 0.0);
+        if ($planTotal <= 0.0) {
+            $planTotal = (float) ($planBase['due_total'] ?? 0.0);
+            if (!empty($planInfo['entries']) && is_array($planInfo['entries'])) {
+                foreach ($planInfo['entries'] as $entryInfo) {
+                    $planTotal += (float) ($entryInfo['amount'] ?? 0);
+                }
+            }
+        }
+        if ($planTotal <= 0.0) {
+            continue;
+        }
+
+        $paidRowsYear = $paidByYear[$yearKey] ?? [];
+        $paidTotalYear = 0.0;
+        foreach ($paidRowsYear as $paidRowYear) {
+            $paidTotalYear += (float) ($paidRowYear['amount'] ?? 0);
+        }
+
+        $outstandingYear = max($planTotal - $paidTotalYear, 0.0);
+        if ($outstandingYear > 0.009) {
+            $previousPlanOutstanding += $outstandingYear;
+            if ($selYear !== '') {
+                $previousPlanLabels[$selYear] = true;
+            } elseif (!empty($selection['grade_level'])) {
+                $previousPlanLabels[$selection['grade_level']] = true;
+            }
+        }
+    }
+
+    if (!empty($previousPlanLabels)) {
+        $planLabelString = implode(', ', array_keys($previousPlanLabels));
+        if ($previous_label === null || $previous_label === '') {
+            $previous_label = $planLabelString;
+        } else {
+            $previous_label .= ' • ' . $planLabelString;
+        }
+    }
+
+    $previous_outstanding = max($previous_outstanding_base + $previousPlanOutstanding, 0.0);
 
     $remaining_current_paid = max($paid_current_total - $allocated_previous_from_current, 0.0);
     $remaining_unassigned_total = max($paid_unassigned_total - $allocated_previous_from_unassigned, 0.0);
@@ -1749,7 +2368,15 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
         if (!empty($plansData)) {
             $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
-            if ($stored_plan && isset($plansData[$stored_plan])) {
+
+            $planOptionMap = [];
+            foreach ($plan_options as $summary) {
+                if (isset($summary['plan_type'])) {
+                    $planOptionMap[$summary['plan_type']] = $summary;
+                }
+            }
+
+            if (!$requireExplicitPlan && $stored_plan && isset($planOptionMap[$stored_plan])) {
                 $active_plan_key = $stored_plan;
             }
 
@@ -1844,14 +2471,25 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
                 ];
             }
 
-            if ($active_plan_key && ($summary = current(array_filter($plan_options, fn($o) => $o['plan_type'] === $active_plan_key)))) {
+            if (!$active_plan_key && !$requireExplicitPlan && !empty($plan_options)) {
+                $firstSummary = $plan_options[0];
+                $active_plan_key = $firstSummary['plan_type'] ?? null;
+            }
+
+            if ($active_plan_key && isset($planOptionMap[$active_plan_key])) {
+                $summary = $planOptionMap[$active_plan_key];
                 $plan_label_display = $summary['label'] ?? '';
                 $remaining_balance  = $summary['remaining_with_previous'] ?? $previous_outstanding;
                 $current_year_total = $summary['plan_total'] ?? 0.0;
                 $schedule_rows      = $summary['schedule_rows'] ?? [];
                 $next_due_row       = $summary['next_due_row'] ?? null;
                 $schedule_message   = $summary['schedule_message'] ?? 'Upcoming dues listed below.';
-            } elseif (!$active_plan_key) {
+            } elseif ($requireExplicitPlan && !$active_plan_key) {
+                $plan_label_display = '';
+                $schedule_rows = [];
+                $next_due_row = null;
+                $schedule_message = 'Select a payment plan to view the schedule.';
+            } elseif (empty($plan_tabs)) {
                 $schedule_rows = [];
                 $next_due_row = null;
                 $plan_label_display = '';
@@ -1862,25 +2500,8 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $selectedPricing = $selectedPricing ?? 'regular';
 
-    $pending_total = array_sum(array_map('floatval', array_column($pending, 'amount')));
+    $pending_total = max($remaining_balance, 0.0);
     $pending_display = [];
-    foreach ($pending as $entry) {
-        $entry['payment_type_display'] = $entry['payment_type'] ?? 'Pending';
-        $pending_display[] = $entry;
-    }
-    if ($previous_label && $previous_outstanding > 0) {
-        $pending_total += $previous_outstanding;
-        $placeholder = [
-            'payment_type_display' => 'Past Due for ' . $previous_label,
-            'amount' => $previous_outstanding,
-            'payment_status' => 'Past Due',
-            'payment_date' => 'Previous School Year',
-            'reference_number' => null,
-            'or_number' => null,
-            'is_placeholder' => true,
-        ];
-        array_unshift($pending_display, $placeholder);
-    }
 
     $paid_chronological = $paid;
     usort($paid_chronological, function (array $a, array $b) {
@@ -1901,6 +2522,69 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $current_grade_synonyms = $current_grade_key !== '' ? cashier_grade_synonyms($current_grade_key) : [];
     $previous_grade_synonyms = $previous_grade_key ? cashier_grade_synonyms($previous_grade_key) : [];
+    $previous_pending_entries = [];
+
+    foreach ($pending as $pending_entry) {
+        $normalizedPendingGrade = '';
+        if (!empty($pending_entry['grade_level'])) {
+            $normalizedPendingGrade = cashier_normalize_grade_key((string) $pending_entry['grade_level']);
+        }
+
+        $target_is_previous = false;
+        if ($normalizedPendingGrade !== '') {
+            if (!empty($previous_grade_synonyms) && in_array($normalizedPendingGrade, $previous_grade_synonyms, true)
+                && (empty($current_grade_synonyms) || !in_array($normalizedPendingGrade, $current_grade_synonyms, true))) {
+                $target_is_previous = true;
+            } elseif (!empty($current_grade_synonyms) && in_array($normalizedPendingGrade, $current_grade_synonyms, true)) {
+                $target_is_previous = false;
+            }
+        } else {
+            $paymentSchoolYearRaw = trim((string) ($pending_entry['school_year'] ?? ''));
+            if ($paymentSchoolYearRaw !== '' && $studentSchoolYear !== '' && strcasecmp($paymentSchoolYearRaw, $studentSchoolYear) !== 0 && $previous_grade_key) {
+                $target_is_previous = true;
+            }
+        }
+
+        $paymentTypeRaw = trim((string) ($pending_entry['payment_type'] ?? ''));
+        if ($paymentTypeRaw === '') {
+            $payment_type_display = 'Pending Payment';
+        } else {
+            $type_candidate = str_replace('_', ' ', $paymentTypeRaw);
+            $payment_type_display = ($paymentTypeRaw === strtolower($paymentTypeRaw))
+                ? ucwords($type_candidate)
+                : $type_candidate;
+        }
+
+        $status_label_raw = trim((string) ($pending_entry['payment_status'] ?? ''));
+        if ($status_label_raw === '') {
+            $status_label = 'Pending';
+        } else {
+            $status_candidate = str_replace('_', ' ', $pending_entry['payment_status']);
+            $status_label = ($status_label_raw === strtolower($status_label_raw))
+                ? ucwords($status_candidate)
+                : $status_candidate;
+        }
+        $payment_date_display = $pending_entry['payment_date'] ?? ($pending_entry['created_at'] ?? '');
+
+        $pending_row_display = [
+            'payment_type' => $pending_entry['payment_type'] ?? '',
+            'payment_type_display' => $payment_type_display,
+            'amount' => (float) ($pending_entry['amount'] ?? 0),
+            'payment_status' => $status_label,
+            'payment_date' => $payment_date_display,
+            'reference_number' => $pending_entry['reference_number'] ?? null,
+            'or_number' => $pending_entry['or_number'] ?? null,
+            'notes' => $pending_entry['notes'] ?? null,
+            'row_class' => '',
+            'is_placeholder' => false,
+        ];
+
+        if ($target_is_previous) {
+            $previous_pending_entries[] = $pending_row_display;
+        } else {
+            $pending_display[] = $pending_row_display;
+        }
+    }
 
     foreach ($paid_chronological as $entry) {
         $amount_remaining = (float) ($entry['amount'] ?? 0);
@@ -2063,6 +2747,10 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
     }
 
+    if ($previous_outstanding > 0 && !$previous_label) {
+        $previous_label = 'Previous School Year';
+    }
+
     if ($previous_plan_label === null && $previous_fee) {
         $previous_plan_label = 'Past Year Summary';
     }
@@ -2076,7 +2764,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
     }
 
-    $previous_pending_rows = [];
+    $previous_pending_rows = $previous_pending_entries;
     if ($previous_outstanding > 0) {
         $previous_pending_rows[] = [
             'payment_type_display' => 'Past Due for ' . $previous_label,
@@ -2089,6 +2777,9 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         ];
     }
 
+    $student_school_year = (string) ($studentRow['school_year'] ?? '');
+    $student_grade_level = (string) ($studentRow['year'] ?? '');
+
     $current_view = [
         'key' => 'current',
         'label' => $studentRow['year'] . ' (Current)',
@@ -2099,7 +2790,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'pricing_variant' => $selectedPricing,
         'next_due_row' => $next_due_row,
         'alert' => $previous_outstanding > 0 ? [
-            'grade' => $previous_label,
+            'grade' => $previous_label ?: 'Previous School Year',
             'amount' => $previous_outstanding,
         ] : null,
         'schedule_rows' => $schedule_rows,
@@ -2124,10 +2815,10 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'pricing_locked' => (!$canChoosePricing && !empty($storedPricingKey)),
         'plan_context' => $fee ? [
             'tuition_fee_id' => (int) $fee['id'],
-            'school_year' => (string) $fee['school_year'],
-            'grade_level' => (string) $fee['grade_level'],
+            'school_year' => $student_school_year !== '' ? $student_school_year : (string) ($fee['school_year'] ?? ''),
+            'grade_level' => $student_grade_level !== '' ? $student_grade_level : (string) ($fee['grade_level'] ?? ''),
             'pricing_category' => (string) $fee['pricing_category'],
-            'student_type' => (string) $fee['student_type'],
+            'student_type' => (string) ($studentRow['student_type'] ?? $fee['student_type']),
         ] : null,
     ];
 

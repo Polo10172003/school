@@ -10,6 +10,7 @@ $payment_type  = $_GET['payment_type']  ?? '';
 if ($student_type === 'new') {
     // Clear any old registration session data for new student
     unset($_SESSION['registration']);
+    unset($_SESSION['registration_returning_tag'], $_SESSION['registration_previous_school_year'], $_SESSION['returning_inactive_source_id'], $_SESSION['returning_source_table']);
 
     // ✅ Preserve the registrar's payment choice for submit_registration.php
     if (!empty($payment_type)) {
@@ -33,12 +34,25 @@ if ($student_type === 'old') {
         $_SESSION['onsite_payment_type'] = $payment_type;
     }
 
+    $isInactiveSource = false;
     $stmt = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? ORDER BY id DESC LIMIT 1");
     $stmt->bind_param("s", $student_number);
     $stmt->execute();
     $result  = $stmt->get_result();
     $student = $result->fetch_assoc();
     $stmt->close();
+
+    if (!$student) {
+        $stmt = $conn->prepare("SELECT * FROM inactive_students WHERE student_number = ? ORDER BY id DESC LIMIT 1");
+        $stmt->bind_param("s", $student_number);
+        $stmt->execute();
+        $result  = $stmt->get_result();
+        $student = $result->fetch_assoc();
+        $stmt->close();
+        if ($student) {
+            $isInactiveSource = true;
+        }
+    }
 
     if (!$student) {
         header('Location: registrar_dashboard.php?msg=old_student_not_found');
@@ -104,6 +118,19 @@ if ($student_type === 'old') {
         'guardian_name'        => $student['guardian_name'] ?? '',
         'guardian_occupation'  => $student['guardian_occupation'] ?? '',
     ];
+
+    if ($isInactiveSource && strcasecmp($academicStatus, 'dropped') === 0) {
+        $_SESSION['registration_returning_tag'] = 'Dropped Student';
+        $_SESSION['registration_previous_school_year'] = $student['school_year'] ?? '';
+        $prefill['school_year'] = '';
+        $_SESSION['returning_inactive_source_id'] = $studentId;
+        $_SESSION['returning_source_table'] = 'inactive';
+    } else {
+        unset($_SESSION['registration_previous_school_year']);
+        $_SESSION['registration_returning_tag'] = '';
+        $_SESSION['returning_inactive_source_id'] = null;
+        $_SESSION['returning_source_table'] = 'active';
+    }
 
     $_SESSION['registration'] = $prefill;
     $_SESSION['returning_student_number'] = $student_number;

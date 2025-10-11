@@ -64,6 +64,52 @@ $student_type = 'New';
 $academic_status = 'Ongoing';
 $onsitePaymentType = $_SESSION['onsite_payment_type'] ?? '';
 $returningSourceId = isset($_SESSION['returning_source_id']) ? (int) $_SESSION['returning_source_id'] : null;
+$returningSourceTable = $_SESSION['returning_source_table'] ?? 'active';
+$returningInactiveId = isset($_SESSION['returning_inactive_source_id']) ? (int) $_SESSION['returning_inactive_source_id'] : null;
+$reactivatedFromInactive = false;
+$reactivatedStudentNumber = null;
+
+if ($returningSourceTable === 'inactive' && $returningInactiveId) {
+    $student_type = 'Old';
+    $reactivatedFromInactive = true;
+    $returningSourceId = $returningInactiveId;
+
+    $fetchInactive = $conn->prepare('SELECT student_number FROM inactive_students WHERE id = ? LIMIT 1');
+    if ($fetchInactive) {
+        $fetchInactive->bind_param('i', $returningInactiveId);
+        $fetchInactive->execute();
+        $fetchInactive->bind_result($inactiveStudentNumber);
+        if ($fetchInactive->fetch()) {
+            $reactivatedStudentNumber = $inactiveStudentNumber;
+        }
+        $fetchInactive->close();
+    }
+
+    $existingActive = $conn->prepare('SELECT id FROM students_registration WHERE id = ? LIMIT 1');
+    $hasActive = false;
+    if ($existingActive) {
+        $existingActive->bind_param('i', $returningInactiveId);
+        $existingActive->execute();
+        $existingActive->store_result();
+        $hasActive = $existingActive->num_rows > 0;
+        $existingActive->close();
+    }
+
+    if (!$hasActive) {
+        $copyInactive = $conn->prepare('INSERT INTO students_registration SELECT * FROM inactive_students WHERE id = ?');
+        if ($copyInactive) {
+            $copyInactive->bind_param('i', $returningInactiveId);
+            $copyInactive->execute();
+            $copyInactive->close();
+        }
+        $deleteInactive = $conn->prepare('DELETE FROM inactive_students WHERE id = ?');
+        if ($deleteInactive) {
+            $deleteInactive->bind_param('i', $returningInactiveId);
+            $deleteInactive->execute();
+            $deleteInactive->close();
+        }
+    }
+}
 
 if ($returningSourceId) {
     $student_type = 'Old';
@@ -175,6 +221,36 @@ if ($returningSourceId) {
 
 if ($student_id) {
 
+    if ($reactivatedFromInactive) {
+        if ($reactivatedStudentNumber !== null && $reactivatedStudentNumber !== '') {
+            $assignNumber = $conn->prepare('UPDATE students_registration SET student_number = ? WHERE id = ?');
+            if ($assignNumber) {
+                $assignNumber->bind_param('si', $reactivatedStudentNumber, $student_id);
+                $assignNumber->execute();
+                $assignNumber->close();
+            }
+        }
+
+        $statusValue = 'ready';
+        $updateDropped = $conn->prepare('UPDATE students_registration SET enrollment_status = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?');
+        if ($updateDropped) {
+            $academicLabel = 'Ongoing';
+            $studentTypeLabel = 'Old';
+            $updateDropped->bind_param('sssi', $statusValue, $academicLabel, $studentTypeLabel, $student_id);
+            $updateDropped->execute();
+            $updateDropped->close();
+        }
+
+        $deleteInactive = $conn->prepare('DELETE FROM inactive_students WHERE id = ?');
+        if ($deleteInactive) {
+            $deleteInactive->bind_param('i', $returningInactiveId);
+            $deleteInactive->execute();
+            $deleteInactive->close();
+        }
+
+
+    }
+
     $php_path = '/Applications/XAMPP/bin/php';
     $worker   = __DIR__ . '/email_worker.php';
 
@@ -195,9 +271,9 @@ if ($student_id) {
     error_log('RETURN: ' . $return_var);
 
     unset($_SESSION['registration']);
-    unset($_SESSION['returning_source_id'], $_SESSION['returning_student_number']);
+    unset($_SESSION['returning_source_id'], $_SESSION['returning_student_number'], $_SESSION['registration_returning_tag'], $_SESSION['registration_previous_school_year'], $_SESSION['returning_inactive_source_id'], $_SESSION['returning_source_table'], $_SESSION['portal_returning_student_id']);
 
-    if ($onsitePaymentType === 'onsite' || $onsitePaymentType === 'online') {
+    if (!$reactivatedFromInactive && ($onsitePaymentType === 'onsite' || $onsitePaymentType === 'online')) {
         $statusStmt = $conn->prepare("UPDATE students_registration SET enrollment_status = 'waiting' WHERE id = ?");
         if ($statusStmt) {
             $statusStmt->bind_param('i', $student_id);
@@ -213,32 +289,6 @@ if ($student_id) {
         $tuitionFeeId = $feeSnapshot['id'] ?? null;
 
         $checkPlanTable = $conn->query("SHOW TABLES LIKE 'student_plan_selections'");
-        if ($checkPlanTable && $checkPlanTable->num_rows > 0) {
-            if ($tuitionFeeId) {
-                $deletePlan = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND tuition_fee_id = ?');
-                if ($deletePlan) {
-                    $deletePlan->bind_param('ii', $student_id, $tuitionFeeId);
-                    $deletePlan->execute();
-                    $deletePlan->close();
-                }
-            }
-
-            if ($schoolYearParam !== null && $schoolYearParam !== '') {
-                $deletePlanByGrade = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND grade_level = ? AND school_year = ?');
-                if ($deletePlanByGrade) {
-                    $deletePlanByGrade->bind_param('iss', $student_id, $yearlevel, $schoolYearParam);
-                    $deletePlanByGrade->execute();
-                    $deletePlanByGrade->close();
-                }
-            } else {
-                $deletePlanByGrade = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND grade_level = ? AND (school_year IS NULL OR school_year = \'\')');
-                if ($deletePlanByGrade) {
-                    $deletePlanByGrade->bind_param('is', $student_id, $yearlevel);
-                    $deletePlanByGrade->execute();
-                    $deletePlanByGrade->close();
-                }
-            }
-        }
         if ($checkPlanTable instanceof mysqli_result) {
             $checkPlanTable->free_result();
         }

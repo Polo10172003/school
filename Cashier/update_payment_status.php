@@ -94,13 +94,18 @@ if ($status === 'paid') {
         $statusCheck->bind_param('i', $student_id);
         $statusCheck->execute();
         $statusCheck->bind_result($currentAcademic);
-        if ($statusCheck->fetch() && strcasecmp(trim((string) $currentAcademic), 'Failed') === 0) {
-            $statusCheck->close();
-            $restoreStatus = $conn->prepare("UPDATE students_registration SET academic_status = 'Ongoing' WHERE id = ?");
-            if ($restoreStatus) {
-                $restoreStatus->bind_param('i', $student_id);
-                $restoreStatus->execute();
-                $restoreStatus->close();
+        if ($statusCheck->fetch()) {
+            $normalizedAcademic = strtolower(trim((string) $currentAcademic));
+            if (in_array($normalizedAcademic, ['failed', 'dropped'], true)) {
+                $statusCheck->close();
+                $restoreStatus = $conn->prepare("UPDATE students_registration SET academic_status = 'Ongoing' WHERE id = ?");
+                if ($restoreStatus) {
+                    $restoreStatus->bind_param('i', $student_id);
+                    $restoreStatus->execute();
+                    $restoreStatus->close();
+                }
+            } else {
+                $statusCheck->close();
             }
         } else {
             $statusCheck->close();

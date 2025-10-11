@@ -67,6 +67,24 @@ foreach ($paymentRows as $row) {
 }
 $paymentToggleLabel = 'View Payment Records' . ($pendingPaymentCount > 0 ? " ({$pendingPaymentCount} pending)" : '');
 $paymentToggleActiveLabel = 'Hide Payment Records';
+$payments = cashier_dashboard_fetch_payments($conn);
+$paymentRows = [];
+$pendingPaymentCount = 0;
+if ($payments instanceof mysqli_result) {
+    while ($row = $payments->fetch_assoc()) {
+        $paymentTypeRaw = strtolower(trim((string) ($row['payment_type'] ?? '')));
+        if (strpos($paymentTypeRaw, 'carry-over') !== false) {
+            continue;
+        }
+        $paymentRows[] = $row;
+        $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
+        if (in_array($status, ['pending', 'processing', 'review'], true)) {
+            $pendingPaymentCount++;
+        }
+    }
+}
+$paymentToggleLabel = 'View Payment Records' . ($pendingPaymentCount > 0 ? " ({$pendingPaymentCount} pending)" : '');
+$paymentToggleActiveLabel = 'Hide Payment Records';
 $planOptions = cashier_dashboard_plan_labels();
 $tuitionPackages = cashier_dashboard_fetch_tuition_packages($conn);
 $pricingCategories = [
@@ -353,6 +371,13 @@ $gradeOptions = [
                       </div>
                     <?php endforeach; ?>
                   </div>
+
+                  <?php if (!empty($planTabs)): ?>
+                    <?php $hasActivePlan = !empty($activePlanKey); ?>
+                    <div class="cashier-plan-placeholder<?= $hasActivePlan ? ' is-hidden' : ''; ?>" data-plan-placeholder>
+                      <strong>Heads up:</strong> Choose a payment plan from the dropdown above to preview the full breakdown here.
+                    </div>
+                  <?php endif; ?>
 
                   <?php
                     $pendingRows = $primaryView['pending_rows'] ?? [];
@@ -743,15 +768,43 @@ function toggleSection(button) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  function updatePlanPanels(select) {
+    if (!select) {
+      return;
+    }
+    var container = select.closest('[data-plan-container]');
+    if (!container) {
+      return;
+    }
+    var selectedValue = select.value;
+    var hasActive = false;
+    container.querySelectorAll('.plan-panel').forEach(function(panel) {
+      var key = panel.getAttribute('data-plan-panel');
+      var isActive = selectedValue && key === selectedValue;
+      panel.classList.toggle('active', isActive);
+      if (isActive) {
+        hasActive = true;
+      }
+    });
+    var placeholder = container.querySelector('[data-plan-placeholder]');
+    if (placeholder) {
+      placeholder.classList.toggle('is-hidden', hasActive);
+    }
+  }
+
   document.querySelectorAll('.payment-plan-select').forEach(function(select) {
     var targetId = select.getAttribute('data-target');
     var hiddenInput = targetId ? document.getElementById(targetId) : null;
     if (hiddenInput) {
       hiddenInput.value = select.value;
-      select.addEventListener('change', function () {
-        hiddenInput.value = select.value;
-      });
     }
+    select.addEventListener('change', function () {
+      if (hiddenInput) {
+        hiddenInput.value = select.value;
+      }
+      updatePlanPanels(select);
+    });
+    updatePlanPanels(select);
   });
 
   document.querySelectorAll('.pricing-variant').forEach(function(select) {

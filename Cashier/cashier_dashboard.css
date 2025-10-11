@@ -319,6 +319,23 @@
   color: #2f3e46;
 }
 
+.cashier-plan-placeholder {
+  border-radius: 14px;
+  border: 1px dashed rgba(20, 90, 50, 0.25);
+  background: rgba(20, 90, 50, 0.05);
+  color: var(--dash-muted, #2f3e46);
+  padding: 16px;
+  font-size: 0.95rem;
+}
+
+.cashier-plan-placeholder strong {
+  color: #145a32;
+}
+
+.is-hidden {
+  display: none !important;
+}
+
 .cashier-plan-panels .plan-panel {
   display: none;
 }

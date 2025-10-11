@@ -13,7 +13,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_number = trim($_POST['student_number']);
     $password = $_POST['password'];
 
-    $checkStudent = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? AND enrollment_status = 'enrolled'");
+    $checkStudent = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? AND enrollment_status IN ('enrolled', 'ready')");
     if (!$checkStudent) {
         die("Prepare failed (checkStudent): " . $conn->error);
     }

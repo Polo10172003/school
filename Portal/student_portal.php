@@ -23,13 +23,13 @@ if (!isset($_SESSION['student_number'])) {
 
 $student_number = $_SESSION['student_number'];
 
-$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender, emailaddress
+$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender, emailaddress, schedule_sent_at, academic_status, enrollment_status, school_year
         FROM students_registration 
         WHERE student_number = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $student_number);
 $stmt->execute();
-$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender, $student_email_portal);
+$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender, $student_email_portal, $schedule_sent_at, $academic_status, $enrollment_status, $student_school_year);
 $stmt->fetch();
 $stmt->close();
 
@@ -39,6 +39,138 @@ if (!$student_id) {
 
 $portal_student_name = trim($firstname . ' ' . $lastname);
 $header_variant = 'student_portal';
+
+$scheduleSentAt = $schedule_sent_at ?? null;
+$academicStatus = (string) ($academic_status ?? '');
+$enrollmentStatus = (string) ($enrollment_status ?? '');
+$student_school_year = (string) ($student_school_year ?? '');
+
+$studentTypeLower = strtolower(trim((string) $student_type));
+$academicStatusLower = strtolower(trim($academicStatus));
+$enrollmentStatusLower = strtolower(trim($enrollmentStatus));
+$sectionTrimmed = trim((string) ($section ?? ''));
+$adviserTrimmed = trim((string) ($adviser ?? ''));
+$sectionEmpty = ($sectionTrimmed === '' || strcasecmp($sectionTrimmed, 'To be assigned') === 0 || strcasecmp($sectionTrimmed, 'TBA') === 0);
+$adviserEmpty = ($adviserTrimmed === '' || strcasecmp($adviserTrimmed, 'To be assigned') === 0 || strcasecmp($adviserTrimmed, 'TBA') === 0);
+$scheduleIsEmpty = ($scheduleSentAt === null || $scheduleSentAt === '' || $scheduleSentAt === '0000-00-00 00:00:00');
+$canStartPortalEnrollment = ($studentTypeLower === 'old')
+    && in_array($academicStatusLower, ['passed', 'ongoing'], true)
+    && ($enrollmentStatusLower !== 'enrolled')
+    && $sectionEmpty
+    && $adviserEmpty
+    && $scheduleIsEmpty;
+
+$portalBasePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
+
+$scriptName = str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '');
+if ($scriptName !== '') {
+    $marker = '/Portal/student_portal.php';
+    $markerPos = stripos($scriptName, $marker);
+    if ($markerPos !== false) {
+        $assetBase = substr($scriptName, 0, $markerPos + 1);
+    } else {
+        $assetBase = rtrim(dirname($scriptName), '/') . '/';
+    }
+    if ($assetBase === '') {
+        $assetBase = '/';
+    } elseif (substr($assetBase, -1) !== '/') {
+        $assetBase .= '/';
+    }
+} else {
+    $assetBase = '/';
+}
+
+$portalEnrollmentSessionKey = 'portal_enrollment_ready_' . $student_id;
+$portalPlanSessionKey = 'portal_selected_plan_' . $student_id;
+$portalPricingSessionKey = 'portal_pricing_variant_' . $student_id;
+
+if (!$canStartPortalEnrollment) {
+    unset($_SESSION[$portalEnrollmentSessionKey], $_SESSION[$portalPlanSessionKey], $_SESSION[$portalPricingSessionKey]);
+}
+
+$portalEnrollmentReady = !empty($_SESSION[$portalEnrollmentSessionKey]);
+$portalSelectedPlan = $_SESSION[$portalPlanSessionKey] ?? null;
+$portalSelectedPricing = $_SESSION[$portalPricingSessionKey] ?? null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['start_portal_enrollment']) && $canStartPortalEnrollment) {
+        $_SESSION[$portalEnrollmentSessionKey] = true;
+        $clearPlans = null;
+
+        if ($student_school_year !== '') {
+            $clearPlans = $conn->prepare("DELETE FROM student_plan_selections WHERE student_id = ? AND (school_year IS NULL OR school_year = ?)");
+            if ($clearPlans) {
+                $clearPlans->bind_param('is', $student_id, $student_school_year);
+                $clearPlans->execute();
+                $clearPlans->close();
+            }
+        } else {
+            $clearPlans = $conn->prepare("DELETE FROM student_plan_selections WHERE student_id = ?");
+            if ($clearPlans) {
+                $clearPlans->bind_param('i', $student_id);
+                $clearPlans->execute();
+                $clearPlans->close();
+            }
+        }
+
+        header('Location: ' . $portalBasePath . 'student_portal.php');
+        exit();
+    }
+
+    if (isset($_POST['select_portal_plan']) && $canStartPortalEnrollment) {
+        $selectedPlanType = strtolower(trim((string) ($_POST['plan_type'] ?? '')));
+        $tuitionFeeId = isset($_POST['tuition_fee_id']) ? (int) $_POST['tuition_fee_id'] : 0;
+        $planSchoolYear = trim((string) ($_POST['plan_school_year'] ?? ''));
+        $planGradeLevel = trim((string) ($_POST['plan_grade_level'] ?? ''));
+        $planPricingCategory = trim((string) ($_POST['plan_pricing_category'] ?? ''));
+        $planStudentType = trim((string) ($_POST['plan_student_type'] ?? ''));
+
+        if ($selectedPlanType !== '' && $tuitionFeeId > 0) {
+            $planContext = [
+                'school_year' => $planSchoolYear,
+                'grade_level' => $planGradeLevel,
+                'pricing_category' => $planPricingCategory,
+                'student_type' => $planStudentType,
+            ];
+
+            cashier_dashboard_save_plan_selection(
+                $conn,
+                $student_id,
+                $tuitionFeeId,
+                $selectedPlanType,
+                $planContext
+            );
+
+            $_SESSION[$portalPlanSessionKey] = $selectedPlanType;
+            if ($planPricingCategory !== '') {
+                $_SESSION[$portalPricingSessionKey] = strtolower($planPricingCategory);
+            }
+        }
+
+        $redirectUrl = $portalBasePath . 'choose_payment.php?student_id=' . urlencode((string) $student_id);
+        if ($planPricingCategory !== '') {
+            $redirectUrl .= '&pricing_variant=' . urlencode(strtolower($planPricingCategory));
+        }
+        header('Location: ' . $redirectUrl);
+        exit();
+    }
+}
+
+$portalEnrollmentReady = !empty($_SESSION[$portalEnrollmentSessionKey]);
+$portalSelectedPlan = $_SESSION[$portalPlanSessionKey] ?? null;
+$portalSelectedPricing = $_SESSION[$portalPricingSessionKey] ?? null;
+
+$portalEnrollmentReadyActive = $portalEnrollmentReady;
+$portalSelectedPlanActive = $portalSelectedPlan;
+$portalSelectedPricingActive = $portalSelectedPricing;
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && $portalEnrollmentReadyActive) {
+    unset($_SESSION[$portalEnrollmentSessionKey], $_SESSION[$portalPlanSessionKey], $_SESSION[$portalPricingSessionKey]);
+}
+
+$portalEnrollmentReady = $portalEnrollmentReadyActive;
+$portalSelectedPlan = $portalSelectedPlanActive;
+$portalSelectedPricing = $portalSelectedPricingActive;
 
 include '../includes/header.php';
 // Fetch tuition fee setup from admin
@@ -377,10 +509,34 @@ if ($gender_normalized === 'male') {
 
 
 $pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
+$escGrades = ['grade7','grade8','grade9','grade10','grade11','grade12'];
+if ($pricing_variant_param === null) {
+    if (!empty($portalSelectedPricing)) {
+        $pricing_variant_param = strtolower(trim($portalSelectedPricing));
+    } elseif (in_array($grade_key, $escGrades, true)) {
+        $pricing_variant_param = 'esc';
+    }
+}
+
+$studentRowData = [
+    'id' => $student_id,
+    'student_number' => $student_number,
+    'firstname' => $firstname,
+    'lastname' => $lastname,
+    'year' => $year,
+    'section' => $section,
+    'adviser' => $adviser,
+    'student_type' => $student_type,
+    'enrollment_status' => $enrollmentStatus,
+    'academic_status' => $academicStatus,
+    'school_year' => $student_school_year,
+];
 
 $financial_snapshot = cashier_dashboard_build_student_financial($conn, (int) $student_id, [
     'pricing_variant' => $pricing_variant_param,
     'pricing_student' => $student_id,
+    'student_row' => $studentRowData,
+    'require_explicit_plan' => ($portalEnrollmentReady && !$portalSelectedPlan && $canStartPortalEnrollment),
 ]);
 
 $finance_views = [];
@@ -402,6 +558,30 @@ if ($financial_snapshot) {
     $stored_pricing_key = $financial_snapshot['stored_pricing'] ?? null;
 } else {
     $stored_pricing_key = null;
+}
+
+$storedPlanCurrent = null;
+foreach ($finance_views as $candidateView) {
+    if (($candidateView['key'] ?? '') === 'current') {
+        $storedPlanCurrent = isset($candidateView['stored_plan']) ? strtolower((string) $candidateView['stored_plan']) : null;
+        break;
+    }
+}
+
+if ($portalSelectedPlan && ($storedPlanCurrent === null || $storedPlanCurrent !== strtolower((string) $portalSelectedPlan))) {
+    unset($_SESSION[$portalPlanSessionKey]);
+    $portalSelectedPlan = null;
+}
+
+if ($portalSelectedPricing && !in_array(strtolower($portalSelectedPricing), array_map('strtolower', $available_pricing_options), true)) {
+    unset($_SESSION[$portalPricingSessionKey]);
+    $portalSelectedPricing = null;
+}
+
+if ($portalSelectedPricing) {
+    $selected_pricing_key = strtolower($portalSelectedPricing);
+} elseif (!empty($stored_pricing_key)) {
+    $selected_pricing_key = strtolower((string) $stored_pricing_key);
 }
 
 $selected_view_key = $_GET['finance_view'] ?? ($financial_snapshot['default_view_key'] ?? 'current');
@@ -563,6 +743,58 @@ unset($finance_view_ref);
         background: rgba(231, 76, 60, 0.12);
     }
 
+    .portal-plan-card {
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .portal-plan-card.is-active {
+        border-width: 2px;
+    }
+
+    .portal-plan-details {
+        display: none;
+        margin-top: 18px;
+    }
+
+    .portal-plan-card.is-active .portal-plan-details {
+        display: block;
+    }
+
+    .portal-plan-header .form-check-input {
+        width: 1.35rem;
+        height: 1.35rem;
+        border: 2px solid rgba(20, 90, 50, 0.55);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9);
+    }
+
+    .portal-plan-header .form-check-input:checked {
+        background-color: #145A32;
+        border-color: #145A32;
+        box-shadow: 0 0 0 2px rgba(20, 90, 50, 0.25);
+    }
+
+    .portal-plan-header .form-check-input:focus {
+        border-color: #145A32;
+        box-shadow: 0 0 0 4px rgba(20, 90, 50, 0.25);
+    }
+
+    .portal-plan-header .form-check-label {
+        font-size: 1.05rem;
+    }
+
+    .portal-plan-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9rem;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(20, 90, 50, 0.12);
+        color: #145A32;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
     .status-pill {
         display: inline-flex;
         align-items: center;
@@ -629,9 +861,37 @@ unset($finance_view_ref);
             </div>
 
             <div class="col-lg-8 d-flex flex-column gap-4">
+                    <?php if ($canStartPortalEnrollment): ?>
+                        <?php if (!$portalEnrollmentReady): ?>
+                            <div class="card portal-card">
+                                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                    <div>
+                                        <h3 class="h5 fw-bold mb-1">Ready to Enroll for the New School Year?</h3>
+                                        <p class="text-muted mb-0">Click below to review tuition plans and start your online enrollment.</p>
+                                    </div>
+                                    <form method="POST" action="<?= htmlspecialchars($assetBase . 'Portal/student_portal.php', ENT_QUOTES, 'UTF-8'); ?>" class="ms-md-auto">
+                                        <input type="hidden" name="start_portal_enrollment" value="1">
+                                        <button type="submit" class="btn btn-success fw-semibold">
+                                            <i class="bi bi-calendar-check me-2"></i>Enroll Now
+                                        </button>
+                                    </form>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="card portal-card">
+                            <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div>
+                                    <h3 class="h5 fw-bold mb-1">Select Your Payment Plan</h3>
+                                    <p class="text-muted mb-0">Choose a plan below and proceed to online payment. Your submission will remain pending until the cashier verifies it.</p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                <?php endif; ?>
+
                 <?php if ($has_multiple_views): ?>
                     <div class="d-flex justify-content-end">
-                        <form method="GET" action="Portal/student_portal.php" class="w-100" style="max-width: 240px;">
+                        <form method="GET" action="<?= htmlspecialchars($assetBase . 'Portal/student_portal.php', ENT_QUOTES, 'UTF-8'); ?>" class="w-100" style="max-width: 240px;">
                             <label for="financeViewSelector" class="form-label small text-muted mb-1">View financial data for</label>
                             <select id="financeViewSelector" name="finance_view" class="form-select form-select-sm" onchange="this.form.submit()">
                                 <?php foreach ($finance_views as $view_option): ?>
@@ -662,6 +922,21 @@ unset($finance_view_ref);
                     $view_year_total = $view['current_year_total'];
                     $view_history_rows = $view['history_rows'] ?? [];
                     $view_history_message = $view['history_message'] ?? 'No payments recorded yet.';
+                    $view_plan_tabs = $view['plan_tabs'] ?? [];
+                    $view_plan_context = $view['plan_context'] ?? null;
+                    $view_active_plan = $view['active_plan'] ?? null;
+                    if ($portalEnrollmentReady && $view_key === 'current' && $portalSelectedPlan) {
+                        $view_active_plan = strtolower($portalSelectedPlan);
+                    }
+                    $showingPlanSelection = ($portalEnrollmentReady && $view_key === 'current');
+                    $hidePlanDetails = (($canStartPortalEnrollment && $view_key === 'current') && !$portalSelectedPlan);
+                    if ($hidePlanDetails) {
+                        $view_plan_label = '';
+                        $view_schedule_rows = [];
+                        $view_schedule_message = 'Select a payment plan to view the schedule.';
+                        $view_next_due = null;
+                        $view_pricing_label = null;
+                    }
                 ?>
                 <div class="finance-view" data-view="<?php echo htmlspecialchars($view_key); ?>" style="<?php echo $is_default ? '' : 'display:none;'; ?>">
                 <div class="finance-view-content d-flex flex-column gap-4">
@@ -714,29 +989,145 @@ unset($finance_view_ref);
                         </div>
                     </div>
 
-                    <div class="card portal-card">
-                        <div class="card-body">
-                            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-                                <div>
-                                    <h3 class="h5 fw-bold mb-1">Upcoming Payment Schedule</h3>
-                                    <?php if ($view_plan_label): ?>
-                                        <div class="text-muted small">
-                                            Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($view_plan_label); ?></strong>
-                                            <?php if ($view_pricing_label): ?>· Pricing: <strong><?php echo htmlspecialchars($view_pricing_label); ?></strong><?php endif; ?>
-                                            <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['label'] ?? $view_next_due['due_date'] ?? ''); ?></strong><?php endif; ?>
+                    <?php if ($portalEnrollmentReady && $view_key === 'current'): ?>
+                        <?php if (!empty($view_plan_tabs) && !empty($view_plan_context)): ?>
+                            <div class="card portal-card">
+                                <div class="card-body">
+                                    <h3 class="h5 fw-bold mb-3">Choose a Payment Plan</h3>
+                                    <form method="POST" action="<?= htmlspecialchars($assetBase . 'Portal/student_portal.php', ENT_QUOTES, 'UTF-8'); ?>" class="d-flex flex-column gap-3">
+                                        <input type="hidden" name="select_portal_plan" value="1">
+                                        <input type="hidden" name="tuition_fee_id" value="<?php echo (int) ($view_plan_context['tuition_fee_id'] ?? 0); ?>">
+                                        <input type="hidden" name="plan_school_year" value="<?php echo htmlspecialchars($view_plan_context['school_year'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        <input type="hidden" name="plan_grade_level" value="<?php echo htmlspecialchars($view_plan_context['grade_level'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        <input type="hidden" name="plan_pricing_category" value="<?php echo htmlspecialchars($view_plan_context['pricing_category'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        <input type="hidden" name="plan_student_type" value="<?php echo htmlspecialchars($view_plan_context['student_type'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+
+                                        <div class="row g-3">
+                                            <?php foreach ($view_plan_tabs as $planTab):
+                                                $planType = strtolower((string) ($planTab['plan_type'] ?? ''));
+                                                if ($planType === '') {
+                                                    continue;
+                                                }
+                                                $planLabel = $planTab['label'] ?? strtoupper($planType);
+                                                $baseSnapshot = $planTab['base'] ?? [];
+                                                $entriesSnapshot = $planTab['entries'] ?? [];
+                                                $isChecked = ($view_active_plan === $planType);
+                                                $inputId = 'portal-plan-' . $planType;
+                                            ?>
+                                            <div class="col-12">
+                                                <?php
+                                                    $dueNow = (float) ($baseSnapshot['due_total'] ?? 0);
+                                                ?>
+                                                <div class="portal-plan-card border <?php echo $isChecked ? 'border-success shadow-sm is-active' : 'border-light'; ?> rounded-4 p-3 p-lg-4" data-plan-card="<?php echo htmlspecialchars($planType); ?>">
+                                                    <div class="form-check d-flex align-items-center justify-content-between flex-wrap gap-3 portal-plan-header">
+                                                        <div class="d-flex align-items-center gap-2">
+                                                            <input class="form-check-input" type="radio" name="plan_type" id="<?php echo htmlspecialchars($inputId); ?>" value="<?php echo htmlspecialchars($planType); ?>" <?php echo $isChecked ? 'checked' : ''; ?> required>
+                                                            <label class="form-check-label fw-bold mb-0" for="<?php echo htmlspecialchars($inputId); ?>">
+                                                                <?php echo htmlspecialchars($planLabel); ?>
+                                                            </label>
+                                                        </div>
+                                                        <span class="portal-plan-chip">
+                                                            Due now: <strong>₱<?php echo number_format($dueNow, 2); ?></strong>
+                                                        </span>
+                                                    </div>
+                                                    <div class="portal-plan-details">
+                                                        <div class="row mt-3 g-4">
+                                                            <div class="col-md-6">
+                                                                <span class="text-uppercase text-muted small fw-semibold">What you pay today</span>
+                                                                <ul class="list-unstyled mb-0 small mt-2">
+                                                                    <li>Entrance Fee: <strong>₱<?php echo number_format((float) ($baseSnapshot['entrance_fee'] ?? 0), 2); ?></strong></li>
+                                                                    <li>Miscellaneous Fee: <strong>₱<?php echo number_format((float) ($baseSnapshot['miscellaneous_fee'] ?? 0), 2); ?></strong></li>
+                                                                    <li>Tuition Portion: <strong>₱<?php echo number_format((float) ($baseSnapshot['tuition_fee'] ?? 0), 2); ?></strong></li>
+                                                                    <li class="mt-2">Due upon enrollment: <strong class="text-success">₱<?php echo number_format((float) ($baseSnapshot['due_total'] ?? 0), 2); ?></strong></li>
+                                                                </ul>
+                                                            </div>
+                                                            <div class="col-md-6">
+                                                                <span class="text-uppercase text-muted small fw-semibold">Remaining Balance</span>
+                                                                <p class="small mb-2 mt-2">Future payments total: <strong>₱<?php echo number_format(max(0.0, (float) ($baseSnapshot['overall_total'] ?? 0) - (float) ($baseSnapshot['due_total'] ?? 0)), 2); ?></strong></p>
+                                                                <p class="small mb-0">Overall program cost: <strong>₱<?php echo number_format((float) ($baseSnapshot['overall_total'] ?? 0), 2); ?></strong></p>
+                                                            </div>
+                                                        </div>
+                                                        <?php if (!empty($entriesSnapshot)): ?>
+                                                            <div class="table-responsive mt-3">
+                                                                <table class="table table-sm mb-0">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>Schedule</th>
+                                                                            <th class="text-end">Amount</th>
+                                                                            <th>Notes</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        <?php foreach ($entriesSnapshot as $entry):
+                                                                            $entryLabel = $entry['label'] ?? ($entry['note'] ?? 'Next Payment');
+                                                                            $entryAmount = (float) ($entry['amount_original'] ?? $entry['amount'] ?? 0);
+                                                                            $entryNote = $entry['note'] ?? '';
+                                                                        ?>
+                                                                        <tr>
+                                                                            <td><?php echo htmlspecialchars($entryLabel); ?></td>
+                                                                            <td class="text-end">₱<?php echo number_format($entryAmount, 2); ?></td>
+                                                                            <td><?php echo $entryNote !== '' ? htmlspecialchars($entryNote) : '—'; ?></td>
+                                                                        </tr>
+                                                                        <?php endforeach; ?>
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                        <?php if (!empty($planTab['notes'])): ?>
+                                                            <div class="alert alert-info mt-3 mb-0 py-2 small">
+                                                                <i class="bi bi-info-circle me-2"></i><?php echo nl2br(htmlspecialchars($planTab['notes'])); ?>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <?php endforeach; ?>
                                         </div>
-                                    <?php else: ?>
-                                        <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
+
+                                        <div class="d-flex justify-content-end">
+                                            <button type="submit" class="btn btn-success fw-semibold">
+                                                Continue to Online Payment
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php elseif ($portalEnrollmentReady && $view_key === 'current'): ?>
+                            <div class="card portal-card">
+                                <div class="card-body">
+                                    <div class="empty-state">
+                                        <i class="bi bi-info-circle me-2"></i>Tuition plans are not configured yet. Please contact the cashier.
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+
+                        <div class="card portal-card">
+                            <div class="card-body">
+                                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
+                                    <div>
+                                        <h3 class="h5 fw-bold mb-1">Upcoming Payment Schedule</h3>
+                                        <?php if ($view_plan_label): ?>
+                                            <div class="text-muted small">
+                                                Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($view_plan_label); ?></strong>
+                                                <?php if ($view_pricing_label): ?>· Pricing: <strong><?php echo htmlspecialchars($view_pricing_label); ?></strong><?php endif; ?>
+                                                <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['label'] ?? $view_next_due['due_date'] ?? ''); ?></strong><?php endif; ?>
+                                            </div>
+                                        <?php else: ?>
+                                            <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php if (!($portalEnrollmentReady && $view_key === 'current')): ?>
+                                        <form action="<?= htmlspecialchars($assetBase . 'Portal/choose_payment.php', ENT_QUOTES, 'UTF-8'); ?>" method="GET" class="ms-lg-auto">
+                                            <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
+                                            <input type="hidden" name="pricing_variant" value="<?php echo htmlspecialchars($selected_pricing_key); ?>">
+                                            <button type="submit" class="btn btn-success fw-semibold">
+                                                <i class="bi bi-credit-card me-2"></i>Pay Now
+                                            </button>
+                                        </form>
                                     <?php endif; ?>
                                 </div>
-                                <form action="Portal/choose_payment.php" method="GET" class="ms-lg-auto">
-                                    <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
-                                    <input type="hidden" name="pricing_variant" value="<?php echo htmlspecialchars($selected_pricing_key); ?>">
-                                    <button type="submit" class="btn btn-success fw-semibold">
-                                        <i class="bi bi-credit-card me-2"></i>Pay Now
-                                    </button>
-                                </form>
-                            </div>
 
                             <?php if (!empty($view_alert) && $view_key === 'current'): ?>
                                 <div class="alert alert-warning border-0 text-dark">
@@ -986,6 +1377,40 @@ unset($finance_view_ref);
         const announcementModalTitle = document.getElementById('announcementModalTitle');
         const announcementModalTime = document.getElementById('announcementModalTime');
         const announcementModalBody = document.getElementById('announcementModalBody');
+
+        const portalPlanCards = Array.from(document.querySelectorAll('.portal-plan-card'));
+        const portalPlanInputs = Array.from(document.querySelectorAll('input[name="plan_type"]'));
+
+        if (portalPlanCards.length && portalPlanInputs.length) {
+            const setActivePortalPlan = function (selectedValue) {
+                const normalized = (selectedValue || '').toString().toLowerCase();
+                portalPlanCards.forEach(function (card) {
+                    const cardKey = (card.getAttribute('data-plan-card') || '').toLowerCase();
+                    const isActive = normalized !== '' && cardKey === normalized;
+                    card.classList.toggle('is-active', isActive);
+                    card.classList.toggle('border-success', isActive);
+                    card.classList.toggle('shadow-sm', isActive);
+                    card.classList.toggle('border-light', !isActive);
+                });
+            };
+
+            portalPlanInputs.forEach(function (input) {
+                input.addEventListener('change', function () {
+                    if (input.checked) {
+                        setActivePortalPlan(input.value);
+                    }
+                });
+            });
+
+            const initiallyChecked = portalPlanInputs.find(function (input) {
+                return input.checked;
+            });
+            if (initiallyChecked) {
+                setActivePortalPlan(initiallyChecked.value);
+            } else {
+                setActivePortalPlan('');
+            }
+        }
 
         let inboxLoaded = false;
         let markingInboxRead = false;

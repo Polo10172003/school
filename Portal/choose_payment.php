@@ -7,8 +7,13 @@ if (isset($_GET['student_number'])) {
 
 $student_number = $_SESSION['student_number'] ?? ($_POST['student_number'] ?? '');
 $student_id = $_GET['student_id'] ?? ($_POST['student_id'] ?? ($_SESSION['student_id'] ?? ''));
+$pricing_variant = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : strtolower(trim((string) ($_POST['pricing_variant'] ?? '')));
 if (!empty($student_id)) {
     $_SESSION['student_id'] = $student_id;
+}
+
+if ($pricing_variant !== '') {
+    $_SESSION['pricing_variant'] = $pricing_variant;
 }
 
 $paymentSuccess = $_SESSION['payment_success'] ?? false;

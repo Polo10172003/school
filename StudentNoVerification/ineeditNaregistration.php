@@ -9,6 +9,8 @@ cleanupExpiredRegistrations($conn);
 $conn->close();
 
 $registration = $_SESSION['registration'] ?? [];
+$returningTag = $_SESSION['registration_returning_tag'] ?? '';
+$previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -98,6 +100,16 @@ include '../includes/header.php';
             <h2 class="fw-bold text-success mb-3">Early Registration Form</h2>
             <p class="mb-2">Please fill out the details below to reserve a slot for the upcoming school year.</p>
             <p class="text-muted mb-0">Fields marked with <span class="required">*</span> are required. Optional fields may be left blank.</p>
+            <?php if ($returningTag !== ''): ?>
+                <div class="alert alert-warning mt-3 mb-0" role="alert">
+                    <strong><?= htmlspecialchars($returningTag); ?></strong>
+                    <?php if ($previousSchoolYear !== ''): ?>
+                        — last enrolled S.Y.: <?= htmlspecialchars($previousSchoolYear); ?>. Please set the new school year before submitting.
+                    <?php else: ?>
+                        — Please set the new school year before submitting.
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <form method="POST" novalidate>
