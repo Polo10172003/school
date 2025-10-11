@@ -4,6 +4,7 @@ include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/session.php';
 
 require_once __DIR__ . '/cleanup_expired_registrations.php';
+require_once __DIR__ . '/email_worker.php';
 cleanupExpiredRegistrations($conn);
 
 $data = $_SESSION['registration'] ?? null;
@@ -251,24 +252,40 @@ if ($student_id) {
 
     }
 
-    $php_path = PHP_BINARY ?: '/usr/bin/php';
-    $worker   = __DIR__ . '/email_worker.php';
+    $workerPath = __DIR__ . '/email_worker.php';
+    $disabledRaw = (string) ini_get('disable_functions');
+    $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
+    $canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
 
-    $cmdParts = [
-        escapeshellcmd($php_path),
-        escapeshellarg($worker),
-        escapeshellarg((string) $student_id),
-        escapeshellarg($student_type),
-        escapeshellarg($emailaddress),
-        escapeshellarg($firstname),
-        escapeshellarg($lastname)
-    ];
-    $cmd = implode(' ', $cmdParts);
+    $emailDispatched = false;
 
-    exec($cmd . ' 2>&1', $output, $return_var);
-    error_log('CMD: ' . $cmd);
-    error_log('OUTPUT: ' . print_r($output, true));
-    error_log('RETURN: ' . $return_var);
+    if ($canUseExec) {
+        $phpPath = PHP_BINARY ?: '/usr/bin/php';
+        $cmdParts = [
+            escapeshellcmd($phpPath),
+            escapeshellarg($workerPath),
+            escapeshellarg((string) $student_id),
+            escapeshellarg($student_type),
+            escapeshellarg($emailaddress),
+            escapeshellarg($firstname),
+            escapeshellarg($lastname),
+        ];
+        $cmd = implode(' ', $cmdParts);
+
+        exec($cmd . ' 2>&1', $output, $return_var);
+        if ($return_var !== 0) {
+            error_log('Email worker exec failed. Falling back to inline handler. Output: ' . print_r($output, true));
+        } else {
+            $emailDispatched = true;
+        }
+    }
+
+    if (!$emailDispatched) {
+        $inlineResult = email_worker_process($student_id, $student_type, $emailaddress, $firstname, $lastname, $conn);
+        if (!$inlineResult) {
+            error_log('Email worker inline fallback failed for student ID ' . $student_id);
+        }
+    }
 
     unset($_SESSION['registration']);
     unset($_SESSION['returning_source_id'], $_SESSION['returning_student_number'], $_SESSION['registration_returning_tag'], $_SESSION['registration_previous_school_year'], $_SESSION['returning_inactive_source_id'], $_SESSION['returning_source_table'], $_SESSION['portal_returning_student_id']);
