@@ -5,7 +5,10 @@ use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 require __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/cashier_dashboard_logic.php';
+
+if (!function_exists('cashier_normalize_grade_key')) {
+    require_once __DIR__ . '/cashier_dashboard_logic.php';
+}
 
 if (!function_exists('cashier_email_worker_process')) {
     /**

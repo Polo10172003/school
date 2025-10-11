@@ -79,6 +79,34 @@ function homepage_images_load(): array
     return array_replace_recursive($defaults, $data);
 }
 
+function homepage_image_url(?string $path): string
+{
+    $path = (string) $path;
+    if ($path === '') {
+        return '';
+    }
+
+    if (preg_match('~^(?:https?:)?//~i', $path)) {
+        return $path;
+    }
+
+    $normalized = ltrim(str_replace('\\', '/', $path), '/');
+
+    if (!defined('APP_BASE_PATH')) {
+        require_once __DIR__ . '/../config/app.php';
+    }
+
+    $base = APP_BASE_PATH ?? '/';
+    if ($base === '') {
+        $base = '/';
+    }
+    if ($base !== '/' && substr($base, -1) !== '/') {
+        $base .= '/';
+    }
+
+    return $base === '/' ? '/' . $normalized : $base . $normalized;
+}
+
 function homepage_images_save(array $images): bool
 {
     $path = homepage_images_config_path();

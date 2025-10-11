@@ -32,7 +32,8 @@ $page_title = 'Escuela de Sto. Rosario - Home';
       <div class="carousel-inner">
         <?php $i = 0; foreach ($slides as $_path): ?>
           <div class="carousel-item <?= $i === 0 ? 'active' : '' ?>" data-bs-interval="5000">
-            <img src="<?= htmlspecialchars($_path) ?>"<?php if ($imageClass !== ''): ?> class="<?= htmlspecialchars($imageClass) ?>"<?php endif; ?> alt="<?= htmlspecialchars($altPrefix . ' ' . ($i + 1)) ?>"<?php if ($imageStyle !== ''): ?> style="<?= htmlspecialchars($imageStyle, ENT_QUOTES) ?>"<?php endif; ?>>
+            <?php $resolvedPath = homepage_image_url($_path); ?>
+            <img src="<?= htmlspecialchars($resolvedPath) ?>"<?php if ($imageClass !== ''): ?> class="<?= htmlspecialchars($imageClass) ?>"<?php endif; ?> alt="<?= htmlspecialchars($altPrefix . ' ' . ($i + 1)) ?>"<?php if ($imageStyle !== ''): ?> style="<?= htmlspecialchars($imageStyle, ENT_QUOTES) ?>"<?php endif; ?>>
             <?php if (!empty($captions[$i]) && (isset($captions[$i]['title']) || isset($captions[$i]['text']))): ?>
               <div class="carousel-caption caption-overlay d-none d-md-block">
                 <?php if (!empty($captions[$i]['title'])): ?><h5><?= htmlspecialchars($captions[$i]['title']) ?></h5><?php endif; ?>
@@ -106,7 +107,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
   }
 
   .hero-banner {
-    background-image: linear-gradient(rgba(20, 90, 50, 0.75), rgba(20, 90, 50, 0.75)), url('<?= htmlspecialchars($homepageImages['cards']['campus']); ?>');
+    background-image: linear-gradient(rgba(20, 90, 50, 0.75), rgba(20, 90, 50, 0.75)), url('<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>');
     background-size: cover;
     background-position: center;
     position: relative;
@@ -270,7 +271,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         </div>
         <div class="col-lg-5 mt-5 mt-lg-0">
           <div class="hero-card card border-0 shadow-lg">
-            <img src="<?= htmlspecialchars($homepageImages['events']['slide1']); ?>" alt="Students on campus" class="card-img-top">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['events']['slide1'] ?? '')); ?>" alt="Students on campus" class="card-img-top">
             <div class="card-body">
               <h5 class="fw-bold text-success">Welcome, parents and guardians!</h5>
               <p class="text-muted mb-0">Check schedules, tuition details, and announcements anytime through our online portal to stay in step with your child’s journey.</p>
@@ -291,7 +292,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
       <div class="row g-4">
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars($homepageImages['cards']['programs']); ?>" alt="Academic programs" class="w-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic programs" class="w-100">
             <div class="card-body">
               <h5 class="fw-bold text-success">Academic Programs</h5>
               <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
@@ -301,7 +302,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         </div>
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars($homepageImages['cards']['admissions']); ?>" alt="Admissions" class="w-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['admissions'] ?? '')); ?>" alt="Admissions" class="w-100">
             <div class="card-body">
               <h5 class="fw-bold text-success">Admissions Checklist</h5>
               <p class="text-muted">Follow easy steps for document submission, interviews, and payment options.</p>
@@ -311,7 +312,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         </div>
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars($homepageImages['cards']['campus']); ?>" alt="Campus life" class="w-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
             <div class="card-body">
               <h5 class="fw-bold text-success">Life on Campus</h5>
               <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>

@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/section_assignment.php';
-require_once __DIR__ . '/email_worker.php';
 
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
@@ -1368,6 +1367,9 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             cashier_assign_section_if_needed($conn, (int) $student_id);
 
             if (isset($recordedPaymentId)) {
+                if (!function_exists('cashier_email_worker_process')) {
+                    require_once __DIR__ . '/email_worker.php';
+                }
                 $workerPath = __DIR__ . '/email_worker.php';
                 $disabledRaw = (string) ini_get('disable_functions');
                 $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
