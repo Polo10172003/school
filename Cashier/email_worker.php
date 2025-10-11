@@ -123,6 +123,7 @@ if (!function_exists('cashier_email_worker_process')) {
 
         $scheduleHtml = '';
         $scheduleIncluded = false;
+        $scheduleSentNow = null;
 
         $currentGradeKey = cashier_normalize_grade_key((string) $grade_level);
         $currentGradePaidCount = 0;
@@ -135,7 +136,9 @@ if (!function_exists('cashier_email_worker_process')) {
             $schedule_sent_at = null;
         }
 
-        if (empty($schedule_sent_at)) {
+        $schedulePreviouslySent = !empty($schedule_sent_at);
+
+        if (!$schedulePreviouslySent) {
             $totalPaidPerGrade = [];
             $paymentsStmt = $conn->prepare('
                 SELECT amount, grade_level, created_at
@@ -399,6 +402,7 @@ if (!function_exists('cashier_email_worker_process')) {
                         $scheduleHtml .= "<p style='margin-top:12px;'>Please keep this schedule for your reference. Any future changes will be communicated by the school.</p>";
 
                         $scheduleIncluded = true;
+                        $scheduleSentNow = date('Y-m-d H:i:s');
                     }
                 }
             }
@@ -490,6 +494,19 @@ if (!function_exists('cashier_email_worker_process')) {
             $mail->Body .= $scheduleHtml;
         }
 
+        if ($scheduleIncluded && !$schedulePreviouslySent) {
+            $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
+            if ($updateSchedule) {
+                $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
+                if (!$updateSchedule->execute()) {
+                    error_log('[cashier] email worker failed to update schedule_sent_at for student ' . $student_id . ': ' . $updateSchedule->error);
+                }
+                $updateSchedule->close();
+            } else {
+                error_log('[cashier] email worker could not prepare schedule update for student ' . $student_id . ': ' . $conn->error);
+            }
+        }
+
         try {
             $mail->send();
         } catch (Exception $mailError) {
@@ -504,15 +521,6 @@ if (!function_exists('cashier_email_worker_process')) {
                 $conn->close();
             }
             return false;
-        }
-
-        if ($scheduleIncluded) {
-            $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = NOW() WHERE id = ?');
-            if ($updateSchedule) {
-                $updateSchedule->bind_param('i', $student_id);
-                $updateSchedule->execute();
-                $updateSchedule->close();
-            }
         }
 
         if ($createdConnection) {
