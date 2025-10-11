@@ -87,6 +87,19 @@ function cashier_dashboard_default_pricing_variant_for_grade(string $gradeKey): 
         return 'fwc';
     }
 
+    static $escPreferredGrades = [
+        'grade11',
+        'grade12',
+        'seniorhigh11',
+        'seniorhigh12',
+        'shs11',
+        'shs12',
+    ];
+
+    if (in_array($normalized, $escPreferredGrades, true)) {
+        return 'esc';
+    }
+
     return null;
 }
 
@@ -845,8 +858,12 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     if ($student_id_str === '' && $student_id > 0) {
         $student_id_str = (string) $student_id;
     }
-    $amount = floatval($_POST['amount'] ?? 0);
+    $isSubsidyPayment = isset($_POST['subsidy_payment']) && $_POST['subsidy_payment'] === '1';
+    $amount = $isSubsidyPayment ? 0.0 : floatval($_POST['amount'] ?? 0);
     $payment_mode = $_POST['payment_mode'] ?? ($_POST['payment_type'] ?? 'Cash');
+    if ($isSubsidyPayment) {
+        $payment_mode = 'Government Subsidy';
+    }
     $payment_type = $payment_mode ?: 'Cash';
     $payment_status = $_POST['payment_status'] ?? 'paid';
     $payment_date = date('Y-m-d');
@@ -876,7 +893,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     if ($reference_number === '') $reference_number = null;
 
     $onsitePaymentFlag = isset($_POST['onsite_payment']) && $_POST['onsite_payment'] === '1';
-    $autoGenerateOr = $onsitePaymentFlag && strcasecmp($payment_type, 'Cash') === 0;
+    $autoGenerateOr = ($onsitePaymentFlag && strcasecmp($payment_type, 'Cash') === 0) || $isSubsidyPayment;
     $generatedOrNumber = null;
     if ($autoGenerateOr) {
         $generatedOrNumber = cashier_generate_or_number($conn);
@@ -1035,26 +1052,28 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     }
 
     // Validation
-    if ($amount <= 0.009 && $pastDueApplied > 0 && $original_amount > 0.009) {
-        $message = 'Payment applied fully to outstanding past due balance. Remaining enrollment dues are unchanged.';
-        $flashTypeOverride = 'info';
-    } elseif ($amount <= 0.009 && $carry_applied > 0 && $original_amount > 0.009) {
-        $message = 'Payment applied fully to past due balance. Remaining enrollment dues are unchanged.';
-        $flashTypeOverride = 'info';
-    } elseif (!$autoGenerateOr && strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
-        error_log('[cashier] validation failed: missing OR number');
-        $message = 'Official receipt number is required for cash payments.';
-    } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null)) {
-        error_log('[cashier] validation failed: missing reference number');
-        $message = 'Reference number is required for non-cash payments.';
-    } else {
-        $validationAmount = $amount;
-        $validation = cashier_dashboard_validate_payment($conn, $student_id, $validationAmount, $payment_type, $plan_context['pricing_category']);
-        if (!$validation['valid']) {
-            error_log('[cashier] amount validation failed: ' . $validation['message']);
-            $message = $validation['message'];
-            if ($validation['suggested_amount'] !== null) {
-                $message .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
+    if (!$isSubsidyPayment) {
+        if ($amount <= 0.009 && $pastDueApplied > 0 && $original_amount > 0.009) {
+            $message = 'Payment applied fully to outstanding past due balance. Remaining enrollment dues are unchanged.';
+            $flashTypeOverride = 'info';
+        } elseif ($amount <= 0.009 && $carry_applied > 0 && $original_amount > 0.009) {
+            $message = 'Payment applied fully to past due balance. Remaining enrollment dues are unchanged.';
+            $flashTypeOverride = 'info';
+        } elseif (!$autoGenerateOr && strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
+            error_log('[cashier] validation failed: missing OR number');
+            $message = 'Official receipt number is required for cash payments.';
+        } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null)) {
+            error_log('[cashier] validation failed: missing reference number');
+            $message = 'Reference number is required for non-cash payments.';
+        } else {
+            $validationAmount = $amount;
+            $validation = cashier_dashboard_validate_payment($conn, $student_id, $validationAmount, $payment_type, $plan_context['pricing_category']);
+            if (!$validation['valid']) {
+                error_log('[cashier] amount validation failed: ' . $validation['message']);
+                $message = $validation['message'];
+                if ($validation['suggested_amount'] !== null) {
+                    $message .= ' Suggested amount: ₱' . number_format($validation['suggested_amount'], 2);
+                }
             }
         }
     }
@@ -1189,7 +1208,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
 
         $recordedPaymentId = null;
 
-        if ($amount > 0.009) {
+        if ($amount > 0.009 || $isSubsidyPayment) {
             // Generate student number if missing
             $new_number = null;
             if (empty($student_number)) {
@@ -1272,13 +1291,18 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 if ($ins) {
                     $gradeParam = $grade_level !== null ? $grade_level : '';
                     $schoolYearParam = $school_year !== null ? $school_year : '';
-                    $ins->bind_param('isssssdsss', $student_id_str, $gradeParam, $schoolYearParam, $firstname, $lastname, $payment_type, $amount, $payment_status, $or_number, $reference_number);
+                    $recordAmount = $isSubsidyPayment ? 0.0 : $amount;
+                    $ins->bind_param('isssssdsss', $student_id_str, $gradeParam, $schoolYearParam, $firstname, $lastname, $payment_type, $recordAmount, $payment_status, $or_number, $reference_number);
 
                     if ($ins->execute()) {
                         $recordedPaymentId = (int) $ins->insert_id;
                         error_log('[cashier] inserted payment id=' . $recordedPaymentId);
                         $saveSuccess = true;
-                        $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.';
+                        if ($isSubsidyPayment) {
+                            $message = 'Government subsidy recorded successfully. Student enrolled.';
+                        } else {
+                            $message = ucfirst($payment_type) . ' payment recorded successfully. Student enrolled.';
+                        }
                     } else {
                         error_log('[cashier] insert error: ' . $conn->error);
                         $message = 'Error: ' . $conn->error;

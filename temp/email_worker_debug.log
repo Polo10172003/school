@@ -121,3 +121,5 @@
 [2025-10-11 15:26:12] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-11 15:27:21] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-11 15:27:43] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 16:02:45] student=84 grade=grade11 schedule_sent_at=NULL paid_count=1 paid_sum=0.00 due_threshold=0.00 attach=yes included=no
+[2025-10-11 16:50:17] student=84 grade=grade11 schedule_sent_at=NULL paid_count=2 paid_sum=0.00 due_threshold=0.00 attach=yes included=yes

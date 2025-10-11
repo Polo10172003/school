@@ -422,6 +422,9 @@ if ($receiptPaymentId) {
                     $availablePricingOptions = array_keys($pricingCategories);
                   }
                   $selectedPricingKey = $primaryView['selected_pricing'] ?? ($primaryView['plan_context']['pricing_category'] ?? 'regular');
+                  $selectedPricingKey = strtolower((string) $selectedPricingKey);
+                  $planTotalForCurrent = (float) ($primaryView['current_year_total'] ?? 0);
+                  $isEscSubsidyPlan = ($selectedPricingKey === 'esc' && $planTotalForCurrent <= 0.009);
                   $next_due_row = $primaryView['next_due_row'] ?? null;
                   $isPending = strtolower($s['enrollment_status'] ?? '') !== 'enrolled';
                   $canChoosePlan = $isPending || empty($storedPlanKey);
@@ -631,14 +634,22 @@ if ($receiptPaymentId) {
                   <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
                   <input type="hidden" name="onsite_payment" value="1">
 
+                  <?php if ($isEscSubsidyPlan): ?>
+                    <input type="hidden" name="subsidy_payment" value="1">
+                    <input type="hidden" name="payment_mode" value="Government Subsidy">
+                    <input type="hidden" name="amount" value="0">
+                  <?php endif; ?>
+
                   <div class="cashier-payment-grid">
-                    <div>
-                      <label for="payment_mode_<?= $s['id'] ?>">Payment Mode</label>
-                      <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
-                        <option value="Cash">Cash</option>
-                        <option value="GCash">GCash</option>
-                      </select>
-                    </div>
+                    <?php if (!$isEscSubsidyPlan): ?>
+                      <div>
+                        <label for="payment_mode_<?= $s['id'] ?>">Payment Mode</label>
+                        <select name="payment_mode" id="payment_mode_<?= $s['id'] ?>" class="payment-mode" data-target="payment-fields-<?= $s['id'] ?>">
+                          <option value="Cash">Cash</option>
+                          <option value="GCash">GCash</option>
+                        </select>
+                      </div>
+                    <?php endif; ?>
 
                     <div>
                       <label for="pricing_variant_<?= $s['id'] ?>">Pricing Variant</label>
@@ -655,25 +666,35 @@ if ($receiptPaymentId) {
                       <?php endif; ?>
                     </div>
 
-                    <div>
-                      <label>Amount</label>
-                      <input type="number" step="0.01" name="amount" required>
-                    </div>
+                    <?php if (!$isEscSubsidyPlan): ?>
+                      <div>
+                        <label>Amount</label>
+                        <input type="number" step="0.01" name="amount" required>
+                      </div>
+                    <?php endif; ?>
                   </div>
 
-                  <div id="payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
-                    <div class="cash-field auto-or-field">
-                      <label>Official Receipt #</label>
-                      <div class="auto-or-placeholder">Will be generated after submission.</div>
+                  <?php if ($isEscSubsidyPlan): ?>
+                    <div class="cashier-alert cashier-alert--success" style="margin-top:12px;">
+                      <strong>ESC Subsidy:</strong> Tuition for this grade is fully covered. Confirm below to mark the student as enrolled.
                     </div>
-                    <div class="gcash-field" style="display:none;">
-                      <label>Reference #</label>
-                      <input type="text" name="reference_number">
+                  <?php endif; ?>
+
+                  <?php if (!$isEscSubsidyPlan): ?>
+                    <div id="payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
+                      <div class="cash-field auto-or-field">
+                        <label>Official Receipt #</label>
+                        <div class="auto-or-placeholder">Will be generated after submission.</div>
+                      </div>
+                      <div class="gcash-field" style="display:none;">
+                        <label>Reference #</label>
+                        <input type="text" name="reference_number">
+                      </div>
                     </div>
-                  </div>
+                  <?php endif; ?>
 
                   <div class="dashboard-actions">
-                    <button type="submit" class="dashboard-btn">Submit Payment</button>
+                    <button type="submit" class="dashboard-btn"><?= $isEscSubsidyPlan ? 'Confirm Subsidy' : 'Submit Payment'; ?></button>
                   </div>
                 </form>
               </div>

@@ -466,3 +466,12 @@ Array
     [4] => Samantha
     [5] => Pereira
 )
+Array
+(
+    [0] => /Applications/XAMPP/xamppfiles/htdocs/Enrollment/StudentNoVerification/email_worker.php
+    [1] => 84
+    [2] => New
+    [3] => victoriopolo03@gmail.com
+    [4] => POLO
+    [5] => VICTORIO
+)

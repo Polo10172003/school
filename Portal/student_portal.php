@@ -960,6 +960,12 @@ unset($finance_view_ref);
                         $view_next_due = null;
                         $view_pricing_label = null;
                     }
+                    $view_is_esc_subsidy = ($view_pricing_variant === 'esc' && $view_year_total <= 0.009);
+                    if ($view_is_esc_subsidy) {
+                        $view_schedule_rows = [];
+                        $view_schedule_message = 'Tuition is fully covered by the ESC government subsidy for this grade.';
+                        $view_next_due = null;
+                    }
                 ?>
                 <div class="finance-view" data-view="<?php echo htmlspecialchars($view_key); ?>" style="<?php echo $is_default ? '' : 'display:none;'; ?>">
                 <div class="finance-view-content d-flex flex-column gap-4">
@@ -968,7 +974,13 @@ unset($finance_view_ref);
                             <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
                                 <div>
                                     <h3 class="h5 fw-bold mb-1">Payment Overview</h3>
-                                    <p class="text-muted mb-0">Track your tuition progress for this grade.</p>
+                                    <p class="text-muted mb-0">
+                                        <?php if ($view_is_esc_subsidy): ?>
+                                            Tuition for this grade is covered by the government subsidy. No payment is required.
+                                        <?php else: ?>
+                                            Track your tuition progress for this grade.
+                                        <?php endif; ?>
+                                    </p>
                                 </div>
                                 <?php if ($view_alert): ?>
                                     <span class="status-pill warning">
@@ -979,6 +991,11 @@ unset($finance_view_ref);
                                     <span class="status-pill warning">
                                         <i class="bi bi-exclamation-triangle"></i>
                                         Pending balance from <?php echo htmlspecialchars($previous_grade_label); ?>: ₱<?php echo number_format($previous_outstanding, 2); ?>
+                                    </span>
+                                <?php elseif ($view_is_esc_subsidy): ?>
+                                    <span class="status-pill safe">
+                                        <i class="bi bi-shield-check"></i>
+                                        Covered by government subsidy
                                     </span>
                                 <?php else: ?>
                                     <span class="status-pill safe">
@@ -1014,10 +1031,21 @@ unset($finance_view_ref);
                                     </div>
                                 </div>
                             </div>
-                        </div>
                     </div>
+                </div>
 
-                    <?php if ($portalEnrollmentReady && $view_key === 'current'): ?>
+                    <?php if ($portalEnrollmentReady && $view_key === 'current' && $view_is_esc_subsidy): ?>
+                        <div class="card portal-card">
+                            <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                <div>
+                                    <h3 class="h5 fw-bold mb-1">Government Subsidy Applied</h3>
+                                    <p class="text-muted mb-0">Your tuition for this grade is covered by the ESC program. No payment submission is required.</p>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ($portalEnrollmentReady && $view_key === 'current' && !$view_is_esc_subsidy): ?>
                         <?php if (!empty($view_plan_tabs) && !empty($view_plan_context)): ?>
                             <div class="card portal-card">
                                 <div class="card-body">
