@@ -28,15 +28,31 @@ if ($cashierUsername) {
     }
 }
 
-$redirect = cashier_dashboard_handle_payment_submission($conn);
-if ($redirect) {
-    header("Location: $redirect", true, 303);
+try {
+    $redirect = cashier_dashboard_handle_payment_submission($conn);
+    if ($redirect) {
+        header("Location: $redirect", true, 303);
+        exit();
+    }
+} catch (Throwable $paymentError) {
+    error_log('[cashier] payment submission exception: ' . $paymentError->getMessage());
+    $_SESSION['cashier_flash'] = 'An unexpected error occurred while recording the payment. Please try again.';
+    $_SESSION['cashier_flash_type'] = 'error';
+    header('Location: cashier_dashboard.php#record', true, 303);
     exit();
 }
 
-$redirect = cashier_dashboard_handle_tuition_fee_form($conn);
-if ($redirect) {
-    header("Location: $redirect", true, 303);
+try {
+    $redirect = cashier_dashboard_handle_tuition_fee_form($conn);
+    if ($redirect) {
+        header("Location: $redirect", true, 303);
+        exit();
+    }
+} catch (Throwable $tuitionError) {
+    error_log('[cashier] tuition form exception: ' . $tuitionError->getMessage());
+    $_SESSION['cashier_flash'] = 'We hit a snag saving the tuition details. Please review the form and try again.';
+    $_SESSION['cashier_flash_type'] = 'error';
+    header('Location: cashier_dashboard.php#fees', true, 303);
     exit();
 }
 

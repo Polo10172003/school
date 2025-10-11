@@ -114,14 +114,45 @@ if ($status === 'paid') {
 }
 
 if (!empty($email)) {
-    $php_path = '/Applications/XAMPP/bin/php';
-    $worker = __DIR__ . '/email_worker.php';
-    $cmd = escapeshellcmd($php_path) . ' ' . escapeshellarg($worker)
-        . ' ' . escapeshellarg($student_id)
-        . ' ' . escapeshellarg($payment_type)
-        . ' ' . escapeshellarg($amount)
-        . ' ' . escapeshellarg($status);
-    exec($cmd . ' > /dev/null 2>&1 &');
+    $workerPath = __DIR__ . '/email_worker.php';
+    $disabledRaw = (string) ini_get('disable_functions');
+    $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
+    $canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
+
+    $emailDispatched = false;
+
+    if ($canUseExec) {
+        $phpPath = PHP_BINARY ?: '/usr/bin/php';
+        $cmdParts = [
+            escapeshellcmd($phpPath),
+            escapeshellarg($workerPath),
+            escapeshellarg((string) $student_id),
+            escapeshellarg($payment_type),
+            escapeshellarg((string) $amount),
+            escapeshellarg($status),
+        ];
+        $cmd = implode(' ', $cmdParts);
+        exec($cmd . ' > /dev/null 2>&1 &', $execOutput, $execStatus);
+        if ($execStatus === 0) {
+            $emailDispatched = true;
+        } else {
+            error_log('[cashier] update_payment_status exec failed for payment ' . $id . ' output: ' . print_r($execOutput, true));
+        }
+    }
+
+    if (!$emailDispatched) {
+        if (!function_exists('cashier_email_worker_process')) {
+            require_once __DIR__ . '/email_worker.php';
+        }
+        try {
+            $inlineResult = cashier_email_worker_process((int) $student_id, (string) $payment_type, (float) $amount, (string) $status, $conn);
+            if (!$inlineResult) {
+                error_log('[cashier] update_payment_status inline worker failed for payment ' . $id);
+            }
+        } catch (Throwable $workerError) {
+            error_log('[cashier] update_payment_status worker exception for payment ' . $id . ': ' . $workerError->getMessage());
+        }
+    }
 }
 
 $conn->close();

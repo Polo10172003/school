@@ -1400,11 +1400,15 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 }
 
                 if (!$emailDispatched) {
-                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
-                    if ($inlineResult) {
-                        error_log('[cashier] dispatched email worker inline for student ' . $student_id . ' payment ' . $recordedPaymentId);
-                    } else {
-                        error_log('[cashier] email worker inline fallback failed for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                    try {
+                        $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
+                        if ($inlineResult) {
+                            error_log('[cashier] dispatched email worker inline for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                        } else {
+                            error_log('[cashier] email worker inline fallback failed for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                        }
+                    } catch (Throwable $workerError) {
+                        error_log('[cashier] email worker threw exception for student ' . $student_id . ' payment ' . $recordedPaymentId . ': ' . $workerError->getMessage());
                     }
                 }
             }

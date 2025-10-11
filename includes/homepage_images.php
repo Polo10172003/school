@@ -96,6 +96,14 @@ function homepage_image_url(?string $path): string
         require_once __DIR__ . '/../config/app.php';
     }
 
+    $absolute = rtrim(APP_ROOT, '/') . '/' . $normalized;
+    if (!is_file($absolute)) {
+        $resolved = homepage_locate_case_insensitive($normalized);
+        if ($resolved !== null) {
+            $normalized = $resolved;
+        }
+    }
+
     $base = APP_BASE_PATH ?? '/';
     if ($base === '') {
         $base = '/';
@@ -105,6 +113,49 @@ function homepage_image_url(?string $path): string
     }
 
     return $base === '/' ? '/' . $normalized : $base . $normalized;
+}
+
+function homepage_locate_case_insensitive(string $relative): ?string
+{
+    $relative = ltrim($relative, '/');
+    if ($relative === '') {
+        return null;
+    }
+
+    $segments = explode('/', $relative);
+    $currentPath = rtrim(APP_ROOT, '/');
+    $resolvedSegments = [];
+
+    foreach ($segments as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+
+        $entries = @scandir($currentPath);
+        if ($entries === false) {
+            return null;
+        }
+
+        $match = null;
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') {
+                continue;
+            }
+            if (strcasecmp($entry, $segment) === 0) {
+                $match = $entry;
+                break;
+            }
+        }
+
+        if ($match === null) {
+            return null;
+        }
+
+        $resolvedSegments[] = $match;
+        $currentPath .= '/' . $match;
+    }
+
+    return implode('/', $resolvedSegments);
 }
 
 function homepage_images_save(array $images): bool
