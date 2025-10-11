@@ -12,10 +12,25 @@ if (!defined('APP_BASE_PATH')) {
     $documentRoot = realpath($_SERVER['DOCUMENT_ROOT'] ?? '') ?: '';
     $appRoot      = APP_ROOT;
 
+    $documentRoot = str_replace('\\', '/', rtrim((string) $documentRoot, '/'));
+    $appRoot = str_replace('\\', '/', rtrim((string) $appRoot, '/'));
+
     $basePath = '/';
-    if ($documentRoot !== '' && strpos($appRoot, $documentRoot) === 0) {
-        $relative = trim(str_replace('\\', '/', substr($appRoot, strlen($documentRoot))), '/');
-        $basePath = $relative === '' ? '/' : '/' . $relative . '/';
+    if ($documentRoot !== '' && strpos($appRoot . '/', $documentRoot . '/') === 0) {
+        $relative = trim(substr($appRoot, strlen($documentRoot)), '/');
+        // Treat deployments dropped directly in public_html as root-level installs.
+        if ($relative === '' || $relative === 'public_html') {
+            $basePath = '/';
+        } else {
+            $basePath = '/' . $relative . '/';
+        }
+    } else {
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? $_SERVER['PHP_SELF'] ?? '';
+        $scriptName = str_replace('\\', '/', (string) $scriptName);
+        if ($scriptName !== '') {
+            $guessed = rtrim(dirname($scriptName), '/');
+            $basePath = ($guessed === '' || $guessed === '.') ? '/' : $guessed . '/';
+        }
     }
 
     define('APP_BASE_PATH', $basePath);
@@ -34,4 +49,3 @@ if (!defined('APP_BASE_URL')) {
         define('APP_BASE_URL', APP_BASE_PATH);
     }
 }
-

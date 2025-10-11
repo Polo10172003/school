@@ -251,7 +251,7 @@ if ($student_id) {
 
     }
 
-    $php_path = '/Applications/XAMPP/bin/php';
+    $php_path = PHP_BINARY ?: '/usr/bin/php';
     $worker   = __DIR__ . '/email_worker.php';
 
     $cmdParts = [
