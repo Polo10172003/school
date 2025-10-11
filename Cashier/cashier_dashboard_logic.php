@@ -1370,12 +1370,24 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 if (!function_exists('cashier_email_worker_process')) {
                     require_once __DIR__ . '/email_worker.php';
                 }
+
+                $inlineResult = false;
+                try {
+                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
+                } catch (Throwable $workerError) {
+                    error_log('[cashier] email worker threw exception for student ' . $student_id . ' payment ' . $recordedPaymentId . ': ' . $workerError->getMessage());
+                }
+
+                if ($inlineResult) {
+                    error_log('[cashier] email worker completed inline for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                } else {
+                    error_log('[cashier] email worker inline failed for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                }
+
                 $workerPath = __DIR__ . '/email_worker.php';
                 $disabledRaw = (string) ini_get('disable_functions');
                 $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
                 $canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
-
-                $emailDispatched = false;
 
                 if ($canUseExec) {
                     $phpPath = PHP_BINARY ?: '/usr/bin/php';
@@ -1390,25 +1402,11 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                     $cmd = implode(' ', $cmdParts);
                     $execOutput = [];
                     $execStatus = 0;
-                    exec($cmd . ' 2>&1', $execOutput, $execStatus);
+                    exec($cmd . ' > /dev/null 2>&1', $execOutput, $execStatus);
                     if ($execStatus === 0) {
-                        $emailDispatched = true;
-                        error_log('[cashier] queued email worker for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                        error_log('[cashier] email worker queued async for student ' . $student_id . ' payment ' . $recordedPaymentId);
                     } else {
-                        error_log('[cashier] email worker exec failed for student ' . $student_id . ' payment ' . $recordedPaymentId . ' output: ' . print_r($execOutput, true));
-                    }
-                }
-
-                if (!$emailDispatched) {
-                    try {
-                        $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
-                        if ($inlineResult) {
-                            error_log('[cashier] dispatched email worker inline for student ' . $student_id . ' payment ' . $recordedPaymentId);
-                        } else {
-                            error_log('[cashier] email worker inline fallback failed for student ' . $student_id . ' payment ' . $recordedPaymentId);
-                        }
-                    } catch (Throwable $workerError) {
-                        error_log('[cashier] email worker threw exception for student ' . $student_id . ' payment ' . $recordedPaymentId . ': ' . $workerError->getMessage());
+                        error_log('[cashier] async email worker failed for student ' . $student_id . ' payment ' . $recordedPaymentId . ' output: ' . print_r($execOutput, true));
                     }
                 }
             }
