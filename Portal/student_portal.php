@@ -1,19 +1,3 @@
-    <div class="alert alert-warning" style="margin-bottom:16px;">
-        <strong>Debug:</strong><br>
-        previous_outstanding: <span style="color:blue;">
-            <?php echo isset($previous_outstanding) ? $previous_outstanding : 'unset'; ?>
-        </span><br>
-        previous_grade_label: <span style="color:blue;">
-            <?php echo isset($previous_grade_label) ? $previous_grade_label : 'unset'; ?>
-        </span>
-    </div>
-                <?php if ($view_key === 'current'): ?>
-                <div class="alert alert-warning" style="margin-bottom:16px;">
-                    <strong>Debug:</strong><br>
-                    previous_outstanding: <span style="color:blue;"><?php echo isset($previous_outstanding) ? $previous_outstanding : 'unset'; ?></span><br>
-                    previous_grade_label: <span style="color:blue;"><?php echo isset($previous_grade_label) ? $previous_grade_label : 'unset'; ?></span>
-                </div>
-                <?php endif; ?>
 <?php
 require_once __DIR__ . '/../includes/session.php';
 
@@ -846,6 +830,21 @@ unset($finance_view_ref);
         text-align: center;
         color: #4a5a58;
     }
+
+    @media (min-width: 992px) {
+        .finance-column {
+            border-left: 1px solid rgba(15, 23, 42, 0.12);
+            padding-left: 36px;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        .finance-column {
+            border-left: none;
+            border-top: 1px solid rgba(15, 23, 42, 0.12);
+            padding-top: 24px;
+        }
+    }
 </style>
 
 <main class="portal-main">
@@ -884,7 +883,7 @@ unset($finance_view_ref);
                 </div>
             </div>
 
-            <div class="col-lg-8 d-flex flex-column gap-4">
+            <div class="col-lg-8 d-flex flex-column gap-4 finance-column">
                     <?php if ($canStartPortalEnrollment): ?>
                         <?php if (!$portalEnrollmentReady): ?>
                             <div class="card portal-card">

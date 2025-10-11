@@ -196,14 +196,121 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
 <head>
     <title>Update Student Status</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body.update-status-body {
+            min-height: 100vh;
+            margin: 0;
+            background: #f5f7fb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 16px;
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+            color: #1f2937;
+        }
+
+        .update-status-card {
+            width: 100%;
+            max-width: 520px;
+            border: 1px solid rgba(15, 23, 42, 0.08);
+            border-radius: 16px;
+            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.1);
+            overflow: hidden;
+            background: #ffffff;
+        }
+
+        .update-status-card .card-header {
+            background: linear-gradient(135deg, #114b72, #0f3057);
+            padding: 22px 26px;
+        }
+
+        .update-status-card .card-header h4 {
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .update-status-card .card-body {
+            padding: 26px;
+        }
+
+        .update-status-card .form-label {
+            font-weight: 600;
+            color: #223046;
+        }
+
+        .update-status-card .form-select {
+            padding: 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(51, 65, 85, 0.22);
+            box-shadow: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            background-color: #f8fafc;
+        }
+
+        .update-status-card .form-select:focus {
+            border-color: #114b72;
+            box-shadow: 0 0 0 3px rgba(17, 75, 114, 0.18);
+            background-color: #ffffff;
+        }
+
+        .update-status-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 26px;
+        }
+
+        .update-status-actions .btn {
+            flex: 1 1 auto;
+            min-width: 140px;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            transition: transform 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        .update-status-actions .btn-primary {
+            background: linear-gradient(135deg, #114b72, #0f3057);
+            border: none;
+        }
+
+        .update-status-actions .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 14px 28px rgba(17, 75, 114, 0.28);
+        }
+
+        .update-status-actions .btn-outline-secondary {
+            border-color: rgba(37, 50, 87, 0.35);
+            color: #253257;
+        }
+
+        .update-status-actions .btn-outline-secondary:hover {
+            background-color: rgba(17, 75, 114, 0.08);
+            border-color: rgba(17, 75, 114, 0.45);
+            color: #114b72;
+        }
+
+        .update-status-card .card-footer {
+            background: rgba(15, 48, 87, 0.05);
+        }
+
+        @media (max-width: 575.98px) {
+            .update-status-card .card-body {
+                padding: 22px 18px;
+            }
+
+            .update-status-actions .btn {
+                min-width: 100%;
+            }
+        }
+    </style>
 </head>
-<body class="bg-light">
-<div class="container mt-5">
-    <div class="card shadow-lg">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Update Student Status</h4>
-        </div>
-        <div class="card-body">
+<body class="update-status-body">
+<div class="update-status-card card">
+    <div class="card-header text-white">
+        <h4 class="mb-0 text-uppercase">Update Student Status</h4>
+    </div>
+    <div class="card-body">
             <form method="POST">
                 <input type="hidden" name="id" value="<?= $id ?>">
 
@@ -216,11 +323,15 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     </select>
                 </div>
 
-                <button type="submit" class="btn btn-success">Update</button>
-                <a href="registrar_dashboard.php" class="btn btn-secondary">Cancel</a>
+                <div class="update-status-actions">
+                    <button type="submit" class="btn btn-success">Update Status</button>
+                    <a href="registrar_dashboard.php" class="btn btn-outline-secondary">Cancel</a>
+                </div>
             </form>
         </div>
+        <div class="card-footer bg-transparent text-center py-3">
+            <small class="text-muted">Review carefully before confirming the student's new status.</small>
+        </div>
     </div>
-</div>
 </body>
 </html>

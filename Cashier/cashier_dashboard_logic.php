@@ -108,6 +108,55 @@ function cashier_dashboard_plan_order(string $plan): int
 }
 
 /**
+ * Generate a unique official receipt number for onsite cash payments.
+ */
+function cashier_generate_or_number(mysqli $conn): string
+{
+    $prefix = 'OR-' . date('Ymd') . '-';
+    $attempts = 0;
+    $maxAttempts = 10;
+
+    $candidateExists = static function (mysqli $conn, string $candidate): bool {
+        $check = $conn->prepare('SELECT 1 FROM student_payments WHERE or_number = ? LIMIT 1');
+        if (!$check) {
+            return false;
+        }
+        $check->bind_param('s', $candidate);
+        $check->execute();
+        $check->store_result();
+        $exists = $check->num_rows > 0;
+        $check->close();
+        return $exists;
+    };
+
+    while ($attempts < $maxAttempts) {
+        $attempts++;
+        try {
+            $suffixValue = random_int(0, 999999);
+        } catch (Throwable $e) {
+            $suffixValue = mt_rand(0, 999999);
+        }
+        $candidate = $prefix . str_pad((string) $suffixValue, 6, '0', STR_PAD_LEFT);
+        if (!$candidateExists($conn, $candidate)) {
+            return $candidate;
+        }
+    }
+
+    try {
+        $fallback = strtoupper(bin2hex(random_bytes(4)));
+    } catch (Throwable $e) {
+        $fallback = strtoupper(substr(sha1(uniqid((string) mt_rand(), true)), 0, 8));
+    }
+
+    $fallbackCandidate = $prefix . $fallback;
+    if ($candidateExists($conn, $fallbackCandidate)) {
+        return $prefix . $fallback . mt_rand(0, 9);
+    }
+
+    return $fallbackCandidate;
+}
+
+/**
  * Default note templates for each payment plan.
  *
  * @return array<int,string>
@@ -826,6 +875,14 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     if ($or_number === '') $or_number = null;
     if ($reference_number === '') $reference_number = null;
 
+    $onsitePaymentFlag = isset($_POST['onsite_payment']) && $_POST['onsite_payment'] === '1';
+    $autoGenerateOr = $onsitePaymentFlag && strcasecmp($payment_type, 'Cash') === 0;
+    $generatedOrNumber = null;
+    if ($autoGenerateOr) {
+        $generatedOrNumber = cashier_generate_or_number($conn);
+        $or_number = $generatedOrNumber;
+    }
+
     $message = '';
     $saveSuccess = false;
     $flashTypeOverride = null;
@@ -836,9 +893,10 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     $carry_applied = 0.0;
     $pastDueApplied = 0.0;
     $carry_stmt = null;
+    $receiptCandidateIds = [];
     if ($student_number !== null && $student_number !== '') {
         $carry_stmt = $conn->prepare("
-            SELECT sp.id, sp.amount
+            SELECT sp.id, sp.amount, sp.grade_level, sp.school_year, sp.firstname, sp.lastname, sp.payment_type
             FROM student_payments sp
             JOIN students_registration sr ON sr.id = sp.student_id
             WHERE sr.student_number = ? AND sp.payment_status = 'pending' AND sp.payment_type LIKE 'Carry-over%'
@@ -846,7 +904,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
         ");
     } else {
         $carry_stmt = $conn->prepare("
-            SELECT id, amount
+            SELECT id, amount, grade_level, school_year, firstname, lastname, payment_type
             FROM student_payments
             WHERE student_id = ? AND payment_status = 'pending' AND payment_type LIKE 'Carry-over%'
             ORDER BY created_at ASC, id ASC
@@ -873,21 +931,52 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             $carry_applied += $apply;
             $amount -= $apply;
 
+            $carry_grade_level = (string) ($carry_row['grade_level'] ?? ($grade_level ?? ''));
+            $carry_school_year = (string) ($carry_row['school_year'] ?? ($school_year ?? ''));
+            $carry_firstname = (string) ($carry_row['firstname'] ?? $firstname ?? '');
+            $carry_lastname = (string) ($carry_row['lastname'] ?? $lastname ?? '');
+            $carry_type_label = (string) ($carry_row['payment_type'] ?? 'Carry-over Payment');
+            if ($carry_type_label === '') {
+                $carry_type_label = 'Carry-over Payment';
+            }
+
             if (abs($apply - $carry_amount) < 0.009) {
-                $closeSql = "UPDATE student_payments
-                             SET payment_status = 'paid',
-                                 payment_date = ?,
-                                 or_number = COALESCE(?, or_number),
-                                 reference_number = COALESCE(?, reference_number),
-                                 student_id = ?,
-                                 grade_level = CASE WHEN grade_level IS NULL OR grade_level = '' THEN ? ELSE grade_level END,
-                                 school_year = CASE WHEN school_year IS NULL OR school_year = '' THEN ? ELSE school_year END
-                             WHERE id = ?";
-                $closeCarry = $conn->prepare($closeSql);
-                if ($closeCarry) {
-                    $closeCarry->bind_param('sssissi', $payment_date, $or_number, $reference_number, $student_id_str, $grade_level, $school_year, $carry_id);
-                    $closeCarry->execute();
-                    $closeCarry->close();
+                $carryPaymentLabel = strpos(strtolower($carry_type_label), 'carry-over') !== false
+                    ? $carry_type_label
+                    : 'Carry-over Payment';
+                $carryInsert = $conn->prepare(
+                    'INSERT INTO student_payments
+                        (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "paid", ?, ?, ?, NOW())'
+                );
+                if ($carryInsert) {
+                    $gradeApply = $carry_grade_level !== '' ? $carry_grade_level : (string) ($grade_level ?? '');
+                    $schoolYearApply = $carry_school_year !== '' ? $carry_school_year : (string) ($school_year ?? '');
+                    $carryFirstParam = $carry_firstname !== '' ? $carry_firstname : ($firstname ?? '');
+                    $carryLastParam = $carry_lastname !== '' ? $carry_lastname : ($lastname ?? '');
+                    $carryInsert->bind_param(
+                        'isssssdsss',
+                        $student_id_str,
+                        $gradeApply,
+                        $schoolYearApply,
+                        $carryFirstParam,
+                        $carryLastParam,
+                        $carryPaymentLabel,
+                        $apply,
+                        $payment_date,
+                        $or_number,
+                        $reference_number
+                    );
+                    if ($carryInsert->execute()) {
+                        $receiptCandidateIds[] = (int) $carryInsert->insert_id;
+                        $deleteCarry = $conn->prepare('DELETE FROM student_payments WHERE id = ?');
+                        if ($deleteCarry) {
+                            $deleteCarry->bind_param('i', $carry_id);
+                            $deleteCarry->execute();
+                            $deleteCarry->close();
+                        }
+                    }
+                    $carryInsert->close();
                 }
             } else {
                 $remainingCarry = max($carry_amount - $apply, 0.0);
@@ -899,9 +988,43 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                               WHERE id = ?";
                 $updateCarry = $conn->prepare($updateSql);
                 if ($updateCarry) {
-                    $updateCarry->bind_param('dsssi', $remainingCarry, $student_id_str, $grade_level, $school_year, $carry_id);
+                    $gradeApply = $carry_grade_level !== '' ? $carry_grade_level : (string) ($grade_level ?? '');
+                    $schoolYearApply = $carry_school_year !== '' ? $carry_school_year : (string) ($school_year ?? '');
+                    $updateCarry->bind_param('dsssi', $remainingCarry, $student_id_str, $gradeApply, $schoolYearApply, $carry_id);
                     $updateCarry->execute();
                     $updateCarry->close();
+                }
+
+                $carryInsert = $conn->prepare(
+                    'INSERT INTO student_payments
+                        (student_id, grade_level, school_year, firstname, lastname, payment_type, amount, payment_status, payment_date, or_number, reference_number, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, "paid", ?, ?, ?, NOW())'
+                );
+                if ($carryInsert) {
+                    $carryGradeParam = $carry_grade_level !== '' ? $carry_grade_level : (string) ($grade_level ?? '');
+                    $carryYearParam = $carry_school_year !== '' ? $carry_school_year : (string) ($school_year ?? '');
+                    $carryFirstParam = $carry_firstname !== '' ? $carry_firstname : ($firstname ?? '');
+                    $carryLastParam = $carry_lastname !== '' ? $carry_lastname : ($lastname ?? '');
+                    $carryPaymentLabel = strpos(strtolower($carry_type_label), 'carry-over') !== false
+                        ? $carry_type_label
+                        : 'Carry-over Payment';
+                    $carryInsert->bind_param(
+                        'isssssdsss',
+                        $student_id_str,
+                        $carryGradeParam,
+                        $carryYearParam,
+                        $carryFirstParam,
+                        $carryLastParam,
+                        $carryPaymentLabel,
+                        $apply,
+                        $payment_date,
+                        $or_number,
+                        $reference_number
+                    );
+                    if ($carryInsert->execute()) {
+                        $receiptCandidateIds[] = (int) $carryInsert->insert_id;
+                    }
+                    $carryInsert->close();
                 }
             }
         }
@@ -918,7 +1041,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     } elseif ($amount <= 0.009 && $carry_applied > 0 && $original_amount > 0.009) {
         $message = 'Payment applied fully to past due balance. Remaining enrollment dues are unchanged.';
         $flashTypeOverride = 'info';
-    } elseif (strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
+    } elseif (!$autoGenerateOr && strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
         error_log('[cashier] validation failed: missing OR number');
         $message = 'Official receipt number is required for cash payments.';
     } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null)) {
@@ -1000,6 +1123,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                     if ($pastInsert->execute()) {
                         $pastDueApplied += $applyPast;
                         $amount -= $applyPast;
+                        $receiptCandidateIds[] = (int) $pastInsert->insert_id;
                     }
                     $pastInsert->close();
                 }
@@ -1056,6 +1180,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                     if ($pastInsert->execute()) {
                         $pastDueApplied += $applyPast;
                         $amount -= $applyPast;
+                        $receiptCandidateIds[] = (int) $pastInsert->insert_id;
                     }
                     $pastInsert->close();
                 }
@@ -1167,6 +1292,12 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             if ($flashTypeOverride === null) {
                 $flashTypeOverride = 'info';
             }
+        } elseif ($carry_applied > 0) {
+            $saveSuccess = true;
+            $message = 'Payment applied to carry-over balances and marked as paid.';
+            if ($flashTypeOverride === null) {
+                $flashTypeOverride = 'info';
+            }
         } else {
             $recordedPaymentId = null;
         }
@@ -1230,6 +1361,17 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 $message .= ' ₱' . number_format($pastDueApplied, 2) . ' was applied to previous school year balances first.';
             }
         }
+    }
+
+    if ($recordedPaymentId === null && !empty($receiptCandidateIds)) {
+        $recordedPaymentId = (int) end($receiptCandidateIds);
+    }
+
+    if ($saveSuccess && $autoGenerateOr && $recordedPaymentId) {
+        $_SESSION['cashier_receipt_payment_id'] = $recordedPaymentId;
+    }
+    if ($saveSuccess && $autoGenerateOr && $or_number !== null && strpos($message, 'OR#') === false) {
+        $message .= ' OR# ' . $or_number . ' generated.';
     }
 
     if ($message !== '') {
@@ -3151,4 +3293,57 @@ function cashier_dashboard_fetch_payments(mysqli $conn): mysqli_result
     ";
 
     return $conn->query($sql);
+}
+
+/**
+ * Fetch a freshly recorded payment for receipt printing.
+ */
+function cashier_dashboard_fetch_receipt_data(mysqli $conn, int $paymentId): ?array
+{
+    if ($paymentId <= 0) {
+        return null;
+    }
+
+    $stmt = $conn->prepare(
+        'SELECT sp.id, sp.student_id, sp.grade_level, sp.school_year, sp.firstname, sp.lastname,
+                sp.amount, sp.payment_type, sp.payment_status, sp.payment_date, sp.created_at,
+                sp.or_number, sp.reference_number,
+                sr.student_number, sr.year AS current_grade_level
+         FROM student_payments sp
+         LEFT JOIN students_registration sr ON sr.id = sp.student_id
+         WHERE sp.id = ?
+         LIMIT 1'
+    );
+
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('i', $paymentId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    $studentName = trim(((string) ($row['firstname'] ?? '')) . ' ' . ((string) ($row['lastname'] ?? '')));
+
+    return [
+        'id' => (int) ($row['id'] ?? 0),
+        'student_id' => (int) ($row['student_id'] ?? 0),
+        'student_name' => $studentName !== '' ? $studentName : 'Student',
+        'student_number' => $row['student_number'] ?? null,
+        'grade_level' => $row['grade_level'] ?: ($row['current_grade_level'] ?? ''),
+        'school_year' => $row['school_year'] ?? '',
+        'amount' => (float) ($row['amount'] ?? 0),
+        'payment_type' => $row['payment_type'] ?? 'Cash',
+        'payment_status' => $row['payment_status'] ?? '',
+        'payment_date' => $row['payment_date'] ?? ($row['created_at'] ?? date('Y-m-d')),
+        'created_at' => $row['created_at'] ?? '',
+        'or_number' => $row['or_number'] ?? '',
+        'reference_number' => $row['reference_number'] ?? '',
+    ];
 }

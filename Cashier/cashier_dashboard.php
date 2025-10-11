@@ -116,6 +116,17 @@ $gradeOptions = [
   'grade12' => 'Grade 12',
 ];
 
+$receiptPaymentId = $_SESSION['cashier_receipt_payment_id'] ?? null;
+$receiptData = null;
+if ($receiptPaymentId) {
+    $receiptData = cashier_dashboard_fetch_receipt_data($conn, (int) $receiptPaymentId);
+    unset($_SESSION['cashier_receipt_payment_id']);
+    if ($receiptData) {
+        $receiptData['amount_formatted'] = number_format((float) ($receiptData['amount'] ?? 0), 2);
+        $receiptData['generated_at'] = date('Y-m-d H:i');
+    }
+}
+
 ?>
 
 
@@ -128,6 +139,177 @@ $gradeOptions = [
   <link rel="stylesheet" href="cashier_dashboard.css">
 </head>
 <body class="dashboard-body">
+<?php if ($receiptData): ?>
+  <template id="cashier-receipt-template">
+    <div class="receipt-print-wrapper">
+      <style>
+        :root { color-scheme: light; }
+        body {
+          font-family: "Segoe UI", Arial, sans-serif;
+          color: #202124;
+          margin: 0;
+          padding: 24px;
+          background: #f5f5f5;
+        }
+        .receipt-card {
+          max-width: 720px;
+          margin: 0 auto;
+          background: #ffffff;
+          border: 1px solid #d1d5db;
+          border-radius: 12px;
+          padding: 24px 32px;
+          box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+        }
+        .receipt-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          border-bottom: 2px solid #0f172a;
+          padding-bottom: 16px;
+          margin-bottom: 20px;
+        }
+        .receipt-header h1 {
+          margin: 0;
+          font-size: 24px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+        .receipt-meta {
+          text-align: right;
+          font-size: 13px;
+          line-height: 1.4;
+        }
+        .receipt-details, .receipt-footer {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        .receipt-details th,
+        .receipt-details td {
+          text-align: left;
+          padding: 8px 6px;
+          font-size: 14px;
+        }
+        .receipt-details th {
+          width: 180px;
+          color: #475569;
+          text-transform: uppercase;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+        }
+        .receipt-amount {
+          background: #0f172a;
+          color: #ffffff;
+          border-radius: 10px;
+          padding: 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        .receipt-amount label {
+          font-size: 15px;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+        }
+        .receipt-amount span {
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .receipt-footer td {
+          padding: 10px 6px;
+          font-size: 13px;
+          color: #475569;
+        }
+        .receipt-signature {
+          margin-top: 40px;
+          display: flex;
+          justify-content: space-between;
+          font-size: 13px;
+        }
+        .signature-line {
+          width: 40%;
+          border-top: 1px solid #334155;
+          padding-top: 6px;
+          text-align: center;
+        }
+        @media print {
+          body {
+            background: #ffffff;
+            padding: 0;
+          }
+          .receipt-card {
+            box-shadow: none;
+            border-radius: 0;
+            border: none;
+            padding: 16px 24px;
+          }
+        }
+      </style>
+      <div class="receipt-card">
+        <div class="receipt-header">
+          <div>
+            <h1>Official Receipt</h1>
+            <div>Onsite Payment Processing</div>
+          </div>
+          <div class="receipt-meta">
+            <div><strong>OR #:</strong> {{or_number}}</div>
+            <div><strong>Date:</strong> {{payment_date}}</div>
+            <div><strong>Generated:</strong> {{generated_at}}</div>
+          </div>
+        </div>
+
+        <table class="receipt-details">
+          <tr>
+            <th>Student</th>
+            <td>{{student_name}}</td>
+          </tr>
+          <tr>
+            <th>Student No.</th>
+            <td>{{student_number}}</td>
+          </tr>
+          <tr>
+            <th>Grade / Level</th>
+            <td>{{grade_level}}</td>
+          </tr>
+          <tr>
+            <th>School Year</th>
+            <td>{{school_year}}</td>
+          </tr>
+          <tr>
+            <th>Payment Type</th>
+            <td>{{payment_type}}</td>
+          </tr>
+          <tr>
+            <th>Reference No.</th>
+            <td>{{reference_number}}</td>
+          </tr>
+        </table>
+
+        <div class="receipt-amount">
+          <label>Total Amount</label>
+          <span>₱{{amount_formatted}}</span>
+        </div>
+
+        <table class="receipt-footer">
+          <tr>
+            <td><strong>Status:</strong> {{payment_status}}</td>
+            <td style="text-align:right;"><strong>Processed By:</strong> {{cashier_name}}</td>
+          </tr>
+        </table>
+
+        <div class="receipt-signature">
+          <div class="signature-line">Cashier Signature</div>
+          <div class="signature-line">Parent / Guardian</div>
+        </div>
+      </div>
+    </div>
+  </template>
+  <script>
+    window.cashierReceiptData = <?= json_encode($receiptData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+    window.cashierReceiptCashier = <?= json_encode($cashierDisplayName, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+  </script>
+<?php endif; ?>
 <button class="dashboard-toggle" type="button" aria-label="Toggle navigation" onclick="document.querySelector('.dashboard-sidebar').classList.toggle('is-open');">☰</button>
 <div class="dashboard-shell">
   <aside class="dashboard-sidebar">
@@ -447,6 +629,7 @@ $gradeOptions = [
                   <input type="hidden" name="plan_pricing_category" id="plan_pricing_category_<?= $s['id'] ?>" value="<?= htmlspecialchars($primaryView['plan_context']['pricing_category'] ?? 'regular') ?>">
                   <input type="hidden" name="plan_student_type" value="<?= $primaryView['plan_context']['student_type'] ?? '' ?>">
                   <input type="hidden" name="payment_plan" id="payment_plan_<?= $s['id'] ?>" value="<?= $activePlanKey ?>">
+                  <input type="hidden" name="onsite_payment" value="1">
 
                   <div class="cashier-payment-grid">
                     <div>
@@ -479,9 +662,9 @@ $gradeOptions = [
                   </div>
 
                   <div id="payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
-                    <div class="cash-field">
+                    <div class="cash-field auto-or-field">
                       <label>Official Receipt #</label>
-                      <input type="text" name="or_number">
+                      <div class="auto-or-placeholder">Will be generated after submission.</div>
                     </div>
                     <div class="gcash-field" style="display:none;">
                       <label>Reference #</label>

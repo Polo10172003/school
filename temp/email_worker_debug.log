@@ -115,3 +115,9 @@
 [2025-10-11 14:18:12] student=68 grade=kindergarten schedule_sent_at=NULL paid_count=1 paid_sum=19500.00 due_threshold=14,840.00 attach=yes included=yes
 [2025-10-11 14:18:45] student=68 grade=grade1 schedule_sent_at=NULL paid_count=1 paid_sum=30000.00 due_threshold=19,920.00 attach=yes included=yes
 [2025-10-11 14:55:52] student=68 grade=grade2 schedule_sent_at=NULL paid_count=1 paid_sum=26600.00 due_threshold=16,100.00 attach=yes included=yes
+[2025-10-11 15:14:46] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 15:16:57] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 15:21:26] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 15:26:12] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 15:27:21] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 15:27:43] student=68 grade=grade2 schedule_sent_at=2025-10-11 20:55:57 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no

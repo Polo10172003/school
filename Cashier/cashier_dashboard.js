@@ -311,10 +311,91 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
     });
   };
 
+  const triggerReceiptPrint = () => {
+    if (!window.cashierReceiptData) {
+      return;
+    }
+
+    const templateEl = document.getElementById('cashier-receipt-template');
+    if (!templateEl) {
+      return;
+    }
+
+    const data = window.cashierReceiptData || {};
+    const cashierName = window.cashierReceiptCashier || 'Cashier';
+    const statusRaw = (data.payment_status || '').toString();
+    const statusFormatted =
+      statusRaw !== ''
+        ? statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1)
+        : 'Paid';
+
+    const replacements = {
+      or_number: data.or_number || 'N/A',
+      payment_date: data.payment_date || '',
+      generated_at: data.generated_at || '',
+      student_name: data.student_name || 'Student',
+      student_number: data.student_number || 'N/A',
+      grade_level: data.grade_level || 'N/A',
+      school_year: data.school_year || 'N/A',
+      payment_type: data.payment_type || 'Cash',
+      reference_number:
+        data.reference_number ||
+        (data.payment_type && data.payment_type.toLowerCase() === 'cash' ? 'N/A' : ''),
+      amount_formatted: data.amount_formatted || '0.00',
+      payment_status: statusFormatted,
+      cashier_name: cashierName || 'Cashier',
+    };
+
+    let html = templateEl.innerHTML;
+    Object.keys(replacements).forEach((key) => {
+      const value = (replacements[key] ?? '').toString() || 'N/A';
+      const pattern = new RegExp(`{{${key}}}`, 'g');
+      html = html.replace(pattern, value);
+    });
+
+    const printWindow = window.open('', '_blank', 'width=820,height=960');
+    if (!printWindow) {
+      console.warn('Unable to open print dialog for receipt.');
+      return;
+    }
+
+    printWindow.document.open();
+    printWindow.document.write(`<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Official Receipt</title>
+  </head>
+  <body>
+    ${html}
+  </body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+
+    setTimeout(() => {
+      try {
+        printWindow.print();
+      } catch (error) {
+        console.error('Failed to trigger print dialog.', error);
+      }
+    }, 350);
+
+    window.cashierReceiptData = null;
+  };
+
+  const bootReceiptIfNeeded = () => {
+    if (!window.cashierReceiptData) {
+      return;
+    }
+    triggerReceiptPrint();
+  };
+
   document.addEventListener('DOMContentLoaded', () => {
     bindPaymentModal();
     bindFinancialViewSwitchers();
     bindPlanSelectors();
+    bootReceiptIfNeeded();
   });
 
   window.calculatePayment = function () {
