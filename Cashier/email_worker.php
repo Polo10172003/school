@@ -316,17 +316,23 @@ if (!function_exists('cashier_email_worker_process')) {
                 if (!empty($scheduleEntries) && $schoolYear) {
                     $sectionCandidates = [];
                     if ($sectionForLookup !== null && $sectionForLookup !== '') {
-                        $sectionCandidates[] = $sectionForLookup;
-                        $stripped = preg_replace('/\bsection\b/i', '', $sectionForLookup);
-                        $stripped = preg_replace('/\bsec\b/i', '', $stripped);
-                        $stripped = trim((string) $stripped);
-                        if ($stripped !== '' && $stripped !== $sectionForLookup) {
-                            $sectionCandidates[] = $stripped;
-                        }
-                        $lettersOnly = preg_replace('/[^a-z0-9]/', '', $stripped);
-                        if ($lettersOnly !== '' && !in_array($lettersOnly, $sectionCandidates, true)) {
-                            $sectionCandidates[] = $lettersOnly;
-                        }
+                $sectionCandidates[] = $sectionForLookup;
+                $mutations = [];
+                $mutations[] = preg_replace('/\bsection\b/i', '', $sectionForLookup);
+                $mutations[] = preg_replace('/\bsec\b/i', '', $sectionForLookup);
+                $mutations[] = preg_replace('/(section|sec|sect|section-)/i', '', $sectionForLookup);
+                $mutations[] = str_replace(['section', 'sec', '-'], ' ', $sectionForLookup);
+
+                foreach ($mutations as $mut) {
+                    $mut = strtolower(trim((string) $mut));
+                    if ($mut !== '' && !in_array($mut, $sectionCandidates, true)) {
+                        $sectionCandidates[] = $mut;
+                    }
+                    $lettersOnly = preg_replace('/[^a-z0-9]/', '', $mut);
+                    if ($lettersOnly !== '' && !in_array($lettersOnly, $sectionCandidates, true)) {
+                        $sectionCandidates[] = $lettersOnly;
+                    }
+                }
                     }
 
                     if (!empty($sectionCandidates)) {
