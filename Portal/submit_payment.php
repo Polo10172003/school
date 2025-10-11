@@ -55,7 +55,7 @@ $targetFilePath = $targetDir . $fileName;
 
 
 if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePath)) {
-    $webPath = "/Enrollment/payment_uploads/" . $fileName;  // ✅ web accessible path
+    $webPath = APP_BASE_PATH . "payment_uploads/" . $fileName;  // ✅ web accessible path
     $payment_date = date("Y-m-d");
     $selectedMethod = $_POST['payment_type'] ?? 'online';
     $methodLabels = [

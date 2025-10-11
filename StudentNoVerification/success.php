@@ -80,7 +80,7 @@ require_once __DIR__ . '/../includes/session.php';
     <div id="done-section" class="hidden">
       <h3 style="color: #27ae60;">📧 Email Sent!</h3>
       <p class="small">You may now check your inbox for confirmation details.</p>
-      <a href="/Enrollment/index.php" class="btn-home">🏠 Go to Home</a>
+      <a href="<?php echo APP_BASE_PATH; ?>index.php" class="btn-home">🏠 Go to Home</a>
 
     </div>
   </div>
@@ -99,9 +99,9 @@ require_once __DIR__ . '/../includes/session.php';
 // 🔹 Trigger background worker for email
 if (!empty($_SESSION['email_job'])) {
   $payload = http_build_query($_SESSION['email_job']);
-  $php_path = "/Applications/XAMPP/bin/php"; // Mac PHP path
+  $php_path = PHP_BINARY ?: '/usr/bin/php';
   $worker   = __DIR__ . "/email_worker.php";
-  exec("$php_path $worker '$payload' > /dev/null 2>&1 &");
+  exec(escapeshellcmd($php_path) . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($payload) . ' > /dev/null 2>&1 &');
   unset($_SESSION['email_job']);
 }
 

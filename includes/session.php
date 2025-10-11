@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . '/../config/app.php';
+
 // Centralized session bootstrap to enforce secure defaults.
 if (session_status() !== PHP_SESSION_ACTIVE) {
     ini_set('session.use_strict_mode', '1');

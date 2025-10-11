@@ -127,9 +127,9 @@ require_once __DIR__ . '/../includes/session.php';
 
 <nav>
   <ul>
-    <li><a href="/Enrollment/index.php">Home</a></li>
+    <li><a href="<?php echo APP_BASE_PATH; ?>index.php">Home</a></li>
     <li><a href="#about">About Us</a></li>
-    <li><a href="/Enrollment/Portal/student_login.php">Portal</a></li>
+    <li><a href="<?php echo APP_BASE_PATH; ?>Portal/student_login.php">Portal</a></li>
     <li><a href="tuition_fees.php">Tuition Fees</a></li>
   </ul>
 </nav>
@@ -143,7 +143,7 @@ require_once __DIR__ . '/../includes/session.php';
   <h2>Payment Submitted Successfully!</h2>
   <p>Thank you for your payment. Your transaction is now being reviewed by our finance department.</p>
   <p>Please keep your reference number and wait for confirmation via SMS or Email.</p>
-  <a href="/Enrollment/index.php" class="btn-primary">Return to Home</a>
+  <a href="<?php echo APP_BASE_PATH; ?>index.php" class="btn-primary">Return to Home</a>
 </div>
 
 <footer>

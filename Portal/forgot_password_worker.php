@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../config/app.php';
 require __DIR__ . '/../vendor/autoload.php';
 
 date_default_timezone_set('Asia/Manila');
@@ -13,7 +14,7 @@ if (!$email || !$token) {
     exit(0);
 }
 
-$resetLink = "http://localhost/Enrollment/Portal/set_student_password.php?token=" . urlencode($token);
+$resetLink = APP_BASE_URL . 'Portal/set_student_password.php?token=' . urlencode($token);
 
 $mail = new PHPMailer(true);
 try {

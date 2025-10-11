@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title><?php echo isset($page_title) ? $page_title : 'Escuela de Sto. Rosario'; ?></title>
-  <base href="/Enrollment/">
+  <base href="<?php echo htmlspecialchars(APP_BASE_PATH, ENT_QUOTES, 'UTF-8'); ?>">
 
   <!-- Bootstrap CSS & Icons -->
   <link href="assets/css/global.css" rel="stylesheet">

@@ -1,9 +1,9 @@
 <?php
 // Database connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "student_enrollmentform";  // Your database name
+$servername = "127.0.0.1";
+$username = "u368533303_Polo";
+$password = "Dan65933";
+$dbname = "u368533303_ESR";  // Your database name
 
 $conn = new mysqli($servername, $username, $password, $dbname);
 
