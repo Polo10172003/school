@@ -248,12 +248,18 @@ if (!function_exists('cashier_email_worker_process')) {
 
                 foreach ($gradeCandidates as $gradeCandidate) {
                     $gradeToken = strtolower(str_replace([' ', '-', '_'], '', (string) $gradeCandidate));
+                    $gradeToken = preg_replace('/[^a-z0-9]/', '', $gradeToken);
+                    if ($gradeToken === '') {
+                        continue;
+                    }
 
                     $yearStmt = $conn->prepare("
                         SELECT school_year
                         FROM class_schedules
                         WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+                           OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
                            OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+                           OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
                         ORDER BY updated_at DESC
                         LIMIT 1
                     ");
@@ -261,7 +267,7 @@ if (!function_exists('cashier_email_worker_process')) {
                         continue;
                     }
                     $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
-                    $yearStmt->bind_param('ss', $gradeToken, $gradeTokenAdjusted);
+                    $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
                     $yearStmt->execute();
                     $yearStmt->bind_result($foundYear);
                     if ($yearStmt->fetch()) {
@@ -278,7 +284,9 @@ if (!function_exists('cashier_email_worker_process')) {
                         FROM class_schedules
                         WHERE (
                                 REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+                             OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
                              OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+                             OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
                               )
                           AND school_year = ?
                         ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time
@@ -287,7 +295,7 @@ if (!function_exists('cashier_email_worker_process')) {
                         $schoolYear = null;
                         continue;
                     }
-                    $scheduleStmt->bind_param('sss', $gradeToken, $gradeTokenAdjusted, $schoolYear);
+                    $scheduleStmt->bind_param('sssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted, $schoolYear);
                     $scheduleStmt->execute();
                     $result = $scheduleStmt->get_result();
                     if ($result) {
