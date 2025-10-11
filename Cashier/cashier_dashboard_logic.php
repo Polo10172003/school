@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/section_assignment.php';
+require_once __DIR__ . '/email_worker.php';
 
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
@@ -1367,15 +1368,43 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             cashier_assign_section_if_needed($conn, (int) $student_id);
 
             if (isset($recordedPaymentId)) {
-                $php_path = '/Applications/XAMPP/bin/php';
-                $worker = __DIR__ . '/email_worker.php';
-                $cmd = escapeshellcmd($php_path) . ' ' . escapeshellarg($worker)
-                    . ' ' . escapeshellarg((string) $student_id)
-                    . ' ' . escapeshellarg($payment_type)
-                    . ' ' . escapeshellarg((string) $amount)
-                    . ' ' . escapeshellarg($payment_status);
-                exec($cmd . ' > /dev/null 2>&1 &');
-                error_log('[cashier] queued email worker for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                $workerPath = __DIR__ . '/email_worker.php';
+                $disabledRaw = (string) ini_get('disable_functions');
+                $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
+                $canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
+
+                $emailDispatched = false;
+
+                if ($canUseExec) {
+                    $phpPath = PHP_BINARY ?: '/usr/bin/php';
+                    $cmdParts = [
+                        escapeshellcmd($phpPath),
+                        escapeshellarg($workerPath),
+                        escapeshellarg((string) $student_id),
+                        escapeshellarg($payment_type),
+                        escapeshellarg((string) $amount),
+                        escapeshellarg($payment_status),
+                    ];
+                    $cmd = implode(' ', $cmdParts);
+                    $execOutput = [];
+                    $execStatus = 0;
+                    exec($cmd . ' 2>&1', $execOutput, $execStatus);
+                    if ($execStatus === 0) {
+                        $emailDispatched = true;
+                        error_log('[cashier] queued email worker for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                    } else {
+                        error_log('[cashier] email worker exec failed for student ' . $student_id . ' payment ' . $recordedPaymentId . ' output: ' . print_r($execOutput, true));
+                    }
+                }
+
+                if (!$emailDispatched) {
+                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
+                    if ($inlineResult) {
+                        error_log('[cashier] dispatched email worker inline for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                    } else {
+                        error_log('[cashier] email worker inline fallback failed for student ' . $student_id . ' payment ' . $recordedPaymentId);
+                    }
+                }
             }
 
             if ($carry_applied > 0) {
