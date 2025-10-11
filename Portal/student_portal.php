@@ -1,3 +1,19 @@
+    <div class="alert alert-warning" style="margin-bottom:16px;">
+        <strong>Debug:</strong><br>
+        previous_outstanding: <span style="color:blue;">
+            <?php echo isset($previous_outstanding) ? $previous_outstanding : 'unset'; ?>
+        </span><br>
+        previous_grade_label: <span style="color:blue;">
+            <?php echo isset($previous_grade_label) ? $previous_grade_label : 'unset'; ?>
+        </span>
+    </div>
+                <?php if ($view_key === 'current'): ?>
+                <div class="alert alert-warning" style="margin-bottom:16px;">
+                    <strong>Debug:</strong><br>
+                    previous_outstanding: <span style="color:blue;"><?php echo isset($previous_outstanding) ? $previous_outstanding : 'unset'; ?></span><br>
+                    previous_grade_label: <span style="color:blue;"><?php echo isset($previous_grade_label) ? $previous_grade_label : 'unset'; ?></span>
+                </div>
+                <?php endif; ?>
 <?php
 require_once __DIR__ . '/../includes/session.php';
 
@@ -211,7 +227,7 @@ foreach (gradeSynonyms($normalized_year) as $gradeKey) {
 
 $previous_grade_label = cashier_previous_grade_label($year);
 $grade_key = cashier_normalize_grade_key((string) $year);
-$no_previous = ($lower_type === 'new') || in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kindergarten', 'kg', 'grade1']);
+$no_previous = ($lower_type === 'new') || (in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kg', 'grade1']) && $grade_key !== 'kindergarten');
 
 $previous_fee = null;
 if (!$no_previous && $previous_grade_label) {
@@ -625,7 +641,15 @@ foreach ($finance_views as &$finance_view_ref) {
     }
 
     $typeCandidates = array_values(array_unique([$student_type_lower, 'old', 'new', 'all']));
-    $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
+    $previous_pricing_variant = strtolower((string) ($finance_view_ref['pricing_variant'] ?? ''));
+    if ($previous_pricing_variant !== '') {
+        $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates, $previous_pricing_variant);
+        if (!$previous_fee_portal) {
+            $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
+        }
+    } else {
+        $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
+    }
     if (!$previous_fee_portal) {
         continue;
     }
@@ -951,6 +975,11 @@ unset($finance_view_ref);
                                     <span class="status-pill warning">
                                         <i class="bi bi-exclamation-triangle"></i>
                                         Past due from <?php echo htmlspecialchars($view_alert['grade']); ?>: ₱<?php echo number_format($view_alert['amount'], 2); ?>
+                                    </span>
+                                <?php elseif ($view_key === 'current' && isset($previous_outstanding) && $previous_outstanding > 0 && isset($previous_grade_label)): ?>
+                                    <span class="status-pill warning">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                        Pending balance from <?php echo htmlspecialchars($previous_grade_label); ?>: ₱<?php echo number_format($previous_outstanding, 2); ?>
                                     </span>
                                 <?php else: ?>
                                     <span class="status-pill safe">

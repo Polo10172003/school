@@ -94,3 +94,24 @@
 [2025-10-11 09:39:51] student=83 grade=grade2 schedule_sent_at=2025-10-11 15:37:15 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-11 10:02:49] student=83 grade=grade2 schedule_sent_at=2025-10-11 15:37:15 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
 [2025-10-11 10:03:58] student=83 grade=grade3 schedule_sent_at=NULL paid_count=1 paid_sum=16120.00 due_threshold=16,120.00 attach=yes included=yes
+[2025-10-11 10:15:15] student=68 grade=preprime1 schedule_sent_at=NULL paid_count=1 paid_sum=15140.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 10:24:00] student=68 grade=grade6 schedule_sent_at=NULL paid_count=6 paid_sum=86250.00 due_threshold=42,750.00 attach=yes included=yes
+[2025-10-11 10:26:16] student=68 grade=preprime1 schedule_sent_at=NULL paid_count=1 paid_sum=19250.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 10:28:56] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=20000.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 10:29:11] student=68 grade=preprime2 schedule_sent_at=2025-10-11 16:29:00 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 10:55:47] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=8250.00 due_threshold=14,720.00 attach=no included=no
+[2025-10-11 10:56:17] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=2 paid_sum=34750.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 11:04:58] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=8250.00 due_threshold=14,720.00 attach=no included=no
+[2025-10-11 11:05:11] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=2 paid_sum=23390.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 13:07:37] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=8250.00 due_threshold=14,720.00 attach=no included=no
+[2025-10-11 13:07:50] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=2 paid_sum=27500.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 14:06:28] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=27500.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 14:07:41] student=68 grade=preprime2 schedule_sent_at=NULL paid_count=1 paid_sum=15140.00 due_threshold=14,720.00 attach=yes included=yes
+[2025-10-11 14:08:36] student=68 grade=kindergarten schedule_sent_at=NULL paid_count=1 paid_sum=20000.00 due_threshold=14,840.00 attach=yes included=yes
+[2025-10-11 14:08:49] student=68 grade=kindergarten schedule_sent_at=2025-10-11 20:08:40 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 14:09:01] student=68 grade=kindergarten schedule_sent_at=2025-10-11 20:08:40 paid_count=0 paid_sum=0.00 due_threshold=NULL attach=no included=no
+[2025-10-11 14:15:17] student=68 grade=kindergarten schedule_sent_at=NULL paid_count=1 paid_sum=12360.00 due_threshold=14,840.00 attach=no included=no
+[2025-10-11 14:16:22] student=68 grade=kindergarten schedule_sent_at=NULL paid_count=2 paid_sum=39360.00 due_threshold=14,840.00 attach=yes included=yes
+[2025-10-11 14:18:12] student=68 grade=kindergarten schedule_sent_at=NULL paid_count=1 paid_sum=19500.00 due_threshold=14,840.00 attach=yes included=yes
+[2025-10-11 14:18:45] student=68 grade=grade1 schedule_sent_at=NULL paid_count=1 paid_sum=30000.00 due_threshold=19,920.00 attach=yes included=yes
+[2025-10-11 14:55:52] student=68 grade=grade2 schedule_sent_at=NULL paid_count=1 paid_sum=26600.00 due_threshold=16,100.00 attach=yes included=yes
