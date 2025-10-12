@@ -314,15 +314,21 @@ if (!function_exists('cashier_email_worker_process')) {
                             continue;
                         }
 
-                        $yearStmt = $conn->prepare("
+                    $yearStmt = $conn->prepare("
                         SELECT school_year
                         FROM class_schedules
-                        WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                           OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
-                           OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
-                           OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
+                        WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? COLLATE utf8mb4_unicode_ci
+                           OR INSTR(
+                                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''),
+                                ? COLLATE utf8mb4_unicode_ci
+                           ) > 0
+                           OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(? COLLATE utf8mb4_unicode_ci, 'primary', 'prime')
+                           OR INSTR(
+                                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''),
+                                REPLACE(? COLLATE utf8mb4_unicode_ci, 'primary', 'prime')
+                           ) > 0
                         ORDER BY updated_at DESC
-                         LIMIT 1
+                        LIMIT 1
                     ");
                         if (!$yearStmt) {
                             $logError('Unable to prepare schedule year query: ' . $conn->error);
@@ -341,16 +347,22 @@ if (!function_exists('cashier_email_worker_process')) {
                             continue;
                         }
 
-                        $scheduleStmt = $conn->prepare("
+                    $scheduleStmt = $conn->prepare("
                         SELECT section, subject, teacher, day_of_week, start_time, end_time, room
                         FROM class_schedules
                         WHERE (
-                                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                             OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
-                             OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
-                             OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
+                                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ? COLLATE utf8mb4_unicode_ci
+                             OR INSTR(
+                                    REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''),
+                                    ? COLLATE utf8mb4_unicode_ci
+                               ) > 0
+                             OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(? COLLATE utf8mb4_unicode_ci, 'primary', 'prime')
+                             OR INSTR(
+                                    REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''),
+                                    REPLACE(? COLLATE utf8mb4_unicode_ci, 'primary', 'prime')
+                               ) > 0
                               )
-                         AND school_year = ?
+                          AND school_year = ?
                         ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time
                     ");
                         if (!$scheduleStmt) {
@@ -576,15 +588,21 @@ if (!function_exists('cashier_email_worker_process')) {
             $mail->Body .= $scheduleHtml;
         }
 
-        if ($scheduleIncluded && !$schedulePreviouslySent && $scheduleColumnAvailable) {
+        if ($shouldAttachSchedule && $scheduleSentNow === null) {
+            $scheduleSentNow = date('Y-m-d H:i:s');
+        }
+
+        if ($shouldAttachSchedule && !$schedulePreviouslySent && $scheduleColumnAvailable && $scheduleSentNow !== null) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
                 if (!$updateSchedule->execute()) {
+                    $logError('Failed to update schedule_sent_at: ' . $updateSchedule->error);
                     error_log('[cashier] email worker failed to update schedule_sent_at for student ' . $student_id . ': ' . $updateSchedule->error);
                 }
                 $updateSchedule->close();
             } else {
+                $logError('Could not prepare schedule_sent_at update statement: ' . $conn->error);
                 error_log('[cashier] email worker could not prepare schedule update for student ' . $student_id . ': ' . $conn->error);
             }
         }
