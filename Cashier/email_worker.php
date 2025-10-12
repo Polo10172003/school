@@ -5,7 +5,6 @@ use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 require_once __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../config/mailer.php';
 
 if (!function_exists('cashier_normalize_grade_key')) {
     require_once __DIR__ . '/cashier_dashboard_logic.php';
@@ -59,19 +58,6 @@ if (!function_exists('cashier_email_worker_process')) {
             @mkdir($tempDir, 0777, true);
         }
 
-        @file_put_contents(
-            $tempDir . '/cashier_worker_trace.log',
-            sprintf(
-                "[%s] worker start student=%d type=%s amount=%.2f status=%s\n",
-                date('c'),
-                $student_id,
-                $payment_type,
-                $amountFloat,
-                $status
-            ),
-            FILE_APPEND
-        );
-
         if ($appendDebugLog) {
             $debugPayload = [
                 'timestamp'     => date('c'),
@@ -96,12 +82,6 @@ if (!function_exists('cashier_email_worker_process')) {
         ");
         if (!$stmt) {
             error_log('Cashier email worker: failed to prepare student query.');
-
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s] prepare failed for student %d: %s\n", date('c'), $student_id, $conn->error),
-                FILE_APPEND
-            );
             if ($createdConnection) {
                 $conn->close();
             }
@@ -125,11 +105,6 @@ if (!function_exists('cashier_email_worker_process')) {
 
         if (!$email) {
             error_log('Cashier email worker: student record missing email.');
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s] student %d has no email, aborting.\n", date('c'), $student_id),
-                FILE_APPEND
-            );
             if ($createdConnection) {
                 $conn->close();
             }
@@ -327,10 +302,7 @@ if (!function_exists('cashier_email_worker_process')) {
                     $scheduleStmt->execute();
                     $result = $scheduleStmt->get_result();
                     if ($result) {
-                        $scheduleEntries = [];
-                        while ($row = $result->fetch_assoc()) {
-                            $scheduleEntries[] = $row;
-                        }
+                        $scheduleEntries = $result->fetch_all(MYSQLI_ASSOC);
                     }
                     $scheduleStmt->close();
 
@@ -458,11 +430,24 @@ if (!function_exists('cashier_email_worker_process')) {
         @file_put_contents($debugLogPath, $debugMessage, FILE_APPEND);
 
         $mail = new PHPMailer(true);
-        $mailerConfig = mailer_apply_defaults($mail);
-        $mail->setFrom(
-            (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
-            (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
-        );
+        $mail->CharSet = 'UTF-8';
+        $mail->Encoding = 'base64';
+        $mail->isSMTP();
+        $mail->Host = 'smtp.hostinger.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'no-reply@rosariodigital.site';
+        $mail->Password = 'Dan@65933';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port = 465;
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+                'allow_self_signed' => true,
+            ],
+        ];
+
+        $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
         $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
         $mail->isHTML(true);
@@ -515,55 +500,21 @@ if (!function_exists('cashier_email_worker_process')) {
             $mail->Body .= $scheduleHtml;
         }
 
-        @file_put_contents(
-            $tempDir . '/cashier_worker_trace.log',
-            sprintf(
-                "[%s] sending email to %s schedule_included=%s\n",
-                date('c'),
-                $email,
-                $scheduleIncluded ? 'yes' : 'no'
-            ),
-            FILE_APPEND
-        );
-
         if ($scheduleIncluded && !$schedulePreviouslySent) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
                 if (!$updateSchedule->execute()) {
                     error_log('[cashier] email worker failed to update schedule_sent_at for student ' . $student_id . ': ' . $updateSchedule->error);
-                    @file_put_contents(
-                        $tempDir . '/cashier_worker_trace.log',
-                        sprintf("[%s] failed updating schedule_sent_at for student %d: %s\n", date('c'), $student_id, $updateSchedule->error),
-                        FILE_APPEND
-                    );
                 }
                 $updateSchedule->close();
             } else {
                 error_log('[cashier] email worker could not prepare schedule update for student ' . $student_id . ': ' . $conn->error);
-                @file_put_contents(
-                    $tempDir . '/cashier_worker_trace.log',
-                    sprintf("[%s] prepare schedule update failed for student %d: %s\n", date('c'), $student_id, $conn->error),
-                    FILE_APPEND
-                );
             }
         }
 
-        $smtpLogger = static function (string $line) use ($tempDir): void {
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s] %s\n", date('c'), $line),
-                FILE_APPEND
-            );
-        };
-
         try {
-            mailer_send_with_fallback($mail, [], $smtpLogger);
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s] email sent to %s\n", date('c'), $email),
-                FILE_APPEND
-            );
+            $mail->send();
         } catch (Exception $mailError) {
             $logLine = sprintf(
                 "[%s] Email worker error for student_id=%d: %s\n",
@@ -572,11 +523,6 @@ if (!function_exists('cashier_email_worker_process')) {
                 $mailError->getMessage()
             );
             @file_put_contents($tempDir . '/email_worker_errors.log', $logLine, FILE_APPEND);
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s] email send failed for %s: %s\n", date('c'), $email, $mailError->getMessage()),
-                FILE_APPEND
-            );
             if ($createdConnection) {
                 $conn->close();
             }
