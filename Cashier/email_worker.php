@@ -72,6 +72,14 @@ if (!function_exists('cashier_email_worker_process')) {
             FILE_APPEND
         );
 
+        $logError = static function (string $message) use ($tempDir, $student_id): void {
+            @file_put_contents(
+                $tempDir . '/email_worker_errors.log',
+                sprintf("[%s] [cashier][student:%d] %s\n", date('c'), $student_id, $message),
+                FILE_APPEND
+            );
+        };
+
         if ($appendDebugLog) {
             $debugPayload = [
                 'timestamp'     => date('c'),
@@ -96,6 +104,7 @@ if (!function_exists('cashier_email_worker_process')) {
             LIMIT 1
         ");
         if (!$stmt) {
+            $logError('Primary student query failed. ' . $conn->error);
             error_log('Cashier email worker: primary student query failed. ' . $conn->error);
             $scheduleColumnAvailable = false;
             $stmt = $conn->prepare("
@@ -107,6 +116,7 @@ if (!function_exists('cashier_email_worker_process')) {
         }
 
         if (!$stmt) {
+            $logError('Fallback student query failed. ' . $conn->error);
             error_log('Cashier email worker: fallback student query failed. ' . $conn->error);
             if ($createdConnection) {
                 $conn->close();
@@ -145,6 +155,7 @@ if (!function_exists('cashier_email_worker_process')) {
 
         if (!$email) {
             error_log('Cashier email worker: student record missing email.');
+            $logError('Student record missing email address.');
             if ($createdConnection) {
                 $conn->close();
             }
@@ -194,6 +205,9 @@ if (!function_exists('cashier_email_worker_process')) {
                 if ($paymentsStmt) {
                     $paymentsStmt->bind_param('i', $student_id);
                     $paymentsStmt->execute();
+                    if ($paymentsStmt->errno) {
+                        $logError('Payments query failed: ' . $paymentsStmt->error);
+                    }
                     $result = $paymentsStmt->get_result();
                     if ($result) {
                         while ($row = $result->fetch_assoc()) {
@@ -311,6 +325,7 @@ if (!function_exists('cashier_email_worker_process')) {
                          LIMIT 1
                     ");
                         if (!$yearStmt) {
+                            $logError('Unable to prepare schedule year query: ' . $conn->error);
                             continue;
                         }
                         $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
@@ -583,6 +598,7 @@ if (!function_exists('cashier_email_worker_process')) {
         };
 
         try {
+            $smtpLogger(sprintf('Dispatching receipt to %s (%d)', $email, $student_id));
             mailer_send_with_fallback(
                 $mail,
                 [],
