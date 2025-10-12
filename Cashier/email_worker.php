@@ -326,7 +326,10 @@ if (!function_exists('cashier_email_worker_process')) {
                     $scheduleStmt->execute();
                     $result = $scheduleStmt->get_result();
                     if ($result) {
-                        $scheduleEntries = $result->fetch_all(MYSQLI_ASSOC);
+                        $scheduleEntries = [];
+                        while ($row = $result->fetch_assoc()) {
+                            $scheduleEntries[] = $row;
+                        }
                     }
                     $scheduleStmt->close();
 
