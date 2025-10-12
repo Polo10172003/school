@@ -46,7 +46,7 @@ $update->bind_param('sss', $token, $expiry, $student_number);
 $update->execute();
 $update->close();
 
-$phpPath = '/Applications/XAMPP/bin/php';
+$phpPath = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: 'php');
 $worker = __DIR__ . '/forgot_password_worker.php';
 $cmd = escapeshellcmd($phpPath) . ' ' . escapeshellarg($worker) . ' ' . escapeshellarg($email) . ' ' . escapeshellarg($token);
 exec($cmd . ' > /dev/null 2>&1 &');

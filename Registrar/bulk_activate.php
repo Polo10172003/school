@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
 
         // ✅ Background email worker (non-blocking)
 // 🔹 Email via background worker
-        $php_path = "/Applications/XAMPP/bin/php";
+        $php_path = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: 'php');
         $worker   = __DIR__ . "/email_worker.php";
         exec("$php_path $worker $student_id > /dev/null 2>&1 &");
 

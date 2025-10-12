@@ -1,6 +1,9 @@
 <?php
 require_once __DIR__ . '/../includes/session.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 
+use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 $mode = isset($_GET['mode']) && $_GET['mode'] === 'registrar' ? 'registrar' : null;
@@ -222,18 +225,13 @@ if ($fromRegistrar) {
                     }
 
                     if ($hasChanges && $fields['emailaddress'] !== '') {
-                        require __DIR__ . '/../vendor/autoload.php';
                         try {
                             $mailer = new PHPMailer(true);
-                            $mailer->isSMTP();
-                            $mailer->Host = 'smtp.gmail.com';
-                            $mailer->SMTPAuth = true;
-                            $mailer->Username = 'deadpoolvictorio@gmail.com';
-                            $mailer->Password = 'ldcmeapjfuonxypu';
-                            $mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                            $mailer->Port = 587;
-
-                            $mailer->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+                            $mailerConfig = mailer_apply_defaults($mailer);
+                            $mailer->setFrom(
+                                (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+                                (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+                            );
                             $mailer->addAddress($fields['emailaddress'], trim($fields['firstname'] . ' ' . $fields['lastname']));
                             $mailer->isHTML(true);
                             $mailer->Subject = 'Student Information Updated - Escuela De Sto. Rosario';
@@ -241,8 +239,22 @@ if ($fromRegistrar) {
                                 '<p>Your student information has been <strong>successfully updated</strong> by the registrar.</p>' .
                                 '<p>If any detail looks incorrect, please contact the school immediately so we can assist you.</p>' .
                                 '<br><p>Thank you,<br>Escuela De Sto. Rosario</p>';
-                            $mailer->send();
-                        } catch (Throwable $mailError) {
+
+                            $logMailer = static function (string $line) use ($studentId): void {
+                                @file_put_contents(
+                                    __DIR__ . '/../temp/email_worker_trace.log',
+                                    sprintf("[%s] [RegistrarEdit:%d] %s\n", date('c'), $studentId, $line),
+                                    FILE_APPEND
+                                );
+                            };
+
+                            mailer_send_with_fallback(
+                                $mailer,
+                                [],
+                                $logMailer,
+                                (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+                            );
+                        } catch (Exception $mailError) {
                             error_log('Registrar edit email error: ' . $mailError->getMessage());
                         }
                     }

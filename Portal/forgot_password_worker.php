@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../config/app.php';
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 
 date_default_timezone_set('Asia/Manila');
 
@@ -18,15 +19,11 @@ $resetLink = APP_BASE_URL . 'Portal/set_student_password.php?token=' . urlencode
 
 $mail = new PHPMailer(true);
 try {
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'deadpoolvictorio@gmail.com';
-    $mail->Password = 'ldcmeapjfuonxypu';
-    $mail->SMTPSecure = 'tls';
-    $mail->Port = 587;
-
-    $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+    $mailerConfig = mailer_apply_defaults($mail);
+    $mail->setFrom(
+        (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+        (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+    );
     $mail->addAddress($email);
     $mail->isHTML(true);
     $mail->Subject = 'Password Reset Request';
@@ -40,7 +37,20 @@ try {
         <p style='font-size:12px; color:#7b8a87;'>If you did not request this change, you can safely ignore this email.</p>
     ";
 
-    $mail->send();
+    $logAttempt = static function (string $line) use ($email): void {
+        @file_put_contents(
+            __DIR__ . '/../temp/email_worker_trace.log',
+            sprintf("[%s] [ForgotPassword:%s] %s\n", date('c'), $email, $line),
+            FILE_APPEND
+        );
+    };
+
+    mailer_send_with_fallback(
+        $mail,
+        [],
+        $logAttempt,
+        (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+    );
 } catch (Exception $e) {
-    error_log('Forgot password email failed: ' . $mail->ErrorInfo);
+    error_log('Forgot password email failed: ' . $e->getMessage());
 }

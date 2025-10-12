@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 include __DIR__ . '/../db_connection.php';
 
 date_default_timezone_set('Asia/Manila');
@@ -67,15 +68,11 @@ if ($imagePath !== '') {
 
 $mail = new PHPMailer(true);
 try {
-    $mail->isSMTP();
-    $mail->Host = 'smtp.gmail.com';
-    $mail->SMTPAuth = true;
-    $mail->Username = 'deadpoolvictorio@gmail.com';
-    $mail->Password = 'ldcmeapjfuonxypu';
-    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port = 587;
-
-    $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+    $mailerConfig = mailer_apply_defaults($mail);
+    $mail->setFrom(
+        (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+        (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+    );
     $mail->isHTML(true);
     $mail->Subject = $subject;
     $mailBody = '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">'
@@ -107,10 +104,23 @@ try {
     }
 
     if ($counter > 0) {
-        $mail->send();
+        $logAttempt = static function (string $line) use ($announcementId): void {
+            @file_put_contents(
+                __DIR__ . '/../temp/email_worker_trace.log',
+                sprintf("[%s] [Announcement:%d] %s\n", date('c'), $announcementId, $line),
+                FILE_APPEND
+            );
+        };
+
+        mailer_send_with_fallback(
+            $mail,
+            [],
+            $logAttempt,
+            (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+        );
     }
 } catch (Exception $e) {
-    error_log('Announcement mailer failed: ' . $mail->ErrorInfo);
+    error_log('Announcement mailer failed: ' . $e->getMessage());
 }
 
 $stmt->close();

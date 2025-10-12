@@ -1,9 +1,10 @@
 <?php
-require 'vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-include('db_connection.php');
+include __DIR__ . '/../db_connection.php';
 
 if (isset($_GET['id'])) {
     $student_id = $_GET['id'];
@@ -42,20 +43,13 @@ if (isset($_GET['id'])) {
                 $mail = new PHPMailer(true);
 
                 try {
-                    // Server settings
-                    $mail->isSMTP();
-                    $mail->Host       = 'smtp.gmail.com';
-                    $mail->SMTPAuth   = true;
-                    $mail->Username   = 'deadpoolvictorio@gmail.com'; 
-                    $mail->Password = 'ldcmeapjfuonxypu';
-                    $mail->SMTPSecure = 'tls';
-                    $mail->Port       = 587;
-
-                    // Recipients
-                    $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+                    $mailerConfig = mailer_apply_defaults($mail);
+                    $mail->setFrom(
+                        (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+                        (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+                    );
                     $mail->addAddress($email, $name);
 
-                    // Content
                     $mail->isHTML(true);
                     $mail->Subject = 'Your ESR Student Portal Account is Activated';
                     $mail->Body    = "
@@ -67,10 +61,24 @@ if (isset($_GET['id'])) {
                         <p>Thank you,<br>ESR Registrar Office</p>
                     ";
 
-                    $mail->send();
+                    $logMailer = static function (string $line) use ($student_id): void {
+                        @file_put_contents(
+                            __DIR__ . '/../temp/email_worker_trace.log',
+                            sprintf("[%s] [ActivateStudent:%d] %s\n", date('c'), $student_id, $line),
+                            FILE_APPEND
+                        );
+                    };
+
+                    mailer_send_with_fallback(
+                        $mail,
+                        [],
+                        $logMailer,
+                        (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+                    );
                     echo "<script>alert('Student account activated and email sent!'); window.location.href = 'registrar_dashboard.php';</script>";
                 } catch (Exception $e) {
-                    echo "<script>alert('Account activated, but email could not be sent. Mailer Error: {$mail->ErrorInfo}'); window.location.href = 'registrar_dashboard.php';</script>";
+                    $message = addslashes($e->getMessage());
+                    echo "<script>alert('Account activated, but email could not be sent. Mailer Error: {$message}'); window.location.href = 'registrar_dashboard.php';</script>";
                 }
             } else {
                 echo "<script>alert('Account activation failed.'); window.location.href = 'registrar_dashboard.php';</script>";

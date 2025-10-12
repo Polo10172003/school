@@ -78,7 +78,7 @@ $storeAnnouncement->execute();
 $announcementId = $conn->insert_id;
 $storeAnnouncement->close();
 
-$php_path = '/Applications/XAMPP/bin/php';
+$php_path = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: 'php');
 $worker = __DIR__ . '/Portal/announcement_worker.php';
 
 $cmd = escapeshellcmd($php_path) . ' ' . escapeshellarg($worker)
