@@ -88,6 +88,7 @@ if (!function_exists('cashier_email_worker_process')) {
             );
         }
 
+        $scheduleColumnAvailable = true;
         $stmt = $conn->prepare("
             SELECT emailaddress, firstname, lastname, student_number, year, section, schedule_sent_at, student_type
             FROM students_registration
@@ -95,7 +96,18 @@ if (!function_exists('cashier_email_worker_process')) {
             LIMIT 1
         ");
         if (!$stmt) {
-            error_log('Cashier email worker: failed to prepare student query.');
+            error_log('Cashier email worker: primary student query failed. ' . $conn->error);
+            $scheduleColumnAvailable = false;
+            $stmt = $conn->prepare("
+                SELECT emailaddress, firstname, lastname, student_number, year, section, student_type
+                FROM students_registration
+                WHERE id = ?
+                LIMIT 1
+            ");
+        }
+
+        if (!$stmt) {
+            error_log('Cashier email worker: fallback student query failed. ' . $conn->error);
             if ($createdConnection) {
                 $conn->close();
             }
@@ -104,16 +116,30 @@ if (!function_exists('cashier_email_worker_process')) {
 
         $stmt->bind_param('i', $student_id);
         $stmt->execute();
-        $stmt->bind_result(
-            $email,
-            $firstname,
-            $lastname,
-            $student_number,
-            $grade_level,
-            $student_section,
-            $schedule_sent_at_raw,
-            $student_type
-        );
+
+        $schedule_sent_at_raw = null;
+        if ($scheduleColumnAvailable) {
+            $stmt->bind_result(
+                $email,
+                $firstname,
+                $lastname,
+                $student_number,
+                $grade_level,
+                $student_section,
+                $schedule_sent_at_raw,
+                $student_type
+            );
+        } else {
+            $stmt->bind_result(
+                $email,
+                $firstname,
+                $lastname,
+                $student_number,
+                $grade_level,
+                $student_section,
+                $student_type
+            );
+        }
         $stmt->fetch();
         $stmt->close();
 
@@ -146,7 +172,9 @@ if (!function_exists('cashier_email_worker_process')) {
         $shouldAttachSchedule = false;
 
         $schedulePreviouslySent = false;
-        if ($schedule_sent_at_raw === null || $schedule_sent_at_raw === '' || $schedule_sent_at_raw === '0000-00-00 00:00:00') {
+        if (!$scheduleColumnAvailable) {
+            $schedulePreviouslySent = false;
+        } elseif ($schedule_sent_at_raw === null || $schedule_sent_at_raw === '' || $schedule_sent_at_raw === '0000-00-00 00:00:00') {
             $schedulePreviouslySent = false;
         } else {
             $normalizedScheduleSent = strtolower(trim((string) $schedule_sent_at_raw));
@@ -435,7 +463,9 @@ if (!function_exists('cashier_email_worker_process')) {
             date('Y-m-d H:i:s'),
             $student_id,
             $currentGradeKey,
-            $schedule_sent_at === null ? 'NULL' : (string) $schedule_sent_at,
+            $scheduleColumnAvailable
+                ? ($schedule_sent_at_raw === null ? 'NULL' : (string) $schedule_sent_at_raw)
+                : 'column_missing',
             $currentGradePaidCount ?? 0,
             $currentGradePaidSum ?? 0.0,
             $dueThreshold === null ? 'NULL' : number_format((float) $dueThreshold, 2),
@@ -512,7 +542,7 @@ if (!function_exists('cashier_email_worker_process')) {
             $mail->Body .= $scheduleHtml;
         }
 
-        if ($scheduleIncluded && !$schedulePreviouslySent) {
+        if ($scheduleIncluded && !$schedulePreviouslySent && $scheduleColumnAvailable) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
