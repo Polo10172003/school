@@ -1371,6 +1371,19 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                     require_once __DIR__ . '/email_worker.php';
                 }
 
+                @file_put_contents(
+                    __DIR__ . '/../temp/cashier_worker_trace.log',
+                    sprintf(
+                        "[%s] invoking worker for student %d payment %s amount=%s status=%s\n",
+                        date('c'),
+                        $student_id,
+                        $recordedPaymentId,
+                        (string) $amount,
+                        $payment_status
+                    ),
+                    FILE_APPEND
+                );
+
                 $inlineResult = false;
                 try {
                     $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);

@@ -58,6 +58,19 @@ if (!function_exists('cashier_email_worker_process')) {
             @mkdir($tempDir, 0777, true);
         }
 
+        @file_put_contents(
+            $tempDir . '/cashier_worker_trace.log',
+            sprintf(
+                "[%s] worker start student=%d type=%s amount=%.2f status=%s\n",
+                date('c'),
+                $student_id,
+                $payment_type,
+                $amountFloat,
+                $status
+            ),
+            FILE_APPEND
+        );
+
         if ($appendDebugLog) {
             $debugPayload = [
                 'timestamp'     => date('c'),
@@ -500,6 +513,17 @@ if (!function_exists('cashier_email_worker_process')) {
             $mail->Body .= $scheduleHtml;
         }
 
+        @file_put_contents(
+            $tempDir . '/cashier_worker_trace.log',
+            sprintf(
+                "[%s] sending email to %s schedule_included=%s\n",
+                date('c'),
+                $email,
+                $scheduleIncluded ? 'yes' : 'no'
+            ),
+            FILE_APPEND
+        );
+
         if ($scheduleIncluded && !$schedulePreviouslySent) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
@@ -515,6 +539,11 @@ if (!function_exists('cashier_email_worker_process')) {
 
         try {
             $mail->send();
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] email sent to %s\n", date('c'), $email),
+                FILE_APPEND
+            );
         } catch (Exception $mailError) {
             $logLine = sprintf(
                 "[%s] Email worker error for student_id=%d: %s\n",
@@ -523,6 +552,11 @@ if (!function_exists('cashier_email_worker_process')) {
                 $mailError->getMessage()
             );
             @file_put_contents($tempDir . '/email_worker_errors.log', $logLine, FILE_APPEND);
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] email send failed for %s: %s\n", date('c'), $email, $mailError->getMessage()),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
