@@ -181,125 +181,126 @@ if (!function_exists('cashier_email_worker_process')) {
             $schedulePreviouslySent = $normalizedScheduleSent !== 'pending';
         }
 
-        if (!$schedulePreviouslySent) {
-            $totalPaidPerGrade = [];
-            $paymentsStmt = $conn->prepare('
+        try {
+            if (!$schedulePreviouslySent) {
+                $totalPaidPerGrade = [];
+                $paymentsStmt = $conn->prepare('
                 SELECT amount, grade_level, created_at
                 FROM student_payments
                 WHERE student_id = ?
                   AND LOWER(payment_status) IN ("paid","completed","approved","cleared")
                 ORDER BY created_at ASC
             ');
-            if ($paymentsStmt) {
-                $paymentsStmt->bind_param('i', $student_id);
-                $paymentsStmt->execute();
-                $result = $paymentsStmt->get_result();
-                if ($result) {
-                    while ($row = $result->fetch_assoc()) {
-                        $normalizedGrade = cashier_normalize_grade_key((string) ($row['grade_level'] ?? ''));
-                        if ($normalizedGrade === '') {
-                            $normalizedGrade = $currentGradeKey;
+                if ($paymentsStmt) {
+                    $paymentsStmt->bind_param('i', $student_id);
+                    $paymentsStmt->execute();
+                    $result = $paymentsStmt->get_result();
+                    if ($result) {
+                        while ($row = $result->fetch_assoc()) {
+                            $normalizedGrade = cashier_normalize_grade_key((string) ($row['grade_level'] ?? ''));
+                            if ($normalizedGrade === '') {
+                                $normalizedGrade = $currentGradeKey;
+                            }
+                            if (!isset($totalPaidPerGrade[$normalizedGrade])) {
+                                $totalPaidPerGrade[$normalizedGrade] = ['count' => 0, 'sum' => 0.0];
+                            }
+                            $totalPaidPerGrade[$normalizedGrade]['count']++;
+                            $totalPaidPerGrade[$normalizedGrade]['sum'] += (float) ($row['amount'] ?? 0);
                         }
-                        if (!isset($totalPaidPerGrade[$normalizedGrade])) {
-                            $totalPaidPerGrade[$normalizedGrade] = ['count' => 0, 'sum' => 0.0];
-                        }
-                        $totalPaidPerGrade[$normalizedGrade]['count']++;
-                        $totalPaidPerGrade[$normalizedGrade]['sum'] += (float) ($row['amount'] ?? 0);
                     }
-                }
-                $paymentsStmt->close();
-            }
-
-            $aggregateTotals = static function (array $map, string $gradeKey): array {
-                $totalCount = 0;
-                $totalSum   = 0.0;
-                $keys = [];
-
-                if ($gradeKey !== '') {
-                    $keys = array_merge($keys, cashier_grade_synonyms($gradeKey));
-                }
-                $keys[] = $gradeKey;
-                $keys = array_values(array_unique(array_filter($keys, static function ($key) {
-                    return $key !== null && $key !== '';
-                })));
-
-                foreach ($keys as $key) {
-                    if (isset($map[$key])) {
-                        $totalCount += (int) ($map[$key]['count'] ?? 0);
-                        $totalSum   += (float) ($map[$key]['sum'] ?? 0);
-                    }
+                    $paymentsStmt->close();
                 }
 
-                return ['count' => $totalCount, 'sum' => $totalSum];
-            };
+                $aggregateTotals = static function (array $map, string $gradeKey): array {
+                    $totalCount = 0;
+                    $totalSum   = 0.0;
+                    $keys = [];
 
-            $currentTotals = $aggregateTotals($totalPaidPerGrade, $currentGradeKey);
-            $currentGradePaidCount = $currentTotals['count'];
-            $currentGradePaidSum   = $currentTotals['sum'];
-
-            if ($currentGradePaidCount > 0) {
-                $studentTypeNormalized = strtolower(trim((string) $student_type));
-                if ($studentTypeNormalized === '') {
-                    $studentTypeNormalized = 'new';
-                }
-                $typeCandidates = array_values(array_unique([$studentTypeNormalized, 'new', 'old', 'all']));
-                $fee = cashier_fetch_fee($conn, $currentGradeKey, $typeCandidates);
-
-                if ($fee) {
-                    $plans = $fee['plans'] ?? [];
-                    $selectedPlanType = null;
-                    $planSelection = cashier_dashboard_fetch_selected_plan($conn, $student_id, (int) $fee['id']);
-                    if ($planSelection) {
-                        $selectedPlanType = strtolower((string) ($planSelection['plan_type'] ?? ''));
+                    if ($gradeKey !== '') {
+                        $keys = array_merge($keys, cashier_grade_synonyms($gradeKey));
                     }
+                    $keys[] = $gradeKey;
+                    $keys = array_values(array_unique(array_filter($keys, static function ($key) {
+                        return $key !== null && $key !== '';
+                    })));
 
-                    foreach ($plans as $planRow) {
-                        $planType = strtolower(str_replace([' ', '-'], '_', (string) ($planRow['plan_type'] ?? '')));
-                        $dueValue = isset($planRow['due_upon_enrollment']) ? (float) $planRow['due_upon_enrollment'] : null;
-                        if ($dueValue === null) {
-                            continue;
-                        }
-                        if ($selectedPlanType && $planType === $selectedPlanType) {
-                            $dueThreshold = $dueValue;
-                            break;
-                        }
-                        if ($dueThreshold === null || $dueValue < $dueThreshold) {
-                            $dueThreshold = $dueValue;
+                    foreach ($keys as $key) {
+                        if (isset($map[$key])) {
+                            $totalCount += (int) ($map[$key]['count'] ?? 0);
+                            $totalSum   += (float) ($map[$key]['sum'] ?? 0);
                         }
                     }
 
-                    if ($dueThreshold === null) {
-                        $dueThreshold = (float) ($fee['entrance_fee'] ?? 0)
-                            + (float) ($fee['miscellaneous_fee'] ?? 0)
-                            + (float) ($fee['tuition_fee'] ?? 0);
-                    }
+                    return ['count' => $totalCount, 'sum' => $totalSum];
+                };
 
-                    if ($currentGradePaidSum >= max(0.0, $dueThreshold - 0.01)) {
+                $currentTotals = $aggregateTotals($totalPaidPerGrade, $currentGradeKey);
+                $currentGradePaidCount = $currentTotals['count'];
+                $currentGradePaidSum   = $currentTotals['sum'];
+
+                if ($currentGradePaidCount > 0) {
+                    $studentTypeNormalized = strtolower(trim((string) $student_type));
+                    if ($studentTypeNormalized === '') {
+                        $studentTypeNormalized = 'new';
+                    }
+                    $typeCandidates = array_values(array_unique([$studentTypeNormalized, 'new', 'old', 'all']));
+                    $fee = cashier_fetch_fee($conn, $currentGradeKey, $typeCandidates);
+
+                    if ($fee) {
+                        $plans = $fee['plans'] ?? [];
+                        $selectedPlanType = null;
+                        $planSelection = cashier_dashboard_fetch_selected_plan($conn, $student_id, (int) $fee['id']);
+                        if ($planSelection) {
+                            $selectedPlanType = strtolower((string) ($planSelection['plan_type'] ?? ''));
+                        }
+
+                        foreach ($plans as $planRow) {
+                            $planType = strtolower(str_replace([' ', '-'], '_', (string) ($planRow['plan_type'] ?? '')));
+                            $dueValue = isset($planRow['due_upon_enrollment']) ? (float) $planRow['due_upon_enrollment'] : null;
+                            if ($dueValue === null) {
+                                continue;
+                            }
+                            if ($selectedPlanType && $planType === $selectedPlanType) {
+                                $dueThreshold = $dueValue;
+                                break;
+                            }
+                            if ($dueThreshold === null || $dueValue < $dueThreshold) {
+                                $dueThreshold = $dueValue;
+                            }
+                        }
+
+                        if ($dueThreshold === null) {
+                            $dueThreshold = (float) ($fee['entrance_fee'] ?? 0)
+                                + (float) ($fee['miscellaneous_fee'] ?? 0)
+                                + (float) ($fee['tuition_fee'] ?? 0);
+                        }
+
+                        if ($currentGradePaidSum >= max(0.0, $dueThreshold - 0.01)) {
+                            $shouldAttachSchedule = true;
+                        }
+                    } else {
                         $shouldAttachSchedule = true;
                     }
-                } else {
-                    $shouldAttachSchedule = true;
-                }
-            }
-
-            if ($shouldAttachSchedule) {
-                $sectionForLookup = $student_section !== null && $student_section !== '' ? strtolower($student_section) : null;
-                $gradeCandidates = cashier_grade_synonyms($currentGradeKey);
-                if (!in_array($currentGradeKey, $gradeCandidates, true)) {
-                    $gradeCandidates[] = $currentGradeKey;
                 }
 
-                $scheduleEntries = [];
-                $schoolYear = null;
-
-                foreach ($gradeCandidates as $gradeCandidate) {
-                    $gradeToken = strtolower(str_replace([' ', '-', '_'], '', (string) $gradeCandidate));
-                    $gradeToken = preg_replace('/[^a-z0-9]/', '', $gradeToken);
-                    if ($gradeToken === '') {
-                        continue;
+                if ($shouldAttachSchedule) {
+                    $sectionForLookup = $student_section !== null && $student_section !== '' ? strtolower($student_section) : null;
+                    $gradeCandidates = cashier_grade_synonyms($currentGradeKey);
+                    if (!in_array($currentGradeKey, $gradeCandidates, true)) {
+                        $gradeCandidates[] = $currentGradeKey;
                     }
 
-                    $yearStmt = $conn->prepare("
+                    $scheduleEntries = [];
+                    $schoolYear = null;
+
+                    foreach ($gradeCandidates as $gradeCandidate) {
+                        $gradeToken = strtolower(str_replace([' ', '-', '_'], '', (string) $gradeCandidate));
+                        $gradeToken = preg_replace('/[^a-z0-9]/', '', $gradeToken);
+                        if ($gradeToken === '') {
+                            continue;
+                        }
+
+                        $yearStmt = $conn->prepare("
                         SELECT school_year
                         FROM class_schedules
                         WHERE REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
@@ -307,25 +308,25 @@ if (!function_exists('cashier_email_worker_process')) {
                            OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
                            OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
                         ORDER BY updated_at DESC
-                        LIMIT 1
+                         LIMIT 1
                     ");
-                    if (!$yearStmt) {
-                        continue;
-                    }
-                    $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
-                    $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
-                    $yearStmt->execute();
-                    $yearStmt->bind_result($foundYear);
-                    if ($yearStmt->fetch()) {
-                        $schoolYear = $foundYear;
-                    }
-                    $yearStmt->close();
+                        if (!$yearStmt) {
+                            continue;
+                        }
+                        $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
+                        $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
+                        $yearStmt->execute();
+                        $yearStmt->bind_result($foundYear);
+                        if ($yearStmt->fetch()) {
+                            $schoolYear = $foundYear;
+                        }
+                        $yearStmt->close();
 
-                    if (!$schoolYear) {
-                        continue;
-                    }
+                        if (!$schoolYear) {
+                            continue;
+                        }
 
-                    $scheduleStmt = $conn->prepare("
+                        $scheduleStmt = $conn->prepare("
                         SELECT section, subject, teacher, day_of_week, start_time, end_time, room
                         FROM class_schedules
                         WHERE (
@@ -334,31 +335,31 @@ if (!function_exists('cashier_email_worker_process')) {
                              OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
                              OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
                               )
-                          AND school_year = ?
+                         AND school_year = ?
                         ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time
                     ");
-                    if (!$scheduleStmt) {
+                        if (!$scheduleStmt) {
+                            $schoolYear = null;
+                            continue;
+                        }
+                        $scheduleStmt->bind_param('sssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted, $schoolYear);
+                        $scheduleStmt->execute();
+                        $result = $scheduleStmt->get_result();
+                        if ($result) {
+                            $scheduleEntries = $result->fetch_all(MYSQLI_ASSOC);
+                        }
+                        $scheduleStmt->close();
+
+                        if (!empty($scheduleEntries)) {
+                            break;
+                        }
+
                         $schoolYear = null;
-                        continue;
-                    }
-                    $scheduleStmt->bind_param('sssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted, $schoolYear);
-                    $scheduleStmt->execute();
-                    $result = $scheduleStmt->get_result();
-                    if ($result) {
-                        $scheduleEntries = $result->fetch_all(MYSQLI_ASSOC);
-                    }
-                    $scheduleStmt->close();
-
-                    if (!empty($scheduleEntries)) {
-                        break;
                     }
 
-                    $schoolYear = null;
-                }
-
-                if (!empty($scheduleEntries) && $schoolYear) {
-                    $sectionCandidates = [];
-                    if ($sectionForLookup !== null && $sectionForLookup !== '') {
+                    if (!empty($scheduleEntries) && $schoolYear) {
+                        $sectionCandidates = [];
+                        if ($sectionForLookup !== null && $sectionForLookup !== '') {
                 $sectionCandidates[] = $sectionForLookup;
                 $mutations = [];
                 $mutations[] = preg_replace('/\bsection\b/i', '', $sectionForLookup);
@@ -455,6 +456,24 @@ if (!function_exists('cashier_email_worker_process')) {
                     }
                 }
             }
+        }
+        } catch (Throwable $scheduleError) {
+            $scheduleHtml = '';
+            $scheduleIncluded = false;
+            $scheduleSentNow = null;
+            $schedulePreviouslySent = false;
+            $shouldAttachSchedule = false;
+            $currentGradePaidCount = 0;
+            $currentGradePaidSum = 0.0;
+            $dueThreshold = null;
+            $logLine = sprintf(
+                "[%s] [cashier] schedule build failed for student %d: %s\n",
+                date('c'),
+                $student_id,
+                $scheduleError->getMessage()
+            );
+            error_log(trim($logLine));
+            @file_put_contents($tempDir . '/email_worker_errors.log', $logLine, FILE_APPEND);
         }
 
         $debugLogPath = $tempDir . '/email_worker_debug.log';

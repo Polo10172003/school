@@ -78,18 +78,57 @@ $storeAnnouncement->execute();
 $announcementId = $conn->insert_id;
 $storeAnnouncement->close();
 
-$php_path = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: 'php');
-$worker = __DIR__ . '/Portal/announcement_worker.php';
+$workerPath = __DIR__ . '/Portal/announcement_worker.php';
+$disabledRaw = (string) ini_get('disable_functions');
+$disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
+$canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
 
-$cmd = escapeshellcmd($php_path) . ' ' . escapeshellarg($worker)
-    . ' ' . escapeshellarg($subject)
-    . ' ' . escapeshellarg($message)
-    . ' ' . escapeshellarg($normalizedScope)
-    . ' ' . escapeshellarg((string) $announcementId)
-    . ' ' . escapeshellarg($imagePath ?? '');
-exec($cmd . ' > /dev/null 2>&1 &');
+$dispatched = false;
 
-echo "<script>alert('Announcement queued successfully. Emails will be delivered in the background.'); window.location.href = 'admin_dashboard.php#announcements';</script>";
+if ($canUseExec) {
+    $php_path = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: '/usr/bin/php');
+    $cmdParts = [
+        escapeshellcmd($php_path),
+        escapeshellarg($workerPath),
+        escapeshellarg($subject),
+        escapeshellarg($message),
+        escapeshellarg($normalizedScope),
+        escapeshellarg((string) $announcementId),
+        escapeshellarg($imagePath ?? ''),
+    ];
+    $cmd = implode(' ', $cmdParts);
+    $execOutput = [];
+    $execStatus = 0;
+    exec($cmd . ' > /dev/null 2>&1', $execOutput, $execStatus);
+    if ($execStatus === 0) {
+        $dispatched = true;
+    }
+}
+
+if (!$dispatched) {
+    if (!function_exists('portal_dispatch_announcement')) {
+        require_once $workerPath;
+    }
+    try {
+        $dispatched = portal_dispatch_announcement(
+            $subject,
+            $message,
+            $normalizedScope,
+            (int) $announcementId,
+            $imagePath,
+            $conn
+        );
+    } catch (Throwable $workerError) {
+        error_log('[announcement] inline worker exception: ' . $workerError->getMessage());
+        $dispatched = false;
+    }
+}
+
+$statusMessage = $dispatched
+    ? 'Announcement dispatched to the selected recipients.'
+    : 'Announcement saved, but email delivery could not be confirmed. Please check the logs.';
+
+echo "<script>alert(" . json_encode($statusMessage) . "); window.location.href = 'admin_dashboard.php#announcements';</script>";
 
 $conn->close();
 ?>

@@ -1,127 +1,284 @@
 <?php
-require __DIR__ . '/../vendor/autoload.php';
-require_once __DIR__ . '/../config/mailer.php';
-include __DIR__ . '/../db_connection.php';
+declare(strict_types=1);
 
-date_default_timezone_set('Asia/Manila');
-
-use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\PHPMailer;
 
-$subject = $argv[1] ?? '';
-$body = $argv[2] ?? '';
-$scope = $argv[3] ?? '';
-$announcementId = isset($argv[4]) ? (int) $argv[4] : 0;
-$imagePathArg = $argv[5] ?? '';
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 
-if ($subject === '' || $body === '') {
-    exit(0);
-}
+if (!function_exists('portal_dispatch_announcement')) {
+    /**
+     * Dispatch announcement emails to the selected scope.
+     *
+     * @param string      $subject
+     * @param string      $body
+     * @param string      $scope          Comma separated grade list or 'everyone'.
+     * @param int         $announcementId Inserted announcement id (for image lookup).
+     * @param string|null $imagePathArg   Optional relative image path provided by caller.
+     * @param mysqli|null $existingConn   Optional mysqli connection to reuse.
+     * @param bool        $appendDebugLog When true, write verbose logs to temp dir.
+     *
+     * @return bool True when at least one email batch was queued successfully.
+     */
+    function portal_dispatch_announcement(
+        string $subject,
+        string $body,
+        string $scope,
+        int $announcementId = 0,
+        ?string $imagePathArg = null,
+        ?mysqli $existingConn = null,
+        bool $appendDebugLog = false
+    ): bool {
+        $subject = trim($subject);
+        $body = trim($body);
+        $scope = trim($scope);
 
-$audiences = array_filter(array_map('trim', explode(',', $scope)));
-
-if (in_array('everyone', $audiences, true)) {
-    $stmt = $conn->prepare("SELECT DISTINCT emailaddress, firstname, lastname FROM students_registration WHERE emailaddress IS NOT NULL AND emailaddress != ''");
-} else {
-    $placeholders = implode(',', array_fill(0, count($audiences), '?'));
-    $types = str_repeat('s', count($audiences));
-    $stmt = $conn->prepare("SELECT DISTINCT emailaddress, firstname, lastname FROM students_registration WHERE year IN ($placeholders) AND emailaddress IS NOT NULL AND emailaddress != ''");
-    $stmt->bind_param($types, ...$audiences);
-}
-
-$stmt->execute();
-$result = $stmt->get_result();
-
-if ($result->num_rows === 0) {
-    $stmt->close();
-    exit(0);
-}
-
-$imagePath = '';
-if ($announcementId > 0) {
-    $imageStmt = $conn->prepare('SELECT image_path FROM student_announcements WHERE id = ? LIMIT 1');
-    if ($imageStmt) {
-        $imageStmt->bind_param('i', $announcementId);
-        $imageStmt->execute();
-        $imageStmt->bind_result($dbImagePath);
-        if ($imageStmt->fetch()) {
-            $imagePath = trim((string) $dbImagePath);
+        if ($subject === '' || $body === '') {
+            return false;
         }
-        $imageStmt->close();
-    }
-}
 
-if ($imagePath === '' && $imagePathArg !== '') {
-    $imagePath = trim($imagePathArg);
-}
+        $conn = $existingConn;
+        $createdConnection = false;
 
-$absoluteImagePath = '';
-if ($imagePath !== '') {
-    $normalized = ltrim($imagePath, '/');
-    $candidate = realpath(__DIR__ . '/../' . $normalized);
-    if ($candidate && is_file($candidate)) {
-        $absoluteImagePath = $candidate;
-    } else {
-        $absoluteImagePath = '';
-    }
-}
+        if (!$conn instanceof mysqli) {
+            include __DIR__ . '/../db_connection.php';
+            if (!isset($conn) || !($conn instanceof mysqli)) {
+                error_log('[announcement] worker: unable to establish database connection.');
+                return false;
+            }
+            $createdConnection = true;
+        }
 
-$mail = new PHPMailer(true);
-try {
-    $mailerConfig = mailer_apply_defaults($mail);
-    $mail->setFrom(
-        (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
-        (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
-    );
-    $mail->isHTML(true);
-    $mail->Subject = $subject;
-    $mailBody = '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">'
-        . '<p>' . nl2br(htmlspecialchars($body)) . '</p>';
+        $tempDir = __DIR__ . '/../temp';
+        if (!is_dir($tempDir)) {
+            @mkdir($tempDir, 0777, true);
+        }
 
-    $imageCid = null;
-    if ($absoluteImagePath !== '') {
-        $imageCid = 'announcement_image_' . uniqid();
-        $mail->addEmbeddedImage($absoluteImagePath, $imageCid, basename($absoluteImagePath));
-        $mailBody .= '<div style="margin-top:16px; text-align:center;">'
-            . '<img src="cid:' . $imageCid . '" alt="Announcement Image" style="max-width:100%; border-radius:8px;" />'
-            . '</div>';
-    }
-
-    $mailBody .= '</div>';
-    $mail->Body = $mailBody;
-
-    if ($absoluteImagePath !== '') {
-        $mail->AltBody = $body . "\n\n[Image attached]";
-        $mail->addAttachment($absoluteImagePath);
-    } else {
-        $mail->AltBody = $body;
-    }
-
-    $counter = 0;
-    while ($row = $result->fetch_assoc()) {
-        $mail->addAddress($row['emailaddress'], $row['firstname'] . ' ' . $row['lastname']);
-        $counter++;
-    }
-
-    if ($counter > 0) {
-        $logAttempt = static function (string $line) use ($announcementId): void {
+        $traceLog = $tempDir . '/announcement_worker_trace.log';
+        if ($appendDebugLog) {
             @file_put_contents(
-                __DIR__ . '/../temp/email_worker_trace.log',
-                sprintf("[%s] [Announcement:%d] %s\n", date('c'), $announcementId, $line),
+                $traceLog,
+                sprintf("[%s] start scope=%s announcement_id=%d\n", date('c'), $scope, $announcementId),
                 FILE_APPEND
             );
-        };
+        }
 
-        mailer_send_with_fallback(
-            $mail,
-            [],
-            $logAttempt,
-            (bool) ($mailerConfig['fallback_to_mail'] ?? false)
-        );
+        $audiences = array_values(array_filter(array_map('trim', explode(',', strtolower($scope)))));
+        $recipients = [];
+
+        if (in_array('everyone', $audiences, true)) {
+            $stmt = $conn->prepare(
+                'SELECT DISTINCT emailaddress, firstname, lastname
+                 FROM students_registration
+                 WHERE emailaddress IS NOT NULL
+                   AND emailaddress <> \'\''
+            );
+        } else {
+            $audiences = array_filter(array_map('trim', explode(',', $scope)));
+            if (empty($audiences)) {
+                if ($createdConnection) {
+                    $conn->close();
+                }
+                return false;
+            }
+            $placeholders = implode(',', array_fill(0, count($audiences), '?'));
+            $types = str_repeat('s', count($audiences));
+            $stmt = $conn->prepare(
+                "SELECT DISTINCT emailaddress, firstname, lastname
+                 FROM students_registration
+                 WHERE year IN ($placeholders)
+                   AND emailaddress IS NOT NULL
+                   AND emailaddress <> ''"
+            );
+            if ($stmt) {
+                $stmt->bind_param($types, ...$audiences);
+            }
+        }
+
+        if (!$stmt) {
+            error_log('[announcement] worker: failed to prepare recipient query. ' . $conn->error);
+            if ($createdConnection) {
+                $conn->close();
+            }
+            return false;
+        }
+
+        if (!$stmt->execute()) {
+            error_log('[announcement] worker: recipient query execution failed. ' . $stmt->error);
+            $stmt->close();
+            if ($createdConnection) {
+                $conn->close();
+            }
+            return false;
+        }
+
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $email = trim((string) ($row['emailaddress'] ?? ''));
+                if ($email === '') {
+                    continue;
+                }
+                $recipients[] = [
+                    'email' => $email,
+                    'name'  => trim((string) ($row['firstname'] ?? '') . ' ' . (string) ($row['lastname'] ?? '')),
+                ];
+            }
+            $result->close();
+        }
+        $stmt->close();
+
+        if (empty($recipients)) {
+            if ($appendDebugLog) {
+                @file_put_contents(
+                    $traceLog,
+                    sprintf("[%s] no recipients found\n", date('c')),
+                    FILE_APPEND
+                );
+            }
+            if ($createdConnection) {
+                $conn->close();
+            }
+            return false;
+        }
+
+        $imagePath = '';
+        if ($announcementId > 0) {
+            $imageStmt = $conn->prepare('SELECT image_path FROM student_announcements WHERE id = ? LIMIT 1');
+            if ($imageStmt) {
+                $imageStmt->bind_param('i', $announcementId);
+                if ($imageStmt->execute()) {
+                    $imageStmt->bind_result($dbImagePath);
+                    if ($imageStmt->fetch()) {
+                        $imagePath = trim((string) $dbImagePath);
+                    }
+                }
+                $imageStmt->close();
+            }
+        }
+
+        if ($imagePath === '' && $imagePathArg !== null && $imagePathArg !== '') {
+            $imagePath = trim($imagePathArg);
+        }
+
+        $absoluteImagePath = '';
+        if ($imagePath !== '') {
+            $normalized = ltrim($imagePath, '/');
+            $candidate = realpath(__DIR__ . '/../' . $normalized);
+            if ($candidate && is_file($candidate)) {
+                $absoluteImagePath = $candidate;
+            }
+        }
+
+        $mailBody = '<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">'
+            . '<p>' . nl2br(htmlspecialchars($body, ENT_QUOTES)) . '</p>';
+
+        $hasEmbeddedImage = false;
+        $embeddedCid = null;
+
+        if ($absoluteImagePath !== '') {
+            $embeddedCid = 'announcement_image_' . uniqid('', true);
+            $mailBody .= '<div style="margin-top:16px; text-align:center;">'
+                . '<img src="cid:' . htmlspecialchars($embeddedCid, ENT_QUOTES) . '" alt="Announcement Image" style="max-width:100%; border-radius:8px;" />'
+                . '</div>';
+            $hasEmbeddedImage = true;
+        }
+
+        $mailBody .= '</div>';
+
+        $batchSize = 40;
+        $batches = array_chunk($recipients, $batchSize);
+        $successfulBatches = 0;
+
+        foreach ($batches as $batchIndex => $batchRecipients) {
+            $mail = new PHPMailer(true);
+            try {
+                $mailerConfig = mailer_apply_defaults($mail);
+                $mail->setFrom(
+                    (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+                    (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+                );
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body = $mailBody;
+                $mail->AltBody = $absoluteImagePath !== '' ? ($body . "\n\n[See attached image]") : $body;
+
+                if ($hasEmbeddedImage && $embeddedCid !== null && $absoluteImagePath !== '') {
+                    $mail->addEmbeddedImage($absoluteImagePath, $embeddedCid, basename($absoluteImagePath));
+                }
+
+                if ($absoluteImagePath !== '') {
+                    $mail->addAttachment($absoluteImagePath);
+                }
+
+                $first = array_shift($batchRecipients);
+                if ($first !== null) {
+                    $mail->addAddress($first['email'], $first['name']);
+                }
+                foreach ($batchRecipients as $recipient) {
+                    $mail->addBCC($recipient['email'], $recipient['name']);
+                }
+
+                if ($appendDebugLog) {
+                    @file_put_contents(
+                        $traceLog,
+                        sprintf("[%s] sending batch %d with %d recipients\n", date('c'), $batchIndex + 1, count($batchRecipients) + 1),
+                        FILE_APPEND
+                    );
+                }
+
+                $logger = static function (string $line) use ($announcementId, $traceLog): void {
+                    @file_put_contents(
+                        $traceLog,
+                        sprintf("[%s] [Announcement:%d] %s\n", date('c'), $announcementId, $line),
+                        FILE_APPEND
+                    );
+                };
+
+                mailer_send_with_fallback(
+                    $mail,
+                    [],
+                    $logger,
+                    (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+                );
+                $successfulBatches++;
+            } catch (Exception $exception) {
+                $errorMessage = sprintf(
+                    '[announcement] batch %d failed: %s',
+                    $batchIndex + 1,
+                    $exception->getMessage()
+                );
+                error_log($errorMessage);
+                @file_put_contents(
+                    $tempDir . '/email_worker_errors.log',
+                    sprintf("[%s] %s\n", date('c'), $errorMessage),
+                    FILE_APPEND
+                );
+            }
+        }
+
+        if ($createdConnection) {
+            $conn->close();
+        }
+
+        return $successfulBatches > 0;
     }
-} catch (Exception $e) {
-    error_log('Announcement mailer failed: ' . $e->getMessage());
 }
 
-$stmt->close();
-$conn->close();
+if (php_sapi_name() === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
+    global $argv;
+    $subject = (string) ($argv[1] ?? '');
+    $body = (string) ($argv[2] ?? '');
+    $scope = (string) ($argv[3] ?? '');
+    $announcementId = (int) ($argv[4] ?? 0);
+    $imagePath = $argv[5] ?? null;
+
+    $result = portal_dispatch_announcement($subject, $body, $scope, $announcementId, $imagePath, null, true);
+    if ($result) {
+        echo "✅ Announcement worker completed.\n";
+    } else {
+        fwrite(STDERR, "❌ Announcement worker encountered an error.\n");
+        exit(1);
+    }
+}
