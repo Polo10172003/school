@@ -240,7 +240,12 @@ if (!function_exists('email_worker_process')) {
                 );
             };
 
-            mailer_send_with_fallback($mail, [], $logAttempt);
+            mailer_send_with_fallback(
+                $mail,
+                [],
+                $logAttempt,
+                (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+            );
         } catch (Exception $e) {
             $success = false;
             $message = 'Mailer Error: ' . $e->getMessage();

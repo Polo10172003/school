@@ -28,7 +28,16 @@ if (!function_exists('mailer_default_config')) {
                     'allow_self_signed' => true,
                 ],
             ],
+            'fallback_to_mail' => filter_var(
+                getenv('SMTP_ALLOW_MAIL_FALLBACK'),
+                FILTER_VALIDATE_BOOLEAN,
+                FILTER_NULL_ON_FAILURE
+            ),
         ];
+
+        if ($base['fallback_to_mail'] === null) {
+            $base['fallback_to_mail'] = true;
+        }
 
         $debugLevel = getenv('SMTP_DEBUG_LEVEL');
         if ($debugLevel !== false) {
@@ -123,7 +132,8 @@ if (!function_exists('mailer_default_config')) {
     function mailer_send_with_fallback(
         PHPMailer $mail,
         array $transports = [],
-        ?callable $logger = null
+        ?callable $logger = null,
+        bool $fallbackToMail = false
     ): void {
         $attempts = $transports ?: mailer_default_transports();
         $lastException = null;
@@ -163,6 +173,17 @@ if (!function_exists('mailer_default_config')) {
                     ));
                 }
             }
+        }
+
+        if ($fallbackToMail) {
+            if ($logger) {
+                $logger('All SMTP attempts failed, falling back to PHP mail() transport.');
+            }
+            $mail->isMail();
+            $mail->SMTPDebug = 0;
+            $mail->Debugoutput = 'error_log';
+            $mail->send();
+            return;
         }
 
         if ($lastException instanceof Exception) {

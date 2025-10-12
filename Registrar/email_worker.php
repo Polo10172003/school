@@ -51,7 +51,12 @@ if ($email) {
             );
         };
 
-        mailer_send_with_fallback($mail, [], $logWriter);
+        mailer_send_with_fallback(
+            $mail,
+            [],
+            $logWriter,
+            (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+        );
     } catch (Exception $e) {
         file_put_contents(
             __DIR__ . "/email_errors.log",

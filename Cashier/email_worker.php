@@ -533,7 +533,17 @@ if (!function_exists('cashier_email_worker_process')) {
         };
 
         try {
-            mailer_send_with_fallback($mail, [], $smtpLogger);
+            mailer_send_with_fallback(
+                $mail,
+                [],
+                $smtpLogger,
+                (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+            );
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] email sent to %s\n", date('c'), $email),
+                FILE_APPEND
+            );
         } catch (Exception $mailError) {
             $logLine = sprintf(
                 "[%s] Email worker error for student_id=%d: %s\n",
