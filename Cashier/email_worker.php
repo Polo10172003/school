@@ -145,12 +145,13 @@ if (!function_exists('cashier_email_worker_process')) {
         $dueThreshold = null;
         $shouldAttachSchedule = false;
 
-        $schedule_sent_at = $schedule_sent_at_raw;
-        if ($schedule_sent_at === '0000-00-00 00:00:00') {
-            $schedule_sent_at = null;
+        $schedulePreviouslySent = false;
+        if ($schedule_sent_at_raw === null || $schedule_sent_at_raw === '' || $schedule_sent_at_raw === '0000-00-00 00:00:00') {
+            $schedulePreviouslySent = false;
+        } else {
+            $normalizedScheduleSent = strtolower(trim((string) $schedule_sent_at_raw));
+            $schedulePreviouslySent = $normalizedScheduleSent !== 'pending';
         }
-
-        $schedulePreviouslySent = !empty($schedule_sent_at);
 
         if (!$schedulePreviouslySent) {
             $totalPaidPerGrade = [];
