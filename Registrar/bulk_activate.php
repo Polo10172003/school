@@ -65,9 +65,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
 
         // ✅ Background email worker (non-blocking)
 // 🔹 Email via background worker
-        $php_path = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: 'php');
-        $worker   = __DIR__ . "/email_worker.php";
-        exec("$php_path $worker $student_id > /dev/null 2>&1 &");
+        $workerPath = __DIR__ . '/email_worker.php';
+        $disabledRaw = (string) ini_get('disable_functions');
+        $disabledList = array_filter(array_map('trim', explode(',', $disabledRaw)));
+        $canUseExec = function_exists('exec') && !in_array('exec', $disabledList, true) && is_file($workerPath);
+
+        $emailDispatched = false;
+
+        if ($canUseExec) {
+            $phpPath = getenv('PHP_CLI_PATH') ?: (PHP_BINARY ?: '/usr/bin/php');
+            $cmdParts = [
+                escapeshellcmd($phpPath),
+                escapeshellarg($workerPath),
+                escapeshellarg((string) $student_id),
+            ];
+            $cmd = implode(' ', $cmdParts);
+            $execOutput = [];
+            $execStatus = 0;
+            exec($cmd . ' > /dev/null 2>&1', $execOutput, $execStatus);
+            if ($execStatus === 0) {
+                $emailDispatched = true;
+            }
+        }
+
+        if (!$emailDispatched) {
+            if (!function_exists('registrar_email_worker_process')) {
+                require_once __DIR__ . '/email_worker.php';
+            }
+            try {
+                $emailDispatched = registrar_email_worker_process((int) $student_id, $conn);
+            } catch (Throwable $workerError) {
+                error_log('[registrar] email worker exception for student ' . $student_id . ': ' . $workerError->getMessage());
+            }
+
+            if (!$emailDispatched) {
+                error_log('[registrar] email worker inline fallback failed for student ' . $student_id);
+            }
+        }
 
 
         $successCount++;
