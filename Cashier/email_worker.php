@@ -5,6 +5,7 @@ use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 
 if (!function_exists('cashier_normalize_grade_key')) {
     require_once __DIR__ . '/cashier_dashboard_logic.php';
@@ -457,24 +458,11 @@ if (!function_exists('cashier_email_worker_process')) {
         @file_put_contents($debugLogPath, $debugMessage, FILE_APPEND);
 
         $mail = new PHPMailer(true);
-        $mail->CharSet = 'UTF-8';
-        $mail->Encoding = 'base64';
-        $mail->isSMTP();
-        $mail->Host = 'smtp.hostinger.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'no-reply@rosariodigital.site';
-        $mail->Password = 'Dan@65933';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port = 465;
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer' => false,
-                'verify_peer_name' => false,
-                'allow_self_signed' => true,
-            ],
-        ];
-
-        $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
+        $mailerConfig = mailer_apply_defaults($mail);
+        $mail->setFrom(
+            (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+            (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+        );
         $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
         $mail->isHTML(true);
@@ -561,8 +549,16 @@ if (!function_exists('cashier_email_worker_process')) {
             }
         }
 
+        $smtpLogger = static function (string $line) use ($tempDir): void {
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] %s\n", date('c'), $line),
+                FILE_APPEND
+            );
+        };
+
         try {
-            $mail->send();
+            mailer_send_with_fallback($mail, [], $smtpLogger);
             @file_put_contents(
                 $tempDir . '/cashier_worker_trace.log',
                 sprintf("[%s] email sent to %s\n", date('c'), $email),

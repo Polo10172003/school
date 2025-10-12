@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -20,15 +21,11 @@ $stmt->close();
 if ($email) {
     $mail = new PHPMailer(true);
     try {
-        $mail->isSMTP();
-        $mail->Host = 'smtp.hostinger.com';
-        $mail->SMTPAuth = true;
-        $mail->Username = 'no-reply@rosariodigital.site';
-        $mail->Password = 'Dan@65933';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Port = 465;
-
-        $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
+        $mailerConfig = mailer_apply_defaults($mail);
+        $mail->setFrom(
+            (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+            (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+        );
         $mail->addAddress($email, "$firstname $lastname");
 
         $mail->isHTML(true);
@@ -46,9 +43,21 @@ if ($email) {
             <p>Thank you,<br>ESR Registrar’s Office</p>
         ";
 
-        $mail->send();
+        $logWriter = static function (string $line) use ($student_id): void {
+            file_put_contents(
+                __DIR__ . "/email_errors.log",
+                sprintf("[%s] [%d] %s\n", date('c'), $student_id, $line),
+                FILE_APPEND
+            );
+        };
+
+        mailer_send_with_fallback($mail, [], $logWriter);
     } catch (Exception $e) {
-        file_put_contents(__DIR__ . "/email_errors.log", "Mail Error for student $student_id: {$mail->ErrorInfo}\n", FILE_APPEND);
+        file_put_contents(
+            __DIR__ . "/email_errors.log",
+            sprintf("[%s] Mail Error for student %d: %s\n", date('c'), $student_id, $e->getMessage()),
+            FILE_APPEND
+        );
     }
 }
 ?>

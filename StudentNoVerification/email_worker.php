@@ -6,6 +6,7 @@ use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 require __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/mailer.php';
 
 if (!function_exists('email_worker_process')) {
     /**
@@ -195,15 +196,12 @@ if (!function_exists('email_worker_process')) {
         $success = true;
 
         try {
-            $mail->isSMTP();
-            $mail->Host       = 'smtp.hostinger.com';
-            $mail->SMTPAuth   = true;
-            $mail->Username   = 'no-reply@rosariodigital.site';
-            $mail->Password   = 'Dan@65933';
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-            $mail->Port       = 465;
+            $mailerConfig = mailer_apply_defaults($mail);
+            $mail->setFrom(
+                (string) ($mailerConfig['from_email'] ?? 'no-reply@rosariodigital.site'),
+                (string) ($mailerConfig['from_name'] ?? 'Escuela De Sto. Rosario')
+            );
 
-            $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
             $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
             $mail->isHTML(true);
@@ -231,13 +229,27 @@ if (!function_exists('email_worker_process')) {
         <p><strong>Important:</strong> Early registration records remain active for 14 days. If you are unable to visit the school to submit the requirements and complete the interview within that period, your application will be automatically removed from our system.</p>
         <p>If you have already submitted these documents, you may disregard this reminder.</p>
         <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>
-    ";
+        ";
 
             $mail->addAttachment($pdf_path, 'Enrollment_Form.pdf');
-            $mail->send();
+            $logAttempt = static function (string $line) use ($student_id): void {
+                @file_put_contents(
+                    __DIR__ . '/../temp/email_worker_trace.log',
+                    sprintf("[%s] [Student:%d] %s\n", date('c'), $student_id, $line),
+                    FILE_APPEND
+                );
+            };
+
+            mailer_send_with_fallback($mail, [], $logAttempt);
         } catch (Exception $e) {
             $success = false;
-            error_log('Mailer Error: ' . $mail->ErrorInfo);
+            $message = 'Mailer Error: ' . $e->getMessage();
+            error_log($message);
+            @file_put_contents(
+                __DIR__ . '/../temp/email_worker_errors.log',
+                sprintf("[%s] [Student:%d] %s\n", date('c'), $student_id, $message),
+                FILE_APPEND
+            );
         }
 
         if (is_file($pdf_path)) {
