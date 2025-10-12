@@ -12,7 +12,7 @@ if (!function_exists('mailer_default_config')) {
      */
     function mailer_default_config(): array
     {
-        return [
+        $base = [
             'host'        => getenv('SMTP_HOST') ?: 'smtp.hostinger.com',
             'username'    => getenv('SMTP_USERNAME') ?: 'no-reply@rosariodigital.site',
             'password'    => getenv('SMTP_PASSWORD') ?: 'Dan@65933',
@@ -29,6 +29,18 @@ if (!function_exists('mailer_default_config')) {
                 ],
             ],
         ];
+
+        $debugLevel = getenv('SMTP_DEBUG_LEVEL');
+        if ($debugLevel !== false) {
+            $base['debug_level'] = (int) $debugLevel;
+        }
+
+        $debugLog = getenv('SMTP_DEBUG_LOG');
+        if ($debugLog !== false) {
+            $base['debug_log'] = $debugLog;
+        }
+
+        return $base;
     }
 
     /**
@@ -52,10 +64,25 @@ if (!function_exists('mailer_default_config')) {
         $mail->Username = (string) $config['username'];
         $mail->Password = (string) $config['password'];
         $mail->Timeout = (int) $config['timeout'];
-        $mail->SMTPOptions = $config['smtp_options'];
+        $mail->SMTPOptions = $config['smtp_options'] ?? [];
 
         if (!empty($config['from_email'])) {
             $mail->setFrom((string) $config['from_email'], (string) ($config['from_name'] ?? ''));
+        }
+
+        if (!empty($config['debug_level'])) {
+            $mail->SMTPDebug = (int) $config['debug_level'];
+        }
+
+        if (!empty($config['debug_log'])) {
+            $logPath = (string) $config['debug_log'];
+            $mail->Debugoutput = static function (string $str, int $level) use ($logPath): void {
+                @file_put_contents(
+                    $logPath,
+                    sprintf("[%s][lvl:%d] %s\n", date('c'), $level, $str),
+                    FILE_APPEND
+                );
+            };
         }
 
         return $config;
@@ -70,23 +97,16 @@ if (!function_exists('mailer_default_config')) {
     {
         return [
             [
-                'label'  => 'smtps://465',
-                'secure' => PHPMailer::ENCRYPTION_SMTPS,
-                'port'   => 465,
-                'smtp_auto_tls' => false,
-            ],
-            [
                 'label'  => 'starttls://587',
                 'secure' => PHPMailer::ENCRYPTION_STARTTLS,
-                'port'   => 587,
+                'port'   => (int) (getenv('SMTP_PORT_TLS') ?: 587),
                 'smtp_auto_tls' => true,
-                'options' => [
-                    'ssl' => [
-                        'verify_peer'       => true,
-                        'verify_peer_name'  => true,
-                        'allow_self_signed' => false,
-                    ],
-                ],
+            ],
+            [
+                'label'  => 'smtps://465',
+                'secure' => PHPMailer::ENCRYPTION_SMTPS,
+                'port'   => (int) (getenv('SMTP_PORT_SSL') ?: 465),
+                'smtp_auto_tls' => false,
             ],
         ];
     }
@@ -120,13 +140,6 @@ if (!function_exists('mailer_default_config')) {
             $mail->SMTPAutoTLS = isset($transport['smtp_auto_tls'])
                 ? (bool) $transport['smtp_auto_tls']
                 : ($mail->SMTPSecure === PHPMailer::ENCRYPTION_STARTTLS);
-
-            if (!empty($transport['options']) && is_array($transport['options'])) {
-                $mail->SMTPOptions = array_replace_recursive(
-                    $mail->SMTPOptions ?? [],
-                    $transport['options']
-                );
-            }
 
             if ($logger) {
                 $logger(sprintf('Attempting SMTP via %s', $label));
