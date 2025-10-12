@@ -21,14 +21,14 @@ if ($email) {
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com'; 
+        $mail->Host = 'smtp.hostinger.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'deadpoolvictorio@gmail.com'; 
-        $mail->Password = 'ldcmeapjfuonxypu';
-        $mail->SMTPSecure = 'tls';
-        $mail->Port = 587;
+        $mail->Username = 'no-reply@rosariodigital.site';
+        $mail->Password = 'Dan@65933';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port = 465;
 
-        $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+        $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
         $mail->addAddress($email, "$firstname $lastname");
 
         $mail->isHTML(true);

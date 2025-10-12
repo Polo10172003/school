@@ -433,12 +433,12 @@ if (!function_exists('cashier_email_worker_process')) {
         $mail->CharSet = 'UTF-8';
         $mail->Encoding = 'base64';
         $mail->isSMTP();
-        $mail->Host = 'smtp.gmail.com';
+        $mail->Host = 'smtp.hostinger.com';
         $mail->SMTPAuth = true;
-        $mail->Username = 'deadpoolvictorio@gmail.com';
-        $mail->Password = 'ldcmeapjfuonxypu';
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port = 587;
+        $mail->Username = 'no-reply@rosariodigital.site';
+        $mail->Password = 'Dan@65933';
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port = 465;
         $mail->SMTPOptions = [
             'ssl' => [
                 'verify_peer' => false,
@@ -447,7 +447,7 @@ if (!function_exists('cashier_email_worker_process')) {
             ],
         ];
 
-        $mail->setFrom('deadpoolvictorio@gmail.com', 'Escuela De Sto. Rosario');
+        $mail->setFrom('no-reply@rosariodigital.site', 'Escuela De Sto. Rosario');
         $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
         $mail->isHTML(true);
