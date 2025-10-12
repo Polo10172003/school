@@ -1386,7 +1386,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
 
                 $inlineResult = false;
                 try {
-                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn);
+                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn, true);
                 } catch (Throwable $workerError) {
                     error_log('[cashier] email worker threw exception for student ' . $student_id . ' payment ' . $recordedPaymentId . ': ' . $workerError->getMessage());
                 }

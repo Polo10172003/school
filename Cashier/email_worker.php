@@ -95,6 +95,12 @@ if (!function_exists('cashier_email_worker_process')) {
         ");
         if (!$stmt) {
             error_log('Cashier email worker: failed to prepare student query.');
+
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] prepare failed for student %d: %s\n", date('c'), $student_id, $conn->error),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
@@ -118,6 +124,11 @@ if (!function_exists('cashier_email_worker_process')) {
 
         if (!$email) {
             error_log('Cashier email worker: student record missing email.');
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] student %d has no email, aborting.\n", date('c'), $student_id),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
@@ -530,10 +541,20 @@ if (!function_exists('cashier_email_worker_process')) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
                 if (!$updateSchedule->execute()) {
                     error_log('[cashier] email worker failed to update schedule_sent_at for student ' . $student_id . ': ' . $updateSchedule->error);
+                    @file_put_contents(
+                        $tempDir . '/cashier_worker_trace.log',
+                        sprintf("[%s] failed updating schedule_sent_at for student %d: %s\n", date('c'), $student_id, $updateSchedule->error),
+                        FILE_APPEND
+                    );
                 }
                 $updateSchedule->close();
             } else {
                 error_log('[cashier] email worker could not prepare schedule update for student ' . $student_id . ': ' . $conn->error);
+                @file_put_contents(
+                    $tempDir . '/cashier_worker_trace.log',
+                    sprintf("[%s] prepare schedule update failed for student %d: %s\n", date('c'), $student_id, $conn->error),
+                    FILE_APPEND
+                );
             }
         }
 
