@@ -12,6 +12,14 @@ if (!function_exists('mailer_default_config')) {
      */
     function mailer_default_config(): array
     {
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
+            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+        }
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        }
+
         $base = [
             'host'        => getenv('SMTP_HOST') ?: 'smtp.hostinger.com',
             'username'    => getenv('SMTP_USERNAME') ?: 'no-reply@rosariodigital.site',
@@ -26,6 +34,15 @@ if (!function_exists('mailer_default_config')) {
                     'verify_peer'       => false,
                     'verify_peer_name'  => false,
                     'allow_self_signed' => true,
+                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
+                    'crypto_method'     => $cryptoMethod,
+                ],
+                'tls' => [
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
+                    'crypto_method'     => $cryptoMethod,
                 ],
             ],
             'fallback_to_mail' => filter_var(
