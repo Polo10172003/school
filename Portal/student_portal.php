@@ -102,7 +102,26 @@ $portalSelectedPricing = $_SESSION[$portalPricingSessionKey] ?? null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['start_portal_enrollment']) && $canStartPortalEnrollment) {
         $_SESSION[$portalEnrollmentSessionKey] = true;
-        $clearPlans = null;
+        unset($_SESSION[$portalPlanSessionKey], $_SESSION[$portalPricingSessionKey]);
+
+        if ($targetSchoolYear !== '' && $targetSchoolYear !== $student_school_year) {
+            $updateSchoolYear = $conn->prepare('UPDATE students_registration SET school_year = ? WHERE id = ?');
+            if ($updateSchoolYear) {
+                $updateSchoolYear->bind_param('si', $targetSchoolYear, $student_id);
+                $updateSchoolYear->execute();
+                $updateSchoolYear->close();
+                $student_school_year = $targetSchoolYear;
+            }
+        }
+
+        if ($targetSchoolYear !== '') {
+            $deletePlans = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND school_year = ?');
+            if ($deletePlans) {
+                $deletePlans->bind_param('is', $student_id, $targetSchoolYear);
+                $deletePlans->execute();
+                $deletePlans->close();
+            }
+        }
 
         header('Location: ' . $portalBasePath . 'student_portal.php');
         exit();
@@ -115,6 +134,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $planGradeLevel = trim((string) ($_POST['plan_grade_level'] ?? ''));
         $planPricingCategory = trim((string) ($_POST['plan_pricing_category'] ?? ''));
         $planStudentType = trim((string) ($_POST['plan_student_type'] ?? ''));
+
+        if ($planSchoolYear === '' && $targetSchoolYear !== '') {
+            $planSchoolYear = $targetSchoolYear;
+        }
 
         if ($selectedPlanType !== '' && $tuitionFeeId > 0) {
             $planContext = [
@@ -528,6 +551,7 @@ $financial_snapshot = cashier_dashboard_build_student_financial($conn, (int) $st
     'pricing_student' => $student_id,
     'student_row' => $studentRowData,
     'require_explicit_plan' => ($portalEnrollmentReady && !$portalSelectedPlan && $canStartPortalEnrollment),
+    'target_school_year' => $targetSchoolYear,
 ]);
 
 $finance_views = [];

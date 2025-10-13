@@ -462,23 +462,43 @@ function cashier_dashboard_calculate_previous_plan_outstanding(mysqli $conn, int
                 continue;
             }
             $paidStmt->bind_param('is', $studentId, $selSchoolYear);
+            $paidStmt->execute();
+            $paidStmt->bind_result($paidTotal);
+            $paidStmt->fetch();
+            $paidStmt->close();
         } else {
-            $paidStmt = $conn->prepare(
-                "SELECT COALESCE(SUM(amount),0)
-                 FROM student_payments
-                 WHERE student_id = ?
-                   AND LOWER(payment_status) IN ('paid','completed','approved','cleared')
-                   AND (school_year IS NULL OR school_year = '')"
-            );
-            if (!$paidStmt) {
-                continue;
+            $paidTotal = 0.0;
+            $gradeCandidates = [];
+            if ($selectionGradeKey !== '') {
+                $gradeCandidates = cashier_grade_synonyms($selectionGradeKey);
             }
-            $paidStmt->bind_param('i', $studentId);
+            if ($selGradeLevel !== '') {
+                $gradeCandidates[] = $selGradeLevel;
+            }
+            $gradeCandidates = array_values(array_unique(array_filter($gradeCandidates)));
+            $gradeCandidates = array_map('cashier_dashboard_normalize_grade_sql', $gradeCandidates);
+
+            if (!empty($gradeCandidates)) {
+                $placeholders = implode(',', array_fill(0, count($gradeCandidates), '?'));
+                $sqlPaid = "
+                    SELECT COALESCE(SUM(amount),0)
+                    FROM student_payments
+                    WHERE student_id = ?
+                      AND LOWER(payment_status) IN ('paid','completed','approved','cleared')
+                      AND LOWER(REPLACE(REPLACE(REPLACE(grade_level, ' ', ''), '-', ''), '_', '')) IN ($placeholders)
+                ";
+                $paidStmt = $conn->prepare($sqlPaid);
+                if ($paidStmt) {
+                    $types = 'i' . str_repeat('s', count($gradeCandidates));
+                    $params = array_merge([$studentId], $gradeCandidates);
+                    $paidStmt->bind_param($types, ...$params);
+                    $paidStmt->execute();
+                    $paidStmt->bind_result($paidTotal);
+                    $paidStmt->fetch();
+                    $paidStmt->close();
+                }
+            }
         }
-        $paidStmt->execute();
-        $paidStmt->bind_result($paidTotal);
-        $paidStmt->fetch();
-        $paidStmt->close();
 
         $outstanding = max($planTotal - (float) $paidTotal, 0.0);
         if ($outstanding <= 0.009) {
@@ -743,6 +763,13 @@ function cashier_dashboard_guess_plan_type_for_grade(array $paidByGrade, array $
 
     arsort($planCounts);
     return array_key_first($planCounts);
+}
+
+function cashier_dashboard_normalize_grade_sql(string $value): string
+{
+    $value = strtolower(trim($value));
+    $value = preg_replace('/[^a-z0-9]/', '', $value);
+    return $value;
 }
 
 /**
