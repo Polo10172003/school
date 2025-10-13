@@ -40,18 +40,16 @@ if (!$guide) {
     registrar_guides_delete_redirect('guide_delete_error', 'not_found');
 }
 
-// Delete physical file only for manual uploads.
-if ($guide['source'] === 'manual') {
-    try {
-        $uploadDir = registrar_guides_upload_dir();
-        $diskPath = $uploadDir . '/' . $guide['file_name'];
-        if (is_file($diskPath)) {
-            @unlink($diskPath);
-        }
-    } catch (Throwable $e) {
-        error_log($e->getMessage());
-        registrar_guides_delete_redirect('guide_delete_error', 'storage_issue');
+// Attempt to delete the stored file if present on disk.
+try {
+    $uploadDir = registrar_guides_upload_dir();
+    $diskPath = $uploadDir . '/' . $guide['file_name'];
+    if (is_file($diskPath)) {
+        @unlink($diskPath);
     }
+} catch (Throwable $e) {
+    error_log($e->getMessage());
+    registrar_guides_delete_redirect('guide_delete_error', 'storage_issue');
 }
 
 if (!registrar_guides_delete($conn, $guideId)) {
@@ -59,4 +57,3 @@ if (!registrar_guides_delete($conn, $guideId)) {
 }
 
 registrar_guides_delete_redirect('guide_deleted');
-

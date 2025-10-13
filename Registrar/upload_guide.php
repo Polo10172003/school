@@ -85,9 +85,7 @@ try {
         $uniqueName,
         $originalName,
         $fileSize,
-        $uploadedBy,
-        'manual',
-        null
+        $uploadedBy
     );
 } catch (Throwable $e) {
     error_log($e->getMessage());
@@ -96,4 +94,3 @@ try {
 }
 
 registrar_guides_redirect('guide_uploaded');
-
