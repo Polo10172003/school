@@ -1,4 +1,5 @@
 <?php
+$page_title = 'Tuition Fees';
 include 'db_connection.php';
 
 $gradeOptions = [
@@ -85,17 +86,11 @@ $studentTypeOptions = [
 if (!array_key_exists($selectedType, $studentTypeOptions)) {
     $selectedType = 'all';
 }
+
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tuition Fees</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <style>
-        body.fees-body {
+<style>
+        body {
             background: linear-gradient(180deg, rgba(20, 90, 50, 0.08) 0%, rgba(255, 255, 255, 0.9) 55%);
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             color: #2f3e46;
@@ -325,8 +320,6 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
             }
         }
     </style>
-</head>
-<body class="fees-body">
     <main class="fees-main">
         <div class="container">
             <section class="hero-card">
@@ -812,6 +805,4 @@ if (!array_key_exists($selectedType, $studentTypeOptions)) {
             });
         });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+<?php include 'includes/footer.php'; ?>
