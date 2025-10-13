@@ -234,11 +234,6 @@ if ($grade_filter) {
       <span class="dashboard-section-title">Grade Dropbox</span>
       <h2>Academic Performance Dropbox</h2>
       <p class="text-muted">Workbooks uploaded by advisers appear below. Need updates? Ask the assigned adviser to submit a new file through their portal.</p>
-      <div class="grade-dropbox-callout">
-        </div>
-      
-      </div>
-
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
         <label for="dropbox_grade_filter">Filter by Grade</label>
         <select id="dropbox_grade_filter" name="grade_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;">
