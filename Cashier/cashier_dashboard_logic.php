@@ -2738,6 +2738,18 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         $guessedPrevPlan = cashier_dashboard_guess_plan_type_for_grade($paidByGrade, $pendingByGrade, $previous_grade_key);
         if ($guessedPrevPlan !== null) {
             $previous_stored_plan = $guessedPrevPlan;
+            cashier_dashboard_save_plan_selection(
+                $conn,
+                $studentId,
+                (int) $previous_fee['id'],
+                $previous_stored_plan,
+                [
+                    'school_year' => '',
+                    'grade_level' => $previous_label ?? $gradeLevel,
+                    'pricing_category' => $previous_pricing_variant_display ?? '',
+                    'student_type' => $studentType,
+                ]
+            );
         }
     }
 
@@ -2848,6 +2860,19 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     }
 
     $previous_outstanding = max($previous_outstanding_base + $previousPlanOutstanding, 0.0);
+
+    if ($previous_outstanding > 0.0 && $previous_grade_key) {
+        $hasPendingForPrevious = false;
+        foreach (cashier_grade_synonyms($previous_grade_key) as $synonym) {
+            if (!empty($pendingByGrade[$synonym])) {
+                $hasPendingForPrevious = true;
+                break;
+            }
+        }
+        if (!$hasPendingForPrevious) {
+            $previous_outstanding = 0.0;
+        }
+    }
 
     $remaining_current_paid = max($paid_current_total - $allocated_previous_from_current, 0.0);
     $remaining_unassigned_total = max($paid_unassigned_total - $allocated_previous_from_unassigned, 0.0);
