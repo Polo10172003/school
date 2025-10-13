@@ -36,6 +36,9 @@ if (!function_exists('cashier_email_worker_process')) {
         $payment_type = trim($payment_type);
         $status = trim($status);
         $amountFloat = (float) $amount;
+        $statusNormalized = strtolower($status);
+        $approvedStatuses = ['paid', 'completed', 'approved', 'cleared'];
+        $isPaymentApproved = in_array($statusNormalized, $approvedStatuses, true);
 
         if ($student_id <= 0) {
             error_log('Cashier email worker: invalid student id.');
@@ -192,8 +195,7 @@ if (!function_exists('cashier_email_worker_process')) {
             $schedulePreviouslySent = $normalizedScheduleSent !== 'pending';
         }
 
-        try {
-            if (!$schedulePreviouslySent) {
+        if (!$schedulePreviouslySent) {
                 $totalPaidPerGrade = [];
                 $paymentsStmt = $conn->prepare('
                 SELECT amount, grade_level, created_at
@@ -484,23 +486,12 @@ if (!function_exists('cashier_email_worker_process')) {
                 }
             }
         }
-        } catch (Throwable $scheduleError) {
+
+        if (!$isPaymentApproved) {
+            $shouldAttachSchedule = false;
             $scheduleHtml = '';
             $scheduleIncluded = false;
             $scheduleSentNow = null;
-            $schedulePreviouslySent = false;
-            $shouldAttachSchedule = false;
-            $currentGradePaidCount = 0;
-            $currentGradePaidSum = 0.0;
-            $dueThreshold = null;
-            $logLine = sprintf(
-                "[%s] [cashier] schedule build failed for student %d: %s\n",
-                date('c'),
-                $student_id,
-                $scheduleError->getMessage()
-            );
-            error_log(trim($logLine));
-            @file_put_contents($tempDir . '/email_worker_errors.log', $logLine, FILE_APPEND);
         }
 
         $debugLogPath = $tempDir . '/email_worker_debug.log';
@@ -539,60 +530,83 @@ if (!function_exists('cashier_email_worker_process')) {
         $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
         $mail->isHTML(true);
-        $mail->Subject = 'Payment Receipt and Portal Access';
+        $studentFullNameEsc = htmlspecialchars(trim($firstname . ' ' . $lastname), ENT_QUOTES);
+        $studentNumberEsc = htmlspecialchars((string) ($student_number ?: 'Pending Assignment'), ENT_QUOTES);
+        $paymentTypeEsc = htmlspecialchars((string) $payment_type, ENT_QUOTES);
+        $statusDisplay = strtoupper($statusNormalized);
+        $amountDisplay = '&#8369;' . number_format($amountFloat, 2);
+        $orDisplay = htmlspecialchars($or_number ?? 'N/A', ENT_QUOTES);
+        $dateIssued = date('F j, Y');
 
-        $mail->Body = "
-            <h2 style='color:#2c3e50;'>Payment Receipt Confirmation</h2>
-            <p>Dear <strong>" . htmlspecialchars($firstname . ' ' . $lastname, ENT_QUOTES) . "</strong>,</p>
-            <p>We have received your payment for the following:</p>
+        $paymentSummaryTable = "
             <div style='border:2px solid #333; padding:15px; border-radius:8px; background:#f9f9f9; margin:20px 0;'>
                 <h3 style='text-align:center; margin:0;'>Escuela De Sto. Rosario</h3>
-                <h4 style='text-align:center; margin:0;'>Official Receipt</h4>
-                <p style='text-align:center; font-size:12px; margin:5px 0 15px;'>This serves as your official proof of payment</p>
-                <table style='width:100%; border-collapse:collapse;'>
+                <h4 style='text-align:center; margin:0;'>Payment Details</h4>
+                <table style='width:100%; border-collapse:collapse; margin-top:12px;'>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Student Name</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($firstname . ' ' . $lastname, ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$studentFullNameEsc}</td>
                     </tr>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Student Number</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($student_number ?: 'Pending Assignment', ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$studentNumberEsc}</td>
                     </tr>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Payment Type</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($payment_type, ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$paymentTypeEsc}</td>
                     </tr>
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>Amount Paid</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>&#8369;" . number_format($amountFloat, 2) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>Amount</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$amountDisplay}</td>
                     </tr>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Status</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($status, ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$statusDisplay}</td>
                     </tr>
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>Date Issued</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . date('F j, Y') . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>Date Processed</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$dateIssued}</td>
                     </tr>
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>OR Number</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($or_number ?? 'N/A', ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>Submitted OR / Reference</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'>{$orDisplay}</td>
                     </tr>
                 </table>
             </div>
-            <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
-            <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
         ";
 
-        if ($scheduleHtml !== '') {
-            $mail->Body .= $scheduleHtml;
+        if ($isPaymentApproved) {
+            $mail->Subject = 'Payment Receipt and Portal Access';
+            $mail->Body = "
+                <h2 style='color:#2c3e50;'>Payment Receipt Confirmation</h2>
+                <p>Dear <strong>{$studentFullNameEsc}</strong>,</p>
+                <p>Thank you for completing your {$paymentTypeEsc} payment. Below is a copy of your official receipt.</p>
+                {$paymentSummaryTable}
+                <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
+                <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
+            ";
+
+            if ($scheduleHtml !== '') {
+                $mail->Body .= $scheduleHtml;
+            }
+        } else {
+            $mail->Subject = 'Payment Verification Required';
+            $mail->Body = "
+                <h2 style='color:#c0392b;'>Payment Could Not Be Approved</h2>
+                <p>Dear <strong>{$studentFullNameEsc}</strong>,</p>
+                <p>We reviewed the {$paymentTypeEsc} payment you submitted for {$amountDisplay}, but we could not approve it. The request is currently marked as <strong>{$statusDisplay}</strong>.</p>
+                {$paymentSummaryTable}
+                <p>This usually happens when the reference number or uploaded proof does not match our records. Please visit the cashier&apos;s office or call <strong>(0969) 354-2870</strong> to clarify your payment. Bringing the original receipt or deposit slip will help us resolve the issue quickly.</p>
+                <p>If you already paid successfully, you may resubmit the correct payment details through the student portal once the issue is resolved.</p>
+                <p>Thank you,<br>Escuela De Sto. Rosario Cashier&apos;s Office</p>
+            ";
         }
 
-        if ($shouldAttachSchedule && $scheduleSentNow === null) {
+        if ($isPaymentApproved && $shouldAttachSchedule && $scheduleSentNow === null) {
             $scheduleSentNow = date('Y-m-d H:i:s');
         }
 
-        if ($shouldAttachSchedule && !$schedulePreviouslySent && $scheduleColumnAvailable && $scheduleSentNow !== null) {
+        if ($isPaymentApproved && $shouldAttachSchedule && !$schedulePreviouslySent && $scheduleColumnAvailable && $scheduleSentNow !== null) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
