@@ -2910,21 +2910,31 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
 
         $paidRowsYear = $paidByYear[$yearKey] ?? [];
-        if ($yearKey !== '__empty__' && !empty($paidByYear['__empty__'])) {
-            $unassignedYearRows = $paidByYear['__empty__'];
-            $selectionGradeSynonyms = $selectionGradeKey !== '' ? cashier_grade_synonyms($selectionGradeKey) : [];
-            foreach ($unassignedYearRows as $candidateRow) {
-                $normalizedCandidate = '';
-                if (!empty($candidateRow['grade_level'])) {
-                    $normalizedCandidate = cashier_normalize_grade_key((string) $candidateRow['grade_level']);
-                }
-                if ($selectionGradeKey !== '' && $normalizedCandidate !== '' && in_array($normalizedCandidate, $selectionGradeSynonyms, true)) {
-                    $paidRowsYear[] = $candidateRow;
-                } elseif ($selectionGradeKey === '' && $normalizedCandidate === '') {
-                    $paidRowsYear[] = $candidateRow;
-                }
+        $seenPaymentIds = [];
+        foreach ($paidRowsYear as $paidRowYear) {
+            $pid = $paidRowYear['id'] ?? null;
+            if ($pid !== null) {
+                $seenPaymentIds[$pid] = true;
             }
         }
+
+        $selectionSynonyms = $selectionGradeKey !== '' ? cashier_grade_synonyms($selectionGradeKey) : [];
+        foreach ($selectionSynonyms as $synGrade) {
+            if (empty($paidByGrade[$synGrade])) {
+                continue;
+            }
+            foreach ($paidByGrade[$synGrade] as $candidateRow) {
+                $pidCandidate = $candidateRow['id'] ?? null;
+                if ($pidCandidate !== null && isset($seenPaymentIds[$pidCandidate])) {
+                    continue;
+                }
+                if ($pidCandidate !== null) {
+                    $seenPaymentIds[$pidCandidate] = true;
+                }
+                $paidRowsYear[] = $candidateRow;
+            }
+        }
+
         $paidTotalYear = 0.0;
         foreach ($paidRowsYear as $paidRowYear) {
             $paidTotalYear += (float) ($paidRowYear['amount'] ?? 0);
