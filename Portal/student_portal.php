@@ -579,7 +579,7 @@ if ($gender_normalized === 'male') {
 
 
 $pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
-$escGrades = ['grade7','grade8','grade9','grade10','grade11','grade12'];
+$escGrades = ['grade11','grade12'];
 if ($pricing_variant_param === null) {
     if (!empty($portalSelectedPricing)) {
         $pricing_variant_param = strtolower(trim($portalSelectedPricing));

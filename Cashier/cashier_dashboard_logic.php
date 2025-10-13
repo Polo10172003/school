@@ -428,24 +428,18 @@ function cashier_dashboard_calculate_previous_plan_outstanding(mysqli $conn, int
         }
 
         if (!isset($planCache[$feeId])) {
-            $planCache[$feeId] = cashier_dashboard_fetch_student_plans($conn, $feeId);
+            $planCache[$feeId] = cashier_dashboard_fetch_fee_by_id($conn, $feeId);
         }
-        $planMap = $planCache[$feeId];
+        $feeRow = $planCache[$feeId];
+        if (!$feeRow) {
+            continue;
+        }
+        $planMap = $feeRow['plans'] ?? [];
         if (empty($planMap) || !isset($planMap[$planTypeKey])) {
             continue;
         }
 
-        $planData = $planMap[$planTypeKey];
-        $planBase = $planData['base'] ?? [];
-        $planTotal = (float) ($planBase['overall_total'] ?? 0.0);
-        if ($planTotal <= 0.0) {
-            $planTotal = (float) ($planBase['due_total'] ?? 0.0);
-            if (!empty($planData['entries']) && is_array($planData['entries'])) {
-                foreach ($planData['entries'] as $entryInfo) {
-                    $planTotal += (float) ($entryInfo['amount'] ?? 0);
-                }
-            }
-        }
+        $planTotal = cashier_determine_plan_total($feeRow, $planTypeKey);
         if ($planTotal <= 0.0) {
             continue;
         }
@@ -2112,6 +2106,29 @@ function cashier_fetch_plans_for_fee(mysqli $conn, int $feeId): array
 
     return $plans;
 }
+
+function cashier_dashboard_fetch_fee_by_id(mysqli $conn, int $feeId): ?array
+{
+    if ($feeId <= 0) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('SELECT * FROM tuition_fees WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        return null;
+    }
+    $stmt->bind_param('i', $feeId);
+    $stmt->execute();
+    $fee = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$fee) {
+        return null;
+    }
+
+    $fee['plans'] = cashier_fetch_plans_for_fee($conn, $feeId);
+    return $fee;
+}
 /**
  * Build a unified plan breakdown for a given tuition fee package.
  * Mirrors tuition_fees.php logic but reusable in cashier dashboard.
@@ -2868,9 +2885,13 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             continue;
         }
         if (!isset($planCache[$feeIdSel])) {
-            $planCache[$feeIdSel] = cashier_dashboard_fetch_student_plans($conn, $feeIdSel);
+            $planCache[$feeIdSel] = cashier_dashboard_fetch_fee_by_id($conn, $feeIdSel);
         }
-        $planMap = $planCache[$feeIdSel];
+        $feeRowSel = $planCache[$feeIdSel];
+        if (!$feeRowSel) {
+            continue;
+        }
+        $planMap = $feeRowSel['plans'] ?? [];
         if (empty($planMap) || !isset($planMap[$planTypeSel])) {
             continue;
         }
@@ -2880,16 +2901,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             continue;
         }
         $processedPlanKeys[$planKeyProcessed] = true;
-        $planBase = $planInfo['base'] ?? [];
-        $planTotal = (float) ($planBase['overall_total'] ?? 0.0);
-        if ($planTotal <= 0.0) {
-            $planTotal = (float) ($planBase['due_total'] ?? 0.0);
-            if (!empty($planInfo['entries']) && is_array($planInfo['entries'])) {
-                foreach ($planInfo['entries'] as $entryInfo) {
-                    $planTotal += (float) ($entryInfo['amount'] ?? 0);
-                }
-            }
-        }
+        $planTotal = cashier_determine_plan_total($feeRowSel, $planTypeSel);
         if ($planTotal <= 0.0) {
             continue;
         }
