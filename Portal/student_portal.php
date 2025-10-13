@@ -718,6 +718,10 @@ unset($finance_view_ref);
         color: #145A32;
     }
 
+    .portal-academic-status.status-failed {
+        color: #b91c1c;
+    }
+
     .summary-tile {
         background: rgba(255, 255, 255, 0.9);
         border-radius: 14px;
@@ -877,6 +881,7 @@ unset($finance_view_ref);
                             <li><i class="bi bi-mortarboard"></i> <span>Grade Level: <strong><?php echo htmlspecialchars($year); ?></strong></span></li>
                             <li><i class="bi bi-people"></i> <span>Section: <strong><?php echo htmlspecialchars($display_section); ?></strong></span></li>
                             <li><i class="bi bi-person-badge"></i> <span>Adviser: <strong><?php echo htmlspecialchars($display_adviser); ?></strong></span></li>
+                            <li><i class="bi bi-clipboard-data"></i> <span>Academic Status: <strong class="portal-academic-status <?php echo $academicStatusLower === 'failed' ? 'status-failed' : ''; ?>"><?php echo htmlspecialchars(ucfirst($academicStatusLower)); ?></strong></span></li>
                             <?php if ($gender_normalized): ?>
                                 <li><i class="bi bi-gender-<?php echo $gender_normalized === 'female' ? 'female' : 'male'; ?>"></i> <span>Gender: <strong><?php echo htmlspecialchars(ucfirst($gender_normalized)); ?></strong></span></li>
                             <?php endif; ?>
