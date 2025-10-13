@@ -321,11 +321,8 @@ if ($grade_filter) {
                   <td><?= htmlspecialchars($rawContributor) ?></td>
                   <td class="dashboard-table-actions">
                     <?php $fileUrl = '../' . registrar_guides_public_path($guide['file_name']); ?>
-                    <button type="button"
-                            class="preview-guide-btn"
-                            data-guide-url="<?= htmlspecialchars($fileUrl) ?>"
-                            data-guide-name="<?= htmlspecialchars($guide['original_name']) ?>">Preview</button>
-                    <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" rel="noopener">Download</a>
+                    <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" rel="noopener noreferrer">Preview</a>
+                    <a href="<?= htmlspecialchars($fileUrl) ?>" download="<?= htmlspecialchars($guide['original_name']) ?>">Download</a>
                     <form action="delete_guide.php" method="POST" style="display:inline;" onsubmit="return confirm('Remove this workbook from the dropbox?');">
                       <input type="hidden" name="guide_id" value="<?= (int) $guide['id'] ?>">
                       <button type="submit">Remove</button>
@@ -546,20 +543,6 @@ if (masterCheckbox) {
 });
 
 </script>
-<div id="guide-preview-overlay" class="guide-preview-overlay" hidden>
-  <div class="guide-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="guide-preview-title">
-    <button type="button" class="guide-preview-close" aria-label="Close preview">&times;</button>
-    <div class="guide-preview-header">
-      <h3 id="guide-preview-title" class="guide-preview-title"></h3>
-      <p class="guide-preview-subtitle">Previewing the first sheet of the workbook.</p>
-    </div>
-    <div id="guide-preview-content" class="guide-preview-content">
-      <p class="guide-preview-loading">Loading…</p>
-    </div>
-  </div>
-</div>
-
-<script src="../assets/js/guide-preview.js"></script>
 <?php $conn->close(); ?>
   </main>
 </div>
