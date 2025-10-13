@@ -29,7 +29,9 @@ if (!function_exists('registrar_format_bytes')) {
 <head>
   <meta charset="UTF-8">
   <title>Registrar Dashboard</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="../assets/css/dashboard.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css">
 </head>
 <body class="dashboard-body">
 <button class="dashboard-toggle" type="button" aria-label="Toggle navigation" onclick="document.querySelector('.dashboard-sidebar').classList.toggle('is-open');">☰</button>
@@ -118,37 +120,13 @@ if (!function_exists('registrar_format_bytes')) {
             $flashText = 'Please run Update Student Status for this learner before processing onsite enrollment.';
             $flashType = 'warning';
             break;
-        case 'guide_uploaded':
-            $flashText = 'Grade performance workbook uploaded successfully.';
-            $flashType = 'success';
+        case 'guide_upload_disabled':
+            $flashText = 'Advisers now handle grade uploads. Please coordinate with them for any updates.';
+            $flashType = 'info';
             break;
-        case 'guide_deleted':
-            $flashText = 'The selected workbook has been removed from the dropbox.';
-            $flashType = 'success';
-            break;
-        case 'guide_upload_error':
-            $uploadReasons = [
-                'invalid_grade' => 'Select a grade level before uploading a workbook.',
-                'missing_file' => 'Choose an Excel workbook to upload.',
-                'upload_failure' => 'The upload was interrupted. Please try again.',
-                'invalid_type' => 'Only Excel workbooks (.xls, .xlsx) are accepted.',
-                'empty_file' => 'The uploaded file appears to be empty.',
-                'move_failed' => 'Unable to store the workbook on the server. Try again or contact IT.',
-                'database_error' => 'Unable to record the workbook. Please retry.',
-                'storage_issue' => 'Storage for registrar guides is unavailable. Contact the administrator.',
-            ];
-            $flashText = $uploadReasons[$flashReason] ?? 'Unable to upload the workbook.';
-            $flashType = 'danger';
-            break;
-        case 'guide_delete_error':
-            $deleteReasons = [
-                'invalid_id' => 'Select a valid workbook before removing it.',
-                'database_error' => 'Unable to update the dropbox. Please retry.',
-                'not_found' => 'That workbook was already removed or cannot be located.',
-                'storage_issue' => 'Unable to remove the workbook from storage. Contact the administrator.',
-            ];
-            $flashText = $deleteReasons[$flashReason] ?? 'Unable to remove the workbook.';
-            $flashType = 'danger';
+        case 'guide_delete_disabled':
+            $flashText = 'Registrars can no longer remove adviser uploads. Contact the original uploader if a revision is needed.';
+            $flashType = 'info';
             break;
     }
     if ($flashText !== ''): ?>
@@ -255,40 +233,27 @@ if ($grade_filter) {
     <section class="dashboard-card" id="grade-dropbox">
       <span class="dashboard-section-title">Grade Dropbox</span>
       <h2>Academic Performance Dropbox</h2>
-      <p class="text-muted">Upload Excel workbooks shared by advisers so the team can quickly review pass/fail outcomes per level.</p>
+      <p class="text-muted">Workbooks uploaded by advisers appear below. Need updates? Ask the assigned adviser to submit a new file through their portal.</p>
+      <div class="grade-dropbox-callout">
+        <div class="grade-dropbox-callout__icon" aria-hidden="true">
+          <i class="bi bi-people-fill"></i>
+        </div>
+        <div>
+          <h3 class="grade-dropbox-callout__title">Adviser-managed submissions</h3>
+          <p class="grade-dropbox-callout__text">Registrars now review files provided by advisers. Preview or download the latest uploads for each grade below.</p>
+        </div>
+      </div>
 
-      <form class="dashboard-form" action="upload_guide.php" method="POST" enctype="multipart/form-data">
-        <label for="dropbox_grade_level">Grade or Year Level</label>
-        <select id="dropbox_grade_level" name="grade_level" required>
-          <option value="">Select Grade</option>
+      <form class="dashboard-form" method="GET" style="margin-top:20px;">
+        <label for="dropbox_grade_filter">Filter by Grade</label>
+        <select id="dropbox_grade_filter" name="grade_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;">
+          <option value="">All Grades</option>
           <?php foreach ($gradeLevels as $level): ?>
             <option value="<?= htmlspecialchars($level) ?>" <?= ($grade_filter === $level) ? 'selected' : '' ?>>
               <?= htmlspecialchars($level) ?>
             </option>
           <?php endforeach; ?>
         </select>
-
-        <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
-        <div class="dashboard-dropzone" id="guide-dropzone">
-          <div class="dropzone-inner">
-            <div class="dropzone-icon" aria-hidden="true">
-              <svg width="46" height="46" viewBox="0 0 24 24" role="presentation">
-                <path fill="currentColor" d="M12 3a1 1 0 0 1 .8.4l4 5a1 1 0 1 1-1.6 1.2L13 6.75V16a1 1 0 0 1-2 0V6.75L8.8 9.6a1 1 0 1 1-1.6-1.2l4-5A1 1 0 0 1 12 3Zm-7 13a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1a1 1 0 1 1 2 0v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a1 1 0 0 1 1-1Z"/>
-              </svg>
-            </div>
-            <div class="dropzone-copy">
-              <span class="dropzone-title">Drop Excel workbook here</span>
-              <span class="dropzone-subtitle">Drag & drop a file into this area (supports .xls, .xlsx)</span>
-            </div>
-            <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
-          </div>
-          <p class="dropzone-selected" id="guide-selected" aria-live="polite"></p>
-        </div>
-        <p class="text-muted dropzone-note">Uploaded workbooks stay linked to the grade you choose. Use the grade filter below to focus both this dropbox and the student list.</p>
-
-        <div class="dashboard-actions">
-          <button type="submit" class="dashboard-btn">Upload Workbook</button>
-        </div>
       </form>
 
       <?php if ($guideError): ?>
@@ -309,7 +274,7 @@ if ($grade_filter) {
               <?php foreach ($guideItems as $guide): ?>
                 <?php
                   $uploadedAt = $guide['uploaded_at'] ? date('M j, Y g:i A', strtotime($guide['uploaded_at'])) : '—';
-                  $rawContributor = !empty($guide['uploaded_by']) ? $guide['uploaded_by'] : 'Registrar';
+                  $rawContributor = !empty($guide['uploaded_by']) ? $guide['uploaded_by'] : 'Adviser';
                 ?>
                 <tr>
                   <td><?= htmlspecialchars($guide['grade_level']) ?></td>
@@ -326,10 +291,6 @@ if ($grade_filter) {
                     ?>
                     <a href="<?= htmlspecialchars($previewUrl) ?>" target="_blank" rel="noopener noreferrer">Preview</a>
                     <a href="<?= htmlspecialchars($fileUrl) ?>" download="<?= htmlspecialchars($guide['original_name']) ?>">Download</a>
-                    <form action="delete_guide.php" method="POST" style="display:inline;" onsubmit="return confirm('Remove this workbook from the dropbox?');">
-                      <input type="hidden" name="guide_id" value="<?= (int) $guide['id'] ?>">
-                      <button type="submit">Remove</button>
-                    </form>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -337,77 +298,9 @@ if ($grade_filter) {
           </table>
         </div>
       <?php else: ?>
-        <div class="dashboard-empty-state">No grade workbooks uploaded yet. Drag one above to get started.</div>
+        <div class="dashboard-empty-state">No grade workbooks uploaded yet for the selected grade.</div>
       <?php endif; ?>
     </section>
-
-<script>
-  (function() {
-    const dropzone = document.getElementById('guide-dropzone');
-    const fileInput = document.getElementById('guide_file');
-    const selected = document.getElementById('guide-selected');
-    const browseBtn = document.getElementById('guide-browse-btn');
-
-    if (!dropzone || !fileInput || !selected) {
-      return;
-    }
-
-    function updateSelected() {
-      if (fileInput.files && fileInput.files.length > 0) {
-        selected.textContent = fileInput.files[0].name;
-        selected.style.display = 'block';
-      } else {
-        selected.textContent = '';
-        selected.style.display = 'none';
-      }
-    }
-
-    ['dragenter', 'dragover'].forEach(function(eventName) {
-      dropzone.addEventListener(eventName, function(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        dropzone.classList.add('is-dragover');
-        if (event.dataTransfer) {
-          event.dataTransfer.dropEffect = 'copy';
-        }
-      });
-    });
-
-    ['dragleave', 'dragend'].forEach(function(eventName) {
-      dropzone.addEventListener(eventName, function(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        dropzone.classList.remove('is-dragover');
-      });
-    });
-
-    dropzone.addEventListener('drop', function(event) {
-      event.preventDefault();
-      event.stopPropagation();
-      dropzone.classList.remove('is-dragover');
-      if (event.dataTransfer && event.dataTransfer.files.length > 0) {
-        fileInput.files = event.dataTransfer.files;
-        updateSelected();
-      }
-    });
-
-    if (browseBtn) {
-      browseBtn.addEventListener('click', function(event) {
-        event.preventDefault();
-        fileInput.click();
-      });
-      browseBtn.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          fileInput.click();
-        }
-      });
-    }
-
-    fileInput.addEventListener('change', updateSelected);
-    updateSelected();
-  })();
-</script>
     <section class="dashboard-card" id="students">
       <span class="dashboard-section-title">Student Registry</span>
       <h2>Enrolled Students</h2>

@@ -30,9 +30,8 @@ if (!$guide) {
 }
 
 $relativePath = registrar_guides_public_path($guide['file_name']);
-$scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-$absoluteUrl = $scheme . '://' . $host . '/' . ltrim($relativePath, '/');
+$baseUrl = rtrim(APP_BASE_URL, '/');
+$absoluteUrl = $baseUrl . '/' . ltrim($relativePath, '/');
 
 $viewerUrl = 'https://view.officeapps.live.com/op/embed.aspx?src=' . rawurlencode($absoluteUrl);
 $canEmbed = strncmp($absoluteUrl, 'https://', 8) === 0;

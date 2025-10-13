@@ -482,6 +482,7 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
           <option value="admin">Administrator</option>
           <option value="registrar">Registrar</option>
           <option value="cashier">Cashier</option>
+          <option value="adviser">Adviser</option>
         </select>
 
         <div class="dashboard-actions">

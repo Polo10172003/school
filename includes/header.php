@@ -59,6 +59,44 @@ require_once __DIR__ . '/../config/app.php';
       font-weight: 500;
     }
 
+    .login-tile {
+      display: block;
+      height: 100%;
+      border-radius: 18px;
+      padding: 20px;
+      background: #f8fafc;
+      text-decoration: none;
+      color: inherit;
+      border: 1px solid rgba(20, 90, 50, 0.08);
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .login-tile:hover,
+    .login-tile:focus {
+      transform: translateY(-3px);
+      box-shadow: 0 24px 42px rgba(15, 23, 42, 0.14);
+      border-color: rgba(20, 90, 50, 0.25);
+      text-decoration: none;
+    }
+
+    .login-tile__icon {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+
+    .login-tile__title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .login-tile__subtitle {
+      font-size: 0.92rem;
+      color: #475569;
+      margin: 0;
+    }
+
     .carousel-caption {
       bottom: 20px;  /* para laging may space sa baba */
     }
@@ -150,13 +188,68 @@ require_once __DIR__ . '/../config/app.php';
             <?php if (isset($_SESSION['student_email'])): ?>
                 <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/logout.php">Logout</a></li>
             <?php else: ?>
-                <li class="nav-item"><a class="nav-link portal-btn fw-bold" href="Portal/student_login.php">Portal</a></li>
+                <li class="nav-item">
+                  <a class="nav-link portal-btn fw-bold" href="#" data-bs-toggle="modal" data-bs-target="#globalLoginModal">Login</a>
+                </li>
             <?php endif; ?>
           <?php endif; ?>
         </ul>
       </div>
     </div>
   </nav>
+
+  <div class="modal fade" id="globalLoginModal" tabindex="-1" aria-labelledby="globalLoginModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header border-0">
+          <h1 class="modal-title fs-4" id="globalLoginModalLabel">Choose a portal</h1>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-sm-6 col-lg-4">
+              <a class="login-tile" href="Portal/student_login.php">
+                <div class="login-tile__icon text-primary"><i class="bi bi-mortarboard"></i></div>
+                <h2 class="login-tile__title">Student</h2>
+                <p class="login-tile__subtitle">Check enrollment status, payments, and announcements.</p>
+              </a>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <a class="login-tile" href="Adviser/adviser_login.php">
+                <div class="login-tile__icon text-success"><i class="bi bi-journal-arrow-up"></i></div>
+                <h2 class="login-tile__title">Adviser</h2>
+                <p class="login-tile__subtitle">Upload grade workbooks for registrar review.</p>
+              </a>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <a class="login-tile" href="Registrar/registrar_login.php">
+                <div class="login-tile__icon text-warning"><i class="bi bi-building"></i></div>
+                <h2 class="login-tile__title">Registrar</h2>
+                <p class="login-tile__subtitle">Monitor student records and grade submissions.</p>
+              </a>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <a class="login-tile" href="Cashier/cashier_login.php">
+                <div class="login-tile__icon text-danger"><i class="bi bi-cash-stack"></i></div>
+                <h2 class="login-tile__title">Cashier</h2>
+                <p class="login-tile__subtitle">Process tuition payments and receipts.</p>
+              </a>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+              <a class="login-tile" href="admin_login.php">
+                <div class="login-tile__icon text-info"><i class="bi bi-shield-lock"></i></div>
+                <h2 class="login-tile__title">Administrator</h2>
+                <p class="login-tile__subtitle">Manage users, announcements, and system settings.</p>
+              </a>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const navbar = document.querySelector('.navbar');

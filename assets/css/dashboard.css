@@ -303,7 +303,96 @@ body.dashboard-body {
   outline: none;
 }
 
+.grade-dropbox-form {
+  margin-top: 16px;
+}
+
+.grade-dropbox-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: clamp(18px, 4vw, 36px);
+  align-items: stretch;
+}
+
+.grade-dropbox-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.grade-dropbox-fields label {
+  font-weight: 600;
+  color: var(--dash-green);
+}
+
+.grade-dropbox-fields select {
+  margin-top: 8px;
+}
+
+.grade-dropbox-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.grade-dropbox-actions .dashboard-btn {
+  margin: 0;
+}
+
+.grade-dropbox-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 90, 50, 0.12);
+  background: rgba(20, 90, 50, 0.08);
+  padding: 18px 22px;
+  margin-top: 16px;
+}
+
+.grade-dropbox-callout__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--dash-green);
+  font-size: 1.6rem;
+}
+
+.grade-dropbox-callout__title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--dash-green);
+}
+
+.grade-dropbox-callout__text {
+  margin: 0;
+  color: var(--dash-muted);
+  font-size: 0.94rem;
+}
+
+.grade-dropbox-upload {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 @media (max-width: 640px) {
+  .grade-dropbox-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .grade-dropbox-upload {
+    order: -1;
+  }
+
+  .grade-dropbox-callout {
+    flex-direction: column;
+  }
+
   .dashboard-dropzone .dropzone-inner {
     text-align: center;
   }
