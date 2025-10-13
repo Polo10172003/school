@@ -320,8 +320,11 @@ if ($grade_filter) {
                   <td><?= htmlspecialchars($uploadedAt) ?></td>
                   <td><?= htmlspecialchars($rawContributor) ?></td>
                   <td class="dashboard-table-actions">
-                    <?php $fileUrl = '../' . registrar_guides_public_path($guide['file_name']); ?>
-                    <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" rel="noopener noreferrer">Preview</a>
+                    <?php
+                      $fileUrl = '../' . registrar_guides_public_path($guide['file_name']);
+                      $previewUrl = 'preview_guide.php?id=' . urlencode((string) $guide['id']);
+                    ?>
+                    <a href="<?= htmlspecialchars($previewUrl) ?>" target="_blank" rel="noopener noreferrer">Preview</a>
                     <a href="<?= htmlspecialchars($fileUrl) ?>" download="<?= htmlspecialchars($guide['original_name']) ?>">Download</a>
                     <form action="delete_guide.php" method="POST" style="display:inline;" onsubmit="return confirm('Remove this workbook from the dropbox?');">
                       <input type="hidden" name="guide_id" value="<?= (int) $guide['id'] ?>">
