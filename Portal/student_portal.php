@@ -1953,6 +1953,7 @@ unset($finance_view_ref);
 <script>
     (function () {
         const logoutEndpoint = 'logout.php';
+        const loginRedirect = 'student_login.php?auto=1';
         let logoutTriggered = false;
 
         const navigationEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
@@ -1970,7 +1971,7 @@ unset($finance_view_ref);
             } catch (err) {
                 console.warn('Auto logout beacon failed', err);
             }
-            window.location.replace(logoutEndpoint + '?auto=1');
+            window.location.replace(loginRedirect);
         }
 
         if (navType === 'reload') {
