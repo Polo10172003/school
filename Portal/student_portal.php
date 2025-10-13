@@ -1952,8 +1952,8 @@ unset($finance_view_ref);
 <?php include '../includes/footer.php'; ?>
 <script>
     (function () {
-        const logoutEndpoint = 'logout.php';
-        const loginRedirect = 'student_login.php?auto=1';
+        const logoutEndpoint = 'Portal/logout.php';
+        const loginRedirect = 'Portal/student_login.php?auto=1';
         let logoutTriggered = false;
 
         const navigationEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
