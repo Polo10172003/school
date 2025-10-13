@@ -386,7 +386,7 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
       <a href="#homepage-images">Homepage Images</a>
       <a href="#students">Student Tools</a>
     </nav>
-    <a href="admin_login.php" class="dashboard-logout">Logout</a>
+    <a href="admin_logout.php" class="dashboard-logout">Logout</a>
   </aside>
 
   <main class="dashboard-main">

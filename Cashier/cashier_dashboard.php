@@ -338,7 +338,7 @@ if ($receiptPaymentId) {
       <a href="#records">Payment Records<?php if ($pendingPaymentCount > 0): ?><span class="nav-indicator"><?= $pendingPaymentCount ?></span><?php endif; ?></a>
       <a href="#fees">Manage Fees</a>
     </nav>
-    <a href="cashier_login.php" class="dashboard-logout">Logout</a>
+    <a href="cashier_logout.php" class="dashboard-logout">Logout</a>
   </aside>
   <main class="dashboard-main">
     <header class="dashboard-header">

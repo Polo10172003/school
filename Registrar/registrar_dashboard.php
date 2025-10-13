@@ -46,7 +46,7 @@ if (!function_exists('registrar_format_bytes')) {
       <a href="#grade-dropbox">Grade Dropbox</a>
       <a href="#students">Registered Students</a>
     </nav>
-    <a href="registrar_login.php" class="dashboard-logout">Logout</a>
+    <a href="registrar_logout.php" class="dashboard-logout">Logout</a>
   </aside>
 
   <main class="dashboard-main">
