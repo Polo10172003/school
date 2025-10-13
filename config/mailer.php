@@ -12,6 +12,14 @@ if (!function_exists('mailer_default_config')) {
      */
     function mailer_default_config(): array
     {
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
+            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+        }
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        }
+
         $base = [
             'host'        => getenv('SMTP_HOST') ?: 'smtp.hostinger.com',
             'username'    => getenv('SMTP_USERNAME') ?: 'no-reply@rosariodigital.site',
@@ -26,6 +34,15 @@ if (!function_exists('mailer_default_config')) {
                     'verify_peer'       => false,
                     'verify_peer_name'  => false,
                     'allow_self_signed' => true,
+                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
+                    'crypto_method'     => $cryptoMethod,
+                ],
+                'tls' => [
+                    'verify_peer'       => false,
+                    'verify_peer_name'  => false,
+                    'allow_self_signed' => true,
+                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
+                    'crypto_method'     => $cryptoMethod,
                 ],
             ],
             'fallback_to_mail' => filter_var(
@@ -33,6 +50,7 @@ if (!function_exists('mailer_default_config')) {
                 FILTER_VALIDATE_BOOLEAN,
                 FILTER_NULL_ON_FAILURE
             ),
+            'log_path' => getenv('SMTP_LOG_PATH') ?: (__DIR__ . '/../temp/mailer_last_error.log'),
         ];
 
         if ($base['fallback_to_mail'] === null) {
@@ -137,6 +155,20 @@ if (!function_exists('mailer_default_config')) {
     ): void {
         $attempts = $transports ?: mailer_default_transports();
         $lastException = null;
+        $effectiveLogger = $logger;
+
+        if (!$effectiveLogger) {
+            $defaultLog = mailer_default_config()['log_path'] ?? null;
+            if ($defaultLog) {
+                $effectiveLogger = static function (string $line) use ($defaultLog): void {
+                    @file_put_contents(
+                        $defaultLog,
+                        sprintf("[%s] %s\n", date('c'), $line),
+                        FILE_APPEND
+                    );
+                };
+            }
+        }
 
         foreach ($attempts as $transport) {
             $label = $transport['label'] ?? sprintf(
@@ -151,22 +183,22 @@ if (!function_exists('mailer_default_config')) {
                 ? (bool) $transport['smtp_auto_tls']
                 : ($mail->SMTPSecure === PHPMailer::ENCRYPTION_STARTTLS);
 
-            if ($logger) {
-                $logger(sprintf('Attempting SMTP via %s', $label));
+            if ($effectiveLogger) {
+                $effectiveLogger(sprintf('Attempting SMTP via %s', $label));
             }
 
             try {
                 $mail->send();
-                if ($logger) {
-                    $logger(sprintf('SMTP via %s succeeded', $label));
+                if ($effectiveLogger) {
+                    $effectiveLogger(sprintf('SMTP via %s succeeded', $label));
                 }
                 return;
             } catch (Exception $exception) {
                 $lastException = $exception;
                 $mail->smtpClose();
 
-                if ($logger) {
-                    $logger(sprintf(
+                if ($effectiveLogger) {
+                    $effectiveLogger(sprintf(
                         'SMTP via %s failed: %s',
                         $label,
                         $exception->getMessage()
@@ -176,13 +208,24 @@ if (!function_exists('mailer_default_config')) {
         }
 
         if ($fallbackToMail) {
-            if ($logger) {
-                $logger('All SMTP attempts failed, falling back to PHP mail() transport.');
+            if ($effectiveLogger) {
+                $effectiveLogger('All SMTP attempts failed, falling back to PHP mail() transport.');
             }
             $mail->isMail();
             $mail->SMTPDebug = 0;
             $mail->Debugoutput = 'error_log';
-            $mail->send();
+            try {
+                $mail->send();
+                if ($effectiveLogger) {
+                    $effectiveLogger('mail() transport succeeded.');
+                }
+                return;
+            } catch (Exception $mailException) {
+                $lastException = $mailException;
+                if ($effectiveLogger) {
+                    $effectiveLogger('mail() transport failed: ' . $mailException->getMessage());
+                }
+            }
             return;
         }
 
