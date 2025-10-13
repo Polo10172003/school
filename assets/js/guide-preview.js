@@ -1,6 +1,6 @@
 'use strict';
 
-(function () {
+document.addEventListener('DOMContentLoaded', function () {
   const overlay = document.getElementById('guide-preview-overlay');
   if (!overlay) {
     return;
@@ -44,6 +44,21 @@
     document.body.classList.add('guide-preview-open');
     overlay.removeAttribute('hidden');
     overlay.classList.add('is-open');
+
+    if (!absoluteUrl.startsWith('https://')) {
+      contentEl.innerHTML = '<p class="guide-preview-error">Inline preview requires the site to be served over HTTPS. ' +
+        'Use the download option or open the file in a new tab instead.</p>';
+      const linkWrap = document.createElement('p');
+      linkWrap.className = 'guide-preview-fallback';
+      const directLink = document.createElement('a');
+      directLink.href = absoluteUrl;
+      directLink.target = '_blank';
+      directLink.rel = 'noopener';
+      directLink.textContent = 'Open workbook';
+      linkWrap.appendChild(directLink);
+      contentEl.appendChild(linkWrap);
+      return;
+    }
 
     const viewerUrl = viewerBase + encodeURIComponent(absoluteUrl);
     const loading = document.createElement('p');
@@ -93,4 +108,4 @@
       closeOverlay();
     }
   });
-})();
+});
