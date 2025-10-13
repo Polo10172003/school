@@ -2649,10 +2649,6 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             continue;
         }
 
-        if (in_array($enrollmentStatus, ['waiting', 'dropped'], true) && $isPaidStatus && $academicStatus !== 'graduated') {
-            // Ignore prior payments when student is repeating the grade.
-            continue;
-        }
         if ($isPaidStatus) {
             $paid[] = $row;
             if ($normalizedPaymentGrade !== '') {
