@@ -52,6 +52,11 @@ if (!function_exists('portal_next_school_year')) {
             return null;
         }
 
+        $span = $parsed['end'] - $parsed['start'];
+        if ($span > 1) {
+            return null;
+        }
+
         $nextStart = $parsed['end'];
         $nextEnd = $nextStart + 1;
 
