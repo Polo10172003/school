@@ -540,23 +540,42 @@ $page_title = 'Escuela de Sto. Rosario - Home';
 <?php include 'includes/footer.php'; ?>
         <!-- Chatbot -->
         <div id="chatbot-container">
-      <button id="chatbot-btn" class="btn btn-success rounded-circle shadow">
-        💬
+      <button id="chatbot-btn" class="chatbot-btn shadow-lg">
+        <span class="chatbot-btn__icon">💬</span>
+        <span class="chatbot-btn__label">Need help?</span>
       </button>
-      <div id="chatbot-box" class="card shadow d-none">
-        <div class="card-header fw-bold text-white bg-success d-flex justify-content-between align-items-center">
-          <span>FAQ</span>
-          <button id="chatbot-close" class="btn btn-sm btn-light">&times;</button>
+      <div id="chatbot-box" class="chatbot-card shadow-lg d-none">
+        <div class="chatbot-header">
+          <div class="d-flex align-items-center gap-3">
+            <div class="chatbot-avatar">
+              <i class="bi bi-robot"></i>
+            </div>
+            <div>
+              <h6 class="mb-0 fw-bold text-white">ESR Assistant</h6>
+              <small class="text-white-50">Quick answers to common questions</small>
+            </div>
+          </div>
+          <button id="chatbot-close" class="btn btn-sm btn-outline-light rounded-pill px-3">Close</button>
         </div>
-        <div class="card-body">
-          <ul class="list-unstyled">
-            <li><a href="#" class="faq-link" data-answer="Enrollment starts every March for the upcoming school year.">When does enrollment start?</a></li>
-            <li><a href="#" class="faq-link" data-answer="You can pay via onsite (cash) or online through GCash/Bank Transfer.">What are the payment options?</a></li>
-            <li><a href="#" class="faq-link" data-answer="Yes, we offer scholarships based on academic performance and financial need.">Do you offer scholarships?</a></li>
-            <li><a href="#" class="faq-link" data-answer="Yes, our campus has WiFi, computer labs, and a library.">Does the school have facilities?</a></li>
-            <li><a href="#" class="faq-link" data-answer="You may contact us at 0912-345-6789 or email esr@school.com.">How can I contact the registrar?</a></li>
-          </ul>
-          <div id="faq-answer" class="mt-3 text-muted small text-center fw-bold"></div>
+        <div class="chatbot-body">
+          <div class="chatbot-messages" id="chatbot-messages">
+            <div class="chatbot-message bot">
+              <span class="chatbot-message__text">Hello! Select a question below to learn more about Escuela de Sto. Rosario.</span>
+            </div>
+          </div>
+          <div class="chatbot-quick-actions">
+            <span class="text-uppercase small fw-bold text-muted">Frequently Asked</span>
+            <div class="chatbot-quick-list">
+              <button type="button" class="chatbot-chip" data-answer="Enrollment starts every March for the upcoming school year.">When does enrollment start?</button>
+              <button type="button" class="chatbot-chip" data-answer="You can pay via onsite (cash) or online through GCash/Bank Transfer.">What are the payment options?</button>
+              <button type="button" class="chatbot-chip" data-answer="Yes, we offer scholarships based on academic performance and financial need.">Do you offer scholarships?</button>
+              <button type="button" class="chatbot-chip" data-answer="Yes, our campus has WiFi, computer labs, and a library.">Does the school have facilities?</button>
+              <button type="button" class="chatbot-chip" data-answer="You may contact us at 0912-345-6789 or email registrar@rosariodigital.site.">How can I contact the registrar?</button>
+            </div>
+          </div>
+          <div class="chatbot-footnote text-center text-muted small">
+            Need something else? Call <strong>(0969) 354-2870</strong> Monday–Friday, 8 AM – 5 PM.
+          </div>
         </div>
       </div>
     </div>
@@ -564,53 +583,184 @@ $page_title = 'Escuela de Sto. Rosario - Home';
     <style>
       #chatbot-container {
         position: fixed;
-        bottom: 20px;
-        right: 20px;
+        bottom: 24px;
+        right: 24px;
         z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 12px;
       }
-      #chatbot-btn {
-        width: 60px;
-        height: 60px;
-        font-size: 24px;
+      .chatbot-btn {
+        background: linear-gradient(135deg, #145A32, #1d7c46);
+        color: #fff;
+        border: none;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
       }
-      #chatbot-box {
-        width: 300px;
-        margin-bottom: 10px;
+      .chatbot-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px rgba(20, 90, 50, 0.25);
       }
-      .faq-link {
-        display: block;
-        margin-bottom: 8px;
-        text-decoration: none;
-        color: #007bff;
+      .chatbot-btn__icon {
+        font-size: 1.25rem;
       }
-      .faq-link:hover {
-        text-decoration: underline;
-        color: #0056b3;
+      .chatbot-btn__label {
+        font-size: 0.95rem;
       }
-      #faq-answer {
-        font-size: 14px;
-        color: #333;
+      .chatbot-card {
+        width: min(320px, 90vw);
+        border: none;
+        border-radius: 20px;
+        overflow: hidden;
+        background: #ffffff;
+        animation: chatbot-slide-up 0.3s ease;
+      }
+      .chatbot-header {
+        background: linear-gradient(135deg, #145A32, #0f4f24);
+        padding: 16px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .chatbot-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        color: #fff;
+      }
+      .chatbot-body {
+        padding: 18px 18px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .chatbot-messages {
+        max-height: 220px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding-right: 4px;
+      }
+      .chatbot-message {
+        display: inline-flex;
+        align-items: flex-start;
+        gap: 10px;
+        animation: chatbot-fade-in 0.25s ease;
+      }
+      .chatbot-message__text {
+        background: rgba(20, 90, 50, 0.08);
+        color: #145A32;
+        padding: 10px 14px;
+        border-radius: 14px 14px 14px 4px;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        display: inline-block;
+      }
+      .chatbot-message.user .chatbot-message__text {
+        background: #145A32;
+        color: #fff;
+        border-radius: 14px 14px 4px 14px;
+        align-self: flex-end;
+      }
+      .chatbot-quick-actions {
+        background: rgba(20, 90, 50, 0.04);
+        border-radius: 14px;
+        padding: 14px 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .chatbot-quick-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chatbot-chip {
+        border: 1px solid rgba(20, 90, 50, 0.2);
+        background: #fff;
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 0.82rem;
+        color: #145A32;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .chatbot-chip:hover,
+      .chatbot-chip:focus {
+        background: #145A32;
+        color: #fff;
+        box-shadow: 0 10px 18px rgba(20, 90, 50, 0.18);
+      }
+      .chatbot-footnote {
+        font-size: 0.78rem;
+      }
+      @keyframes chatbot-slide-up {
+        from { transform: translateY(15px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @keyframes chatbot-fade-in {
+        from { transform: translateY(8px); opacity: 0; }
+        to { transform: translateY(0); opacity: 1; }
+      }
+      @media (max-width: 576px) {
+        .chatbot-btn__label {
+          display: none;
+        }
+        .chatbot-btn {
+          padding: 12px 14px;
+        }
       }
     </style>
 
     <script>
-      const chatbotBtn = document.getElementById('chatbot-btn');
-      const chatbotBox = document.getElementById('chatbot-box');
-      const chatbotClose = document.getElementById('chatbot-close');
-      const faqAnswer = document.getElementById('faq-answer');
+      (function () {
+        const chatbotBtn = document.getElementById('chatbot-btn');
+        const chatbotBox = document.getElementById('chatbot-box');
+        const chatbotClose = document.getElementById('chatbot-close');
+        const messagesContainer = document.getElementById('chatbot-messages');
 
-      chatbotBtn.addEventListener('click', function() {
-        chatbotBox.classList.toggle('d-none');
-      });
+        const toggleChatbot = () => {
+          chatbotBox.classList.toggle('d-none');
+          if (!chatbotBox.classList.contains('d-none')) {
+            chatbotBox.classList.add('chatbot-active');
+          }
+        };
 
-      chatbotClose.addEventListener('click', function() {
-        chatbotBox.classList.add('d-none');
-      });
+        const appendMessage = (text, type = 'bot') => {
+          const wrapper = document.createElement('div');
+          wrapper.className = `chatbot-message ${type}`;
+          const inner = document.createElement('span');
+          inner.className = 'chatbot-message__text';
+          inner.textContent = text;
+          wrapper.appendChild(inner);
+          messagesContainer.appendChild(wrapper);
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
 
-      document.querySelectorAll('.faq-link').forEach(link => {
-        link.addEventListener('click', function(e) {
-          e.preventDefault();
-          faqAnswer.innerText = this.dataset.answer;
+        chatbotBtn.addEventListener('click', toggleChatbot);
+        chatbotClose.addEventListener('click', () => chatbotBox.classList.add('d-none'));
+
+        document.querySelectorAll('.chatbot-chip').forEach((chip) => {
+          chip.addEventListener('click', () => {
+            const question = chip.textContent.trim();
+            const answer = chip.getAttribute('data-answer') || '';
+
+            appendMessage(question, 'user');
+            setTimeout(() => appendMessage(answer, 'bot'), 200);
+          });
         });
-      });
+      })();
     </script>
