@@ -46,7 +46,7 @@ if (!function_exists('registrar_format_bytes')) {
       <a href="#grade-dropbox">Grade Dropbox</a>
       <a href="#students">Registered Students</a>
     </nav>
-    <a href="registrar_logout.php" class="dashboard-logout">Logout</a>
+    <a href="registrar_login.php" class="dashboard-logout">Logout</a>
   </aside>
 
   <main class="dashboard-main">
@@ -234,6 +234,16 @@ if ($grade_filter) {
       <span class="dashboard-section-title">Grade Dropbox</span>
       <h2>Academic Performance Dropbox</h2>
       <p class="text-muted">Workbooks uploaded by advisers appear below. Need updates? Ask the assigned adviser to submit a new file through their portal.</p>
+      <div class="grade-dropbox-callout">
+        <div class="grade-dropbox-callout__icon" aria-hidden="true">
+          <i class="bi bi-people-fill"></i>
+        </div>
+        <div>
+          <h3 class="grade-dropbox-callout__title">Adviser-managed submissions</h3>
+          <p class="grade-dropbox-callout__text">Registrars now review files provided by advisers. Preview or download the latest uploads for each grade below.</p>
+        </div>
+      </div>
+
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
         <label for="dropbox_grade_filter">Filter by Grade</label>
         <select id="dropbox_grade_filter" name="grade_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;">
