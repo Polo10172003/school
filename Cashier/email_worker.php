@@ -568,7 +568,7 @@ if (!function_exists('cashier_email_worker_process')) {
                 $mail,
                 [],
                 $smtpLogger,
-                (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+                true
             );
             @file_put_contents(
                 $tempDir . '/cashier_worker_trace.log',

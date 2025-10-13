@@ -2470,6 +2470,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $gradeLevel = $studentRow['year'];
     $academicStatus = strtolower(trim((string) ($studentRow['academic_status'] ?? '')));
+    $isFailedStudent = ($academicStatus === 'failed');
     $studentType = strtolower($studentRow['student_type'] ?? 'new');
     $normalizedGrade = cashier_normalize_grade_key($gradeLevel);
     $typeCandidates = array_values(array_unique([$studentType, 'new', 'old', 'all']));
@@ -2888,7 +2889,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $previous_outstanding = max($previous_outstanding_base + $previousPlanOutstanding, 0.0);
 
-    if ($previous_outstanding > 0.0 && $previous_grade_key) {
+    if ($previous_outstanding > 0.0 && $previous_grade_key && !$isFailedStudent) {
         $hasPendingForPrevious = false;
         foreach (cashier_grade_synonyms($previous_grade_key) as $synonym) {
             if (!empty($pendingByGrade[$synonym])) {

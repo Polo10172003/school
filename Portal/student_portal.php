@@ -60,12 +60,24 @@ if ($failedRepeater && $studentTypeLower !== 'old') {
     $student_type = 'old';
 }
 
+$student_school_year = trim($student_school_year);
+$isFailedStudent = ($academicStatusLower === 'failed');
+$targetSchoolYear = $student_school_year;
+if ($isFailedStudent) {
+    $computedSchoolYear = portal_next_school_year($student_school_year);
+    if ($computedSchoolYear !== null) {
+        $targetSchoolYear = $computedSchoolYear;
+    }
+}
+$requiresPlacementClear = !$isFailedStudent;
+
 $canStartPortalEnrollment = ($studentTypeLower === 'old')
     && in_array($academicStatusLower, ['passed', 'ongoing', 'failed'], true)
     && ($enrollmentStatusLower !== 'enrolled')
-    && $sectionEmpty
-    && $adviserEmpty
-    && $scheduleIsEmpty;
+    && (
+        !$requiresPlacementClear
+        || ($sectionEmpty && $adviserEmpty && $scheduleIsEmpty)
+    );
 
 $portalBasePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
 
@@ -114,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($targetSchoolYear !== '') {
+        if ($isFailedStudent && $targetSchoolYear !== '') {
             $deletePlans = $conn->prepare('DELETE FROM student_plan_selections WHERE student_id = ? AND school_year = ?');
             if ($deletePlans) {
                 $deletePlans->bind_param('is', $student_id, $targetSchoolYear);
