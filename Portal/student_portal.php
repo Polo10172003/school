@@ -53,8 +53,15 @@ $adviserTrimmed = trim((string) ($adviser ?? ''));
 $sectionEmpty = ($sectionTrimmed === '' || strcasecmp($sectionTrimmed, 'To be assigned') === 0 || strcasecmp($sectionTrimmed, 'TBA') === 0);
 $adviserEmpty = ($adviserTrimmed === '' || strcasecmp($adviserTrimmed, 'To be assigned') === 0 || strcasecmp($adviserTrimmed, 'TBA') === 0);
 $scheduleIsEmpty = ($scheduleSentAt === null || $scheduleSentAt === '' || $scheduleSentAt === '0000-00-00 00:00:00');
+
+$failedRepeater = ($academicStatusLower === 'failed');
+if ($failedRepeater && $studentTypeLower !== 'old') {
+    $studentTypeLower = 'old';
+    $student_type = 'old';
+}
+
 $canStartPortalEnrollment = ($studentTypeLower === 'old')
-    && in_array($academicStatusLower, ['passed', 'ongoing'], true)
+    && in_array($academicStatusLower, ['passed', 'ongoing', 'failed'], true)
     && ($enrollmentStatusLower !== 'enrolled')
     && $sectionEmpty
     && $adviserEmpty
