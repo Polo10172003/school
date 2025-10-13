@@ -104,22 +104,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $_SESSION[$portalEnrollmentSessionKey] = true;
         $clearPlans = null;
 
-        if ($student_school_year !== '') {
-            $clearPlans = $conn->prepare("DELETE FROM student_plan_selections WHERE student_id = ? AND (school_year IS NULL OR school_year = ?)");
-            if ($clearPlans) {
-                $clearPlans->bind_param('is', $student_id, $student_school_year);
-                $clearPlans->execute();
-                $clearPlans->close();
-            }
-        } else {
-            $clearPlans = $conn->prepare("DELETE FROM student_plan_selections WHERE student_id = ?");
-            if ($clearPlans) {
-                $clearPlans->bind_param('i', $student_id);
-                $clearPlans->execute();
-                $clearPlans->close();
-            }
-        }
-
         header('Location: ' . $portalBasePath . 'student_portal.php');
         exit();
     }
@@ -218,7 +202,7 @@ foreach (gradeSynonyms($normalized_year) as $gradeKey) {
 
 $previous_grade_label = cashier_previous_grade_label($year);
 $grade_key = cashier_normalize_grade_key((string) $year);
-$no_previous = ($lower_type === 'new') || (in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kg', 'grade1']) && $grade_key !== 'kindergarten');
+$no_previous = ($studentTypeLower !== 'old') || (in_array($grade_key, ['preschool', 'kinder1', 'kinder_1', 'kinder-1', 'kinder2', 'kg', 'grade1']) && $grade_key !== 'kindergarten');
 
 $previous_fee = null;
 if (!$no_previous && $previous_grade_label) {
