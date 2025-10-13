@@ -77,6 +77,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
         $next_year = $current_year;     // stay same grade
         $academic_status = "Failed";    // mark Failed
         $enrollment_status = 'waiting';
+        $new_student_type = 'old';
     } elseif ($status === "Dropped") {
         $next_year = $current_year;
         $academic_status = "Dropped";
@@ -85,6 +86,9 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
     }
 
     $new_student_type = $current_type;
+    if ($status === 'Failed') {
+        $new_student_type = 'old';
+    }
     $resetSchedule = false;
     if ($status === 'Passed' && $next_year !== $current_year) {
         $new_student_type = 'old';
@@ -114,7 +118,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
         }
     }
     if ($stmt->execute()) {
-        $shouldClearPlanSelections = ($status === 'Failed') || (($status !== 'Dropped') && $moveToInactive) || ($status === 'Passed' && $resetSchedule);
+        $shouldClearPlanSelections = $moveToInactive || ($status === 'Passed' && $resetSchedule);
 
         if ($shouldClearPlanSelections) {
             // Reset placement details

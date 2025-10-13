@@ -677,6 +677,74 @@ function cashier_dashboard_parse_next_payments(string $raw): array
     return $entries;
 }
 
+function cashier_dashboard_normalize_plan_key(?string $value): ?string
+{
+    if ($value === null) {
+        return null;
+    }
+    $raw = strtolower(trim((string) $value));
+    if ($raw === '') {
+        return null;
+    }
+    $raw = str_replace(['-', '/', '(', ')'], ' ', $raw);
+    $raw = preg_replace('/\s+/', ' ', $raw);
+
+    if (strpos($raw, 'cash') !== false || strpos($raw, 'full') !== false) {
+        return 'cash';
+    }
+    if (strpos($raw, 'annual') !== false) {
+        return 'annual';
+    }
+    if (strpos($raw, 'monthly') !== false || strpos($raw, 'install') !== false) {
+        return 'monthly';
+    }
+    if (strpos($raw, 'semi') !== false) {
+        return 'semi_annual';
+    }
+    if (strpos($raw, 'quarter') !== false) {
+        return 'quarterly';
+    }
+    if (strpos($raw, 'bi') !== false) {
+        return 'bi_monthly';
+    }
+
+    return str_replace(' ', '_', $raw);
+}
+
+function cashier_dashboard_guess_plan_type_for_grade(array $paidByGrade, array $pendingByGrade, string $gradeKey): ?string
+{
+    if ($gradeKey === '') {
+        return null;
+    }
+
+    $planCounts = [];
+    $collect = static function (array $rows) use (&$planCounts): void {
+        foreach ($rows as $row) {
+            $normalized = cashier_dashboard_normalize_plan_key($row['payment_type'] ?? null);
+            if ($normalized === null || $normalized === '') {
+                continue;
+            }
+            $planCounts[$normalized] = ($planCounts[$normalized] ?? 0) + 1;
+        }
+    };
+
+    foreach (cashier_grade_synonyms($gradeKey) as $synonym) {
+        if (isset($paidByGrade[$synonym])) {
+            $collect($paidByGrade[$synonym]);
+        }
+        if (isset($pendingByGrade[$synonym])) {
+            $collect($pendingByGrade[$synonym]);
+        }
+    }
+
+    if (empty($planCounts)) {
+        return null;
+    }
+
+    arsort($planCounts);
+    return array_key_first($planCounts);
+}
+
 /**
  * Locate an existing tuition fee package or create a new record if missing.
  *
@@ -2546,7 +2614,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $previous_pricing_preference = null;
     $previous_pricing_variant_display = null;
     $grade_key = cashier_normalize_grade_key($gradeLevel);
-    $no_previous = ($studentType === 'new') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','kg'], true);
+    $no_previous = ($studentType !== 'old') || in_array($grade_key, ['preschool','k1','kinder1','k2','kinder2','kg'], true);
     if (!$no_previous) {
         $previous_label = cashier_previous_grade_label($gradeLevel);
         if ($previous_label) {
@@ -2646,6 +2714,39 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $paid_unassigned_total = $sumAmounts($unassignedPaid);
 
     $paid_other_total = 0.0;
+
+    if ($storedPlanType === null && $currentGradeKeyLoop !== '' && $fee) {
+        $guessedPlan = cashier_dashboard_guess_plan_type_for_grade($paidByGrade, $pendingByGrade, $currentGradeKeyLoop);
+        if ($guessedPlan !== null) {
+            $storedPlanType = $guessedPlan;
+            cashier_dashboard_save_plan_selection(
+                $conn,
+                $studentId,
+                (int) $fee['id'],
+                $storedPlanType,
+                [
+                    'school_year' => $studentSchoolYear,
+                    'grade_level' => $gradeLevel,
+                    'pricing_category' => $selectedPricing ?? '',
+                    'student_type' => $studentType,
+                ]
+            );
+        }
+    }
+
+    if ($previous_fee && $previous_stored_plan === null && $previous_grade_key) {
+        $guessedPrevPlan = cashier_dashboard_guess_plan_type_for_grade($paidByGrade, $pendingByGrade, $previous_grade_key);
+        if ($guessedPrevPlan !== null) {
+            $previous_stored_plan = $guessedPrevPlan;
+        }
+    }
+
+    if ($previous_fee) {
+        $previous_grade_total = cashier_determine_plan_total($previous_fee, $previous_stored_plan);
+    }
+    if ($fee) {
+        $current_grade_total = cashier_determine_plan_total($fee, $storedPlanType);
+    }
 
     $remaining_previous_need = $previous_grade_total;
 
