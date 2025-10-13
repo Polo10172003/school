@@ -163,3 +163,51 @@ function registrar_guides_delete(mysqli $conn, int $id): bool
     return (bool) $deleted;
 }
 
+/**
+ * Locate a guide using a Google Drive file id.
+ */
+function registrar_guides_find_by_drive_id(mysqli $conn, string $driveFileId): ?array
+{
+    $stmt = $conn->prepare('SELECT * FROM registrar_guides WHERE drive_file_id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Prepare failed: ' . $conn->error);
+    }
+
+    $stmt->bind_param('s', $driveFileId);
+
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('Unable to locate registrar guide: ' . $error);
+    }
+
+    $result = $stmt->get_result();
+    $guide = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    return $guide ?: null;
+}
+
+/**
+ * Update metadata for an existing Drive-backed guide.
+ */
+function registrar_guides_update_drive(
+    mysqli $conn,
+    int $id,
+    string $gradeLevel,
+    string $originalName,
+    int $fileSize
+): bool {
+    $stmt = $conn->prepare(
+        'UPDATE registrar_guides SET grade_level = ?, original_name = ?, file_size = ?, uploaded_at = CURRENT_TIMESTAMP WHERE id = ?'
+    );
+    if (!$stmt) {
+        throw new RuntimeException('Prepare failed: ' . $conn->error);
+    }
+
+    $stmt->bind_param('ssii', $gradeLevel, $originalName, $fileSize, $id);
+    $updated = $stmt->execute();
+    $stmt->close();
+
+    return (bool) $updated;
+}

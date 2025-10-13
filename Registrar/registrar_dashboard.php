@@ -4,6 +4,8 @@ include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../admin_functions.php';
 require_once __DIR__ . '/../includes/registrar_guides.php';
 
+$googleDriveConfigured = file_exists(__DIR__ . '/../config/google_drive.php');
+
 if (!function_exists('registrar_format_bytes')) {
     /**
      * Convert file size in bytes to a human-readable string.
@@ -89,6 +91,7 @@ if (!function_exists('registrar_format_bytes')) {
     $flashReason = $_GET['reason'] ?? '';
     $flashText = '';
     $flashType = 'info';
+    $driveSyncErrors = [];
     switch ($flashMsg) {
         case 'student_added_pending_cash':
             $flashText = 'Student marked for onsite payment. Please coordinate with the cashier to complete enrollment.';
@@ -149,6 +152,39 @@ if (!function_exists('registrar_format_bytes')) {
             ];
             $flashText = $deleteReasons[$flashReason] ?? 'Unable to remove the workbook.';
             $flashType = 'danger';
+            break;
+        case 'guide_sync_success':
+            $summary = $_SESSION['guide_sync_summary'] ?? null;
+            if (is_array($summary)) {
+                $driveSyncErrors = $summary['errors'] ?? [];
+                $flashSegments = [];
+                if (!empty($summary['added'])) {
+                    $flashSegments[] = $summary['added'] . ' new workbook(s)';
+                }
+                if (!empty($summary['updated'])) {
+                    $flashSegments[] = $summary['updated'] . ' updated';
+                }
+                if (!empty($summary['skipped'])) {
+                    $flashSegments[] = $summary['skipped'] . ' skipped';
+                }
+                $flashText = 'Google Drive sync completed';
+                if (!empty($flashSegments)) {
+                    $flashText .= ' — ' . implode(', ', $flashSegments);
+                }
+                if (!empty($summary['errors'])) {
+                    $flashText .= '. See details below.';
+                }
+            } else {
+                $flashText = 'Google Drive sync completed.';
+            }
+            unset($_SESSION['guide_sync_summary']);
+            $flashType = 'success';
+            break;
+        case 'guide_sync_error':
+            $errorMsg = $_SESSION['guide_sync_error'] ?? 'Unable to synchronize with Google Drive.';
+            $flashText = $errorMsg;
+            $flashType = 'danger';
+            unset($_SESSION['guide_sync_error']);
             break;
     }
     if ($flashText !== ''): ?>
@@ -257,6 +293,16 @@ if ($grade_filter) {
       <h2>Academic Performance Dropbox</h2>
       <p class="text-muted">Upload Excel workbooks shared by advisers so the team can quickly review pass/fail outcomes per level.</p>
 
+      <?php if ($googleDriveConfigured): ?>
+        <form class="dashboard-form dropbox-sync-form" action="sync_drive_guides.php" method="POST">
+          <button type="submit" class="dashboard-btn secondary">Sync from Google Drive</button>
+        </form>
+      <?php else: ?>
+        <div class="alert alert-warning" role="alert" style="margin-bottom:16px;">
+          Configure Google Drive credentials (see config/google_drive.example.php) to enable automatic syncing.
+        </div>
+      <?php endif; ?>
+
       <form class="dashboard-form" action="upload_guide.php" method="POST" enctype="multipart/form-data">
         <label for="dropbox_grade_level">Grade or Year Level</label>
         <select id="dropbox_grade_level" name="grade_level" required>
@@ -270,17 +316,37 @@ if ($grade_filter) {
 
         <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
         <div class="dashboard-dropzone" id="guide-dropzone">
-          <span class="dropzone-title">Drop Excel workbook here</span>
-          <span class="dropzone-subtitle">Drag & drop a file into this area (supports .xls, .xlsx)</span>
-          <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
+          <div class="dropzone-inner">
+            <div class="dropzone-icon" aria-hidden="true">
+              <svg width="46" height="46" viewBox="0 0 24 24" role="presentation">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 .8.4l4 5a1 1 0 1 1-1.6 1.2L13 6.75V16a1 1 0 0 1-2 0V6.75L8.8 9.6a1 1 0 1 1-1.6-1.2l4-5A1 1 0 0 1 12 3Zm-7 13a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1a1 1 0 1 1 2 0v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a1 1 0 0 1 1-1Z"/>
+              </svg>
+            </div>
+            <div class="dropzone-copy">
+              <span class="dropzone-title">Drop Excel workbook here</span>
+              <span class="dropzone-subtitle">Drag & drop a file into this area (supports .xls, .xlsx)</span>
+            </div>
+            <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
+          </div>
+          <p class="dropzone-selected" id="guide-selected" aria-live="polite"></p>
         </div>
-        <p class="dropzone-selected" id="guide-selected" style="display:none;"></p>
         <p class="text-muted dropzone-note">Uploaded workbooks stay linked to the grade you choose. Use the grade filter below to focus both this dropbox and the student list.</p>
 
         <div class="dashboard-actions">
           <button type="submit" class="dashboard-btn">Upload Workbook</button>
         </div>
       </form>
+
+      <?php if (!empty($driveSyncErrors)): ?>
+        <div class="alert alert-warning" role="alert" style="margin-top:16px;">
+          <strong>Google Drive sync notices:</strong>
+          <ul class="drive-sync-errors">
+            <?php foreach ($driveSyncErrors as $notice): ?>
+              <li><?= htmlspecialchars($notice) ?></li>
+            <?php endforeach; ?>
+          </ul>
+        </div>
+      <?php endif; ?>
 
       <?php if ($guideError): ?>
         <div class="dashboard-empty-state">Unable to load the dropbox items right now. Refresh the page or try again later.</div>
@@ -299,7 +365,6 @@ if ($grade_filter) {
             <tbody>
               <?php foreach ($guideItems as $guide): ?>
                 <?php
-                  $fileUrl = '../' . registrar_guides_public_path($guide['file_name']);
                   $uploadedAt = $guide['uploaded_at'] ? date('M j, Y g:i A', strtotime($guide['uploaded_at'])) : '—';
                   $rawContributor = $guide['source'] === 'drive'
                     ? 'Google Drive'
@@ -314,7 +379,14 @@ if ($grade_filter) {
                   <td><?= htmlspecialchars($uploadedAt) ?></td>
                   <td><?= htmlspecialchars($rawContributor) ?></td>
                   <td class="dashboard-table-actions">
-                    <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank" rel="noopener">Download</a>
+                    <?php
+                      if ($guide['source'] === 'drive' && !empty($guide['drive_file_id'])) {
+                          $downloadUrl = 'download_drive_guide.php?id=' . urlencode($guide['drive_file_id']);
+                      } else {
+                          $downloadUrl = '../' . registrar_guides_public_path($guide['file_name']);
+                      }
+                    ?>
+                    <a href="<?= htmlspecialchars($downloadUrl) ?>" target="_blank" rel="noopener">Download</a>
                     <?php if ($guide['source'] === 'manual'): ?>
                       <form action="delete_guide.php" method="POST" style="display:inline;" onsubmit="return confirm('Remove this workbook from the dropbox?');">
                         <input type="hidden" name="guide_id" value="<?= (int) $guide['id'] ?>">

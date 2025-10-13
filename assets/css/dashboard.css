@@ -200,7 +200,7 @@ body.dashboard-body {
   background: rgba(20, 90, 50, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 12px;
   color: var(--dash-muted);
   transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
@@ -211,6 +211,22 @@ body.dashboard-body {
   box-shadow: 0 0 0 4px rgba(20, 90, 50, 0.18);
 }
 
+.dashboard-dropzone .dropzone-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 3vw, 24px);
+  text-align: left;
+}
+
+.dashboard-dropzone .dropzone-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 220px;
+}
+
 .dashboard-dropzone .dropzone-title {
   font-weight: 600;
   color: var(--dash-green);
@@ -219,6 +235,18 @@ body.dashboard-body {
 
 .dashboard-dropzone .dropzone-subtitle {
   font-size: 0.9rem;
+  color: var(--dash-muted);
+}
+
+.dashboard-dropzone .dropzone-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(56px, 10vw, 72px);
+  height: clamp(56px, 10vw, 72px);
+  border-radius: 20px;
+  background: rgba(20, 90, 50, 0.12);
+  color: var(--dash-green);
 }
 
 .dashboard-dropzone.is-dragover {
@@ -228,13 +256,29 @@ body.dashboard-body {
 }
 
 .dropzone-selected {
-  margin-top: 10px;
+  margin: 0;
   font-size: 0.9rem;
   color: var(--dash-green);
+  font-weight: 600;
 }
 
 .dropzone-note {
   margin-top: 8px;
+}
+
+.dropbox-sync-form {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+.dropbox-sync-form .dashboard-btn {
+  margin: 0;
+}
+
+.drive-sync-errors {
+  margin: 8px 0 0;
+  padding-left: 20px;
 }
 
 .dropzone-browse {
@@ -257,6 +301,12 @@ body.dashboard-body {
   background: var(--dash-green);
   color: #fff;
   outline: none;
+}
+
+@media (max-width: 640px) {
+  .dashboard-dropzone .dropzone-inner {
+    text-align: center;
+  }
 }
 
 .text-muted {
