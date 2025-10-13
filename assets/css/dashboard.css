@@ -196,7 +196,7 @@ body.dashboard-body {
   border-radius: 18px;
   padding: clamp(24px, 3vw, 36px);
   text-align: center;
-  cursor: pointer;
+  cursor: default;
   background: rgba(20, 90, 50, 0.04);
   display: flex;
   flex-direction: column;
@@ -235,6 +235,28 @@ body.dashboard-body {
 
 .dropzone-note {
   margin-top: 8px;
+}
+
+.dropzone-browse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  border: 1px solid var(--dash-green);
+  background: transparent;
+  color: var(--dash-green);
+  padding: 8px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dropzone-browse:hover,
+.dropzone-browse:focus {
+  background: var(--dash-green);
+  color: #fff;
+  outline: none;
 }
 
 .text-muted {

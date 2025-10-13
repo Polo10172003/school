@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS registrar_guides (
     id INT AUTO_INCREMENT PRIMARY KEY,
     grade_level VARCHAR(64) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    original_name VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,w
     file_size BIGINT UNSIGNED NOT NULL,
     uploaded_by VARCHAR(100) DEFAULT NULL,
     source ENUM('manual','drive') NOT NULL DEFAULT 'manual',

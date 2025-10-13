@@ -269,10 +269,11 @@ if ($grade_filter) {
         </select>
 
         <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
-        <label class="dashboard-dropzone" id="guide-dropzone" for="guide_file" role="button" tabindex="0">
+        <div class="dashboard-dropzone" id="guide-dropzone">
           <span class="dropzone-title">Drop Excel workbook here</span>
-          <span class="dropzone-subtitle">Drag & drop or click to upload (.xls, .xlsx)</span>
-        </label>
+          <span class="dropzone-subtitle">Drag & drop a file into this area (supports .xls, .xlsx)</span>
+          <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
+        </div>
         <p class="dropzone-selected" id="guide-selected" style="display:none;"></p>
         <p class="text-muted dropzone-note">Uploaded workbooks stay linked to the grade you choose. Use the grade filter below to focus both this dropbox and the student list.</p>
 
@@ -338,6 +339,7 @@ if ($grade_filter) {
     const dropzone = document.getElementById('guide-dropzone');
     const fileInput = document.getElementById('guide_file');
     const selected = document.getElementById('guide-selected');
+    const browseBtn = document.getElementById('guide-browse-btn');
 
     if (!dropzone || !fileInput || !selected) {
       return;
@@ -358,17 +360,23 @@ if ($grade_filter) {
         event.preventDefault();
         event.stopPropagation();
         dropzone.classList.add('is-dragover');
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = 'copy';
+        }
       });
     });
 
     ['dragleave', 'dragend'].forEach(function(eventName) {
-      dropzone.addEventListener(eventName, function() {
+      dropzone.addEventListener(eventName, function(event) {
+        event.preventDefault();
+        event.stopPropagation();
         dropzone.classList.remove('is-dragover');
       });
     });
 
     dropzone.addEventListener('drop', function(event) {
       event.preventDefault();
+      event.stopPropagation();
       dropzone.classList.remove('is-dragover');
       if (event.dataTransfer && event.dataTransfer.files.length > 0) {
         fileInput.files = event.dataTransfer.files;
@@ -376,16 +384,18 @@ if ($grade_filter) {
       }
     });
 
-    dropzone.addEventListener('click', function() {
-      fileInput.click();
-    });
-
-    dropzone.addEventListener('keydown', function(event) {
-      if (event.key === 'Enter' || event.key === ' ') {
+    if (browseBtn) {
+      browseBtn.addEventListener('click', function(event) {
         event.preventDefault();
         fileInput.click();
-      }
-    });
+      });
+      browseBtn.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          fileInput.click();
+        }
+      });
+    }
 
     fileInput.addEventListener('change', updateSelected);
     updateSelected();
