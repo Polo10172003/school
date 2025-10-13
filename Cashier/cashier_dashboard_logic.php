@@ -2644,10 +2644,13 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         if ($isCarryOver) {
             if ($isPaidStatus) {
                 $carryoverPaidTotal += (float) ($row['amount'] ?? 0);
+                $paidByYear[$paymentYearKey][] = $row;
             } else {
                 $carryoverPendingTotal += (float) ($row['amount'] ?? 0);
+                $pendingByYear[$paymentYearKey][] = $row;
             }
-            continue;
+
+            $row['is_carryover'] = true;
         }
 
         if ($isPaidStatus) {
