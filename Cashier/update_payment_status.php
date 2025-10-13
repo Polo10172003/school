@@ -113,6 +113,13 @@ if ($status === 'paid') {
     }
 }
 
+if ($status === 'paid') {
+    if (!function_exists('cashier_assign_section_if_needed')) {
+        require_once __DIR__ . '/section_assignment.php';
+    }
+    cashier_assign_section_if_needed($conn, (int) $student_id);
+}
+
 if (!empty($email)) {
     if (!function_exists('cashier_email_worker_process')) {
         require_once __DIR__ . '/email_worker.php';

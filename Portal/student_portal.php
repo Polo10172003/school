@@ -700,22 +700,35 @@ foreach ($finance_views as &$finance_view_ref) {
         continue;
     }
 
-    $typeCandidates = array_values(array_unique([$student_type_lower, 'old', 'new', 'all']));
-    $previous_pricing_variant = strtolower((string) ($finance_view_ref['pricing_variant'] ?? ''));
-    if ($previous_pricing_variant !== '') {
-        $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates, $previous_pricing_variant);
-        if (!$previous_fee_portal) {
+    $previous_plan_context = $finance_view_ref['plan_context'] ?? null;
+    $previous_fee_portal = null;
+
+    if (is_array($previous_plan_context) && !empty($previous_plan_context['tuition_fee_id'])) {
+        $previous_fee_portal = cashier_dashboard_fetch_fee_by_id($conn, (int) $previous_plan_context['tuition_fee_id']);
+    }
+
+    if (!$previous_fee_portal) {
+        $typeCandidates = array_values(array_unique([$student_type_lower, 'old', 'new', 'all']));
+        $previous_pricing_variant = strtolower((string) ($finance_view_ref['pricing_variant'] ?? ''));
+        if ($previous_pricing_variant !== '') {
+            $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates, $previous_pricing_variant);
+            if (!$previous_fee_portal) {
+                $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
+            }
+        } else {
             $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
         }
-    } else {
-        $previous_fee_portal = cashier_fetch_fee($conn, $previous_grade_key_snapshot, $typeCandidates);
     }
+
     if (!$previous_fee_portal) {
         continue;
     }
 
-    $previous_selection_portal = cashier_dashboard_fetch_selected_plan($conn, (int) $student_id, (int) $previous_fee_portal['id']);
-    $previous_plan_type = strtolower(trim((string) ($previous_selection_portal['plan_type'] ?? '')));
+    $previous_plan_type = strtolower(trim((string) ($finance_view_ref['stored_plan'] ?? '')));
+    if ($previous_plan_type === '') {
+        $previous_selection_portal = cashier_dashboard_fetch_selected_plan($conn, (int) $student_id, (int) $previous_fee_portal['id']);
+        $previous_plan_type = strtolower(trim((string) ($previous_selection_portal['plan_type'] ?? '')));
+    }
 
     $previous_total_paid = (float) ($finance_view_ref['total_paid'] ?? 0.0);
     $previous_remaining = (float) ($finance_view_ref['remaining_balance'] ?? 0.0);

@@ -12,12 +12,25 @@ if (!function_exists('mailer_default_config')) {
      */
     function mailer_default_config(): array
     {
-        $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        $cryptoMethod = 0;
+        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        }
         if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
             $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
         }
-        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
-            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        if ($cryptoMethod === 0 && defined('STREAM_CRYPTO_METHOD_TLS_CLIENT')) {
+            $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+        }
+
+        $sslOptions = [
+            'verify_peer'       => false,
+            'verify_peer_name'  => false,
+            'allow_self_signed' => true,
+            'ciphers'           => 'DEFAULT@SECLEVEL=1',
+        ];
+        if ($cryptoMethod !== 0) {
+            $sslOptions['crypto_method'] = $cryptoMethod;
         }
 
         $base = [
@@ -30,20 +43,8 @@ if (!function_exists('mailer_default_config')) {
             'encoding'    => 'base64',
             'timeout'     => 20,
             'smtp_options' => [
-                'ssl' => [
-                    'verify_peer'       => false,
-                    'verify_peer_name'  => false,
-                    'allow_self_signed' => true,
-                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
-                    'crypto_method'     => $cryptoMethod,
-                ],
-                'tls' => [
-                    'verify_peer'       => false,
-                    'verify_peer_name'  => false,
-                    'allow_self_signed' => true,
-                    'ciphers'           => 'DEFAULT@SECLEVEL=1',
-                    'crypto_method'     => $cryptoMethod,
-                ],
+                'ssl' => $sslOptions,
+                'tls' => $sslOptions,
             ],
             'fallback_to_mail' => filter_var(
                 getenv('SMTP_ALLOW_MAIL_FALLBACK'),

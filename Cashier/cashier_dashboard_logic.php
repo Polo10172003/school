@@ -2549,26 +2549,79 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         $planSelectionStmt->close();
     }
 
+    $currentGradeSynonyms = $currentGradeKeyLoop !== '' ? cashier_grade_synonyms($currentGradeKeyLoop) : [];
+    $previousGradeLabelExpected = cashier_previous_grade_label($gradeLevel);
+    $previousGradeKeyExpected = $previousGradeLabelExpected ? cashier_normalize_grade_key($previousGradeLabelExpected) : '';
+    $previousGradeSynonymsTarget = $previousGradeKeyExpected !== '' ? cashier_grade_synonyms($previousGradeKeyExpected) : [];
+
     $previous_selection_row = null;
     if (!empty($planSelections)) {
+        $selectionCandidates = [];
         foreach ($planSelections as $selection) {
             $selGradeRaw = (string) ($selection['grade_level'] ?? '');
             $selGradeKey = cashier_normalize_grade_key($selGradeRaw);
             $selSchoolYear = trim((string) ($selection['school_year'] ?? ''));
-            $matchesCurrentGrade = ($currentGradeKeyLoop !== '' && $selGradeKey !== '' && $selGradeKey === $currentGradeKeyLoop);
-            $matchesCurrentYear = ($studentSchoolYear !== '' && $selSchoolYear !== '' && strcasecmp($selSchoolYear, $studentSchoolYear) === 0);
+            $selSelectedAt = $selection['selected_at'] ?? '';
 
-            if ($matchesCurrentGrade && ($matchesCurrentYear || $selSchoolYear === '')) {
-                continue;
-            }
-            if ($selGradeKey === '' && $selSchoolYear === '') {
+            if ($selGradeKey === '' && $selGradeRaw === '' && $selSchoolYear === '') {
                 continue;
             }
 
-            $previous_selection_row = $selection;
-            break;
+            if (
+                $currentGradeKeyLoop !== '' &&
+                $selGradeKey !== '' &&
+                !empty($currentGradeSynonyms) &&
+                in_array($selGradeKey, $currentGradeSynonyms, true) &&
+                $studentSchoolYear !== '' &&
+                $selSchoolYear !== '' &&
+                strcasecmp($selSchoolYear, $studentSchoolYear) === 0
+            ) {
+                continue;
+            }
+
+            $score = 0;
+            if (!empty($previousGradeSynonymsTarget) && $selGradeKey !== '' && in_array($selGradeKey, $previousGradeSynonymsTarget, true)) {
+                $score += 1000;
+            } elseif ($currentGradeKeyLoop !== '' && $selGradeKey !== '' && in_array($selGradeKey, $currentGradeSynonyms, true)) {
+                $score += 500;
+            } elseif ($selGradeKey !== '') {
+                $score += 300;
+            }
+
+            if ($selSchoolYear !== '') {
+                $score += 50;
+                if ($studentSchoolYear !== '' && strcasecmp($selSchoolYear, $studentSchoolYear) < 0) {
+                    $score += 25;
+                }
+            }
+
+            if (!empty($selection['plan_type'])) {
+                $score += 10;
+            }
+            if (!empty($selection['pricing_category'])) {
+                $score += 5;
+            }
+
+            $selectionCandidates[] = [
+                'score' => $score,
+                'selected_at' => $selSelectedAt,
+                'selection' => $selection,
+            ];
+        }
+
+        if (!empty($selectionCandidates)) {
+            usort($selectionCandidates, static function (array $a, array $b): int {
+                if ($a['score'] === $b['score']) {
+                    return strcmp((string) ($b['selected_at'] ?? ''), (string) ($a['selected_at'] ?? ''));
+                }
+                return $a['score'] < $b['score'] ? 1 : -1;
+            });
+            $previous_selection_row = $selectionCandidates[0]['selection'];
         }
     }
+
+    $previous_selection_grade_raw = $previous_selection_row ? (string) ($previous_selection_row['grade_level'] ?? '') : '';
+    $previous_selection_school_year = $previous_selection_row ? trim((string) ($previous_selection_row['school_year'] ?? '')) : '';
 
     $requestedPricingVariant = isset($options['pricing_variant']) ? strtolower(trim((string) $options['pricing_variant'])) : null;
     $requestedPricingStudent = isset($options['pricing_student']) ? (int) $options['pricing_student'] : null;
@@ -2720,26 +2773,24 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $forced_previous_available = ($previous_selection_row !== null);
 
     if ($previous_selection_row) {
-        $selectionGradeRaw = (string) ($previous_selection_row['grade_level'] ?? '');
-        $selectionGradeKey = cashier_normalize_grade_key($selectionGradeRaw);
-        $selectionYear = trim((string) ($previous_selection_row['school_year'] ?? ''));
+        $selectionGradeKey = cashier_normalize_grade_key($previous_selection_grade_raw);
         $selectionPlanType = strtolower(str_replace([' ', '-'], '_', (string) ($previous_selection_row['plan_type'] ?? '')));
 
         if ($selectionGradeKey !== '') {
             $previous_grade_key = $selectionGradeKey;
-        } elseif ($selectionGradeRaw === '' && $selectionYear === '' && $currentGradeKeyLoop !== '') {
+        } elseif ($previous_selection_grade_raw === '' && $previous_selection_school_year === '' && $currentGradeKeyLoop !== '') {
             $previous_grade_key = $currentGradeKeyLoop;
         }
 
-        if ($selectionGradeRaw !== '') {
-            $previous_label = $selectionGradeRaw;
-            if ($selectionYear !== '') {
-                $previous_label .= ' (' . $selectionYear . ')';
+        if ($previous_selection_grade_raw !== '') {
+            $previous_label = $previous_selection_grade_raw;
+            if ($previous_selection_school_year !== '') {
+                $previous_label .= ' (' . $previous_selection_school_year . ')';
             } elseif ($previous_grade_key !== null && $previous_grade_key === $currentGradeKeyLoop) {
                 $previous_label .= ' (Previous Year)';
             }
-        } elseif ($selectionYear !== '') {
-            $previous_label = $selectionYear;
+        } elseif ($previous_selection_school_year !== '') {
+            $previous_label = $previous_selection_school_year;
         }
 
         $previous_pricing_preference = strtolower(trim((string) ($previous_selection_row['pricing_category'] ?? '')));
@@ -2766,7 +2817,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     }
 
     if (!$no_previous && !$previous_label) {
-        $fallbackLabel = cashier_previous_grade_label($gradeLevel);
+        $fallbackLabel = $previousGradeLabelExpected ?? cashier_previous_grade_label($gradeLevel);
         if ($fallbackLabel) {
             $previous_label = $fallbackLabel;
             $previous_grade_key = cashier_normalize_grade_key($fallbackLabel);
@@ -3465,6 +3516,8 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $previous_plan_label = null;
     $previous_schedule_rows = [];
     $previous_schedule_message = null;
+    $previous_plan_summaries = [];
+    $previous_plan_context = null;
     if ($previous_fee) {
         $paid_for_previous_plan = min($previous_paid_applied, $previous_grade_total);
         $previous_plan_summaries = cashier_dashboard_build_plan_summaries($previous_fee, $paid_for_previous_plan, 0.0);
@@ -3510,6 +3563,14 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
                 ];
             }
         }
+
+        $previous_plan_context = [
+            'tuition_fee_id' => (int) $previous_fee['id'],
+            'school_year' => $previous_selection_school_year !== '' ? $previous_selection_school_year : (string) ($previous_fee['school_year'] ?? ''),
+            'grade_level' => $previous_selection_grade_raw !== '' ? $previous_selection_grade_raw : (string) ($previous_fee['grade_level'] ?? ''),
+            'pricing_category' => (string) ($previous_pricing_variant_display ?? $previous_fee['pricing_category'] ?? ''),
+            'student_type' => (string) ($previous_fee['student_type'] ?? $studentRow['student_type'] ?? ''),
+        ];
     }
 
     if ($previous_outstanding > 0 && !$previous_label) {
@@ -3611,6 +3672,10 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             'is_default' => false,
             'grade_key' => $previous_grade_key,
             'stored_pricing' => $previous_pricing_variant_display,
+            'plan_tabs' => $previous_plan_summaries,
+            'plan_context' => $previous_plan_context,
+            'active_plan' => $previous_stored_plan,
+            'stored_plan' => $previous_stored_plan,
         ];
     }
 
