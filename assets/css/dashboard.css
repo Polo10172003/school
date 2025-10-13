@@ -698,6 +698,15 @@ body.dashboard-body {
   background: #f8fafc;
 }
 
+.guide-preview-frame {
+  width: 100%;
+  min-height: 70vh;
+  border: none;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
 .guide-preview-content table {
   border-collapse: collapse;
   width: 100%;
@@ -726,6 +735,22 @@ body.dashboard-body {
 
 .guide-preview-error {
   color: #b91c1c;
+}
+
+.guide-preview-fallback {
+  margin-top: 12px;
+  color: var(--dash-muted);
+  font-size: 14px;
+}
+
+.guide-preview-fallback a {
+  color: var(--dash-green);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.guide-preview-fallback a:hover {
+  text-decoration: underline;
 }
 
 body.guide-preview-open {

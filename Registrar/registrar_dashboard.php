@@ -559,7 +559,6 @@ if (masterCheckbox) {
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-fyc6DI5R6pNIOkSZsT8IuIbImlIjQlZa5w3wgwE3Z759989OH+mk1dXIz+y3AqSa" crossorigin="anonymous"></script>
 <script src="../assets/js/guide-preview.js"></script>
 <?php $conn->close(); ?>
   </main>
