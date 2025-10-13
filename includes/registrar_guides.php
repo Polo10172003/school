@@ -34,7 +34,12 @@ CREATE TABLE IF NOT EXISTS registrar_guides (
     id INT AUTO_INCREMENT PRIMARY KEY,
     grade_level VARCHAR(64) NOT NULL,
     file_name VARCHAR(255) NOT NULL,
-    original_name VARCHAR(255) NOT NULL,w
+    original_name VARCHAR(255) NOT NULL,wgit reset --hard ffcb9d21          # or pick the last good commit before 0428faad
+echo "config/google_drive.php" >> .gitignore
+git add .gitignore Registrar/registrar_dashboard.php assets/css/dashboard.css includes/registrar_guides.php …
+git commit -m "Remove Drive integration"
+git push origin main --force
+
     file_size BIGINT UNSIGNED NOT NULL,
     uploaded_by VARCHAR(100) DEFAULT NULL,
     source ENUM('manual','drive') NOT NULL DEFAULT 'manual',
