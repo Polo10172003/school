@@ -429,6 +429,32 @@ if ($receiptPaymentId) {
                 <?php
                   $views = $snapshot['views'] ?? ['current' => $snapshot];
                   $primaryView = $views['current'] ?? reset($views);
+                  if (!empty($views)) {
+                    $combinedPendingRows = (array)($primaryView['pending_rows'] ?? []);
+                    $combinedPendingTotal = (float)($primaryView['pending_total'] ?? 0);
+                    foreach ($views as $viewKey => $viewPayload) {
+                      if ($viewKey === 'current') {
+                        continue;
+                      }
+                      $extraRows = $viewPayload['pending_rows'] ?? [];
+                      if (empty($extraRows)) {
+                        continue;
+                      }
+                      $labelPrefix = trim((string) ($viewPayload['label'] ?? $viewPayload['plan_label'] ?? ''));
+                      foreach ($extraRows as &$extraRow) {
+                        if ($labelPrefix !== '') {
+                          $note = trim((string) ($extraRow['notes'] ?? ''));
+                          $extraRow['notes'] = $note !== '' ? ($labelPrefix . ' • ' . $note) : $labelPrefix;
+                        }
+                        $extraRow['is_placeholder'] = true;
+                      }
+                      unset($extraRow);
+                      $combinedPendingRows = array_merge($combinedPendingRows, $extraRows);
+                      $combinedPendingTotal += (float)($viewPayload['pending_total'] ?? 0);
+                    }
+                    $primaryView['pending_rows'] = $combinedPendingRows;
+                    $primaryView['pending_total'] = $combinedPendingTotal;
+                  }
                   $planTabs = $primaryView['plan_tabs'] ?? [];
                   $activePlanKey = $primaryView['active_plan'] ?? null;
                   $storedPlanKey = $primaryView['stored_plan'] ?? null;
