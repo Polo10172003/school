@@ -1949,4 +1949,40 @@ unset($finance_view_ref);
     </div>
 </div>
 
+<script>
+    (function () {
+        const INACTIVITY_LIMIT_MS = 2 * 60 * 1000; // 2 minutes
+        const logoutEndpoint = 'Portal/logout.php';
+        const redirectUrl = 'Portal/student_login.php?timeout=1';
+        let inactivityTimer = null;
+
+        function triggerLogout() {
+            if (navigator.sendBeacon) {
+                try {
+                    navigator.sendBeacon(logoutEndpoint, new Blob([], { type: 'application/octet-stream' }));
+                } catch (err) {
+                    console.warn('sendBeacon failed, falling back to fetch.', err);
+                    fetch(logoutEndpoint, { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+                }
+            } else {
+                fetch(logoutEndpoint, { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+            }
+            window.location.replace(redirectUrl);
+        }
+
+        function resetTimer() {
+            if (inactivityTimer !== null) {
+                clearTimeout(inactivityTimer);
+            }
+            inactivityTimer = setTimeout(triggerLogout, INACTIVITY_LIMIT_MS);
+        }
+
+        ['click', 'mousemove', 'keydown', 'scroll', 'touchstart', 'touchmove'].forEach((eventName) => {
+            document.addEventListener(eventName, resetTimer, { passive: true });
+        });
+
+        resetTimer();
+    })();
+</script>
+
 <?php include '../includes/footer.php'; ?>
