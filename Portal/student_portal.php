@@ -1950,3 +1950,42 @@ unset($finance_view_ref);
 </div>
 
 <?php include '../includes/footer.php'; ?>
+<script>
+    (function () {
+        const logoutEndpoint = 'logout.php';
+        let logoutTriggered = false;
+
+        const navigationEntries = performance.getEntriesByType && performance.getEntriesByType('navigation');
+        const navType = navigationEntries && navigationEntries.length ? navigationEntries[0].type : (performance.navigation && performance.navigation.type === 1 ? 'reload' : 'navigate');
+
+        function triggerLogout(reason) {
+            if (logoutTriggered) {
+                return;
+            }
+            logoutTriggered = true;
+            try {
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon(logoutEndpoint, new Blob([JSON.stringify({ reason })], { type: 'application/json' }));
+                }
+            } catch (err) {
+                console.warn('Auto logout beacon failed', err);
+            }
+            window.location.replace(logoutEndpoint + '?auto=1');
+        }
+
+        if (navType === 'reload') {
+            triggerLogout('reload');
+            return;
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                triggerLogout('tab_hidden');
+            }
+        });
+
+        window.addEventListener('beforeunload', () => {
+            triggerLogout('beforeunload');
+        });
+    })();
+</script>
