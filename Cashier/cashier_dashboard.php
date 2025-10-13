@@ -437,10 +437,29 @@ if ($receiptPaymentId) {
                   if (empty($availablePricingOptions)) {
                     $availablePricingOptions = array_keys($pricingCategories);
                   }
-                  $selectedPricingKey = $primaryView['selected_pricing'] ?? ($primaryView['plan_context']['pricing_category'] ?? 'regular');
-                  $selectedPricingKey = strtolower((string) $selectedPricingKey);
+                  $selectedPricingKey = strtolower((string) ($primaryView['selected_pricing'] ?? ($primaryView['plan_context']['pricing_category'] ?? 'regular')));
                   $planTotalForCurrent = (float) ($primaryView['current_year_total'] ?? 0);
-                  $isEscSubsidyPlan = ($selectedPricingKey === 'esc' && $planTotalForCurrent <= 0.009);
+                  static $escSubsidyEligibleGrades = null;
+                  if ($escSubsidyEligibleGrades === null) {
+                    $escSubsidyEligibleGrades = array_values(array_unique(array_merge(
+                      cashier_grade_synonyms('grade11'),
+                      cashier_grade_synonyms('grade12'),
+                      ['seniorhigh11', 'seniorhigh12', 'shs11', 'shs12']
+                    )));
+                  }
+                  $gradeKeyCandidate = (string) ($primaryView['grade_key'] ?? '');
+                  if ($gradeKeyCandidate === '' && !empty($primaryView['plan_context']['grade_level'])) {
+                    $gradeKeyCandidate = (string) cashier_normalize_grade_key((string) $primaryView['plan_context']['grade_level']);
+                  }
+                  if ($gradeKeyCandidate === '' && !empty($s['year'])) {
+                    $gradeKeyCandidate = (string) cashier_normalize_grade_key((string) $s['year']);
+                  }
+                  $gradeKeyNormalized = strtolower(str_replace([' ', '-', '_'], '', $gradeKeyCandidate));
+                  $isEscSubsidyPlan = (
+                    $selectedPricingKey === 'esc'
+                    && $planTotalForCurrent <= 0.009
+                    && in_array($gradeKeyNormalized, $escSubsidyEligibleGrades, true)
+                  );
                   $next_due_row = $primaryView['next_due_row'] ?? null;
                   $isPending = strtolower($s['enrollment_status'] ?? '') !== 'enrolled';
                   $canChoosePlan = $isPending || empty($storedPlanKey);

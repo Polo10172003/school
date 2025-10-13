@@ -15,6 +15,50 @@ $_SESSION['LAST_ACTIVITY'] = time();
 include __DIR__ . '/../db_connection.php';
 include __DIR__ . '/../Cashier/cashier_dashboard_logic.php';
 
+if (!function_exists('portal_parse_school_year_range')) {
+    function portal_parse_school_year_range(?string $value): ?array
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $extracted = [];
+        if (!preg_match_all('/\d{4}/', (string) $value, $extracted) || empty($extracted[0])) {
+            return null;
+        }
+
+        $start = (int) $extracted[0][0];
+        $end = isset($extracted[0][1]) ? (int) $extracted[0][1] : $start + 1;
+        if ($end <= $start) {
+            $end = $start + 1;
+        }
+
+        return ['start' => $start, 'end' => $end];
+    }
+}
+
+if (!function_exists('portal_format_school_year_range')) {
+    function portal_format_school_year_range(int $start, int $end): string
+    {
+        return sprintf('%04d-%04d', $start, $end);
+    }
+}
+
+if (!function_exists('portal_next_school_year')) {
+    function portal_next_school_year(?string $current): ?string
+    {
+        $parsed = portal_parse_school_year_range($current);
+        if (!$parsed) {
+            return null;
+        }
+
+        $nextStart = $parsed['end'];
+        $nextEnd = $nextStart + 1;
+
+        return portal_format_school_year_range($nextStart, $nextEnd);
+    }
+}
+
 // Make sure student is logged in
 if (!isset($_SESSION['student_number'])) {
     header("Location: student_login.php");
@@ -959,6 +1003,13 @@ unset($finance_view_ref);
                     </div>
                 <?php endif; ?>
 
+                <?php
+                    $escSubsidyEligibleGrades = array_values(array_unique(array_merge(
+                        cashier_grade_synonyms('grade11'),
+                        cashier_grade_synonyms('grade12'),
+                        ['seniorhigh11', 'seniorhigh12', 'shs11', 'shs12']
+                    )));
+                ?>
                 <?php foreach ($finance_views as $view):
                     $view_key = $view['key'];
                     $is_default = $view['is_default'];
@@ -992,7 +1043,15 @@ unset($finance_view_ref);
                         $view_next_due = null;
                         $view_pricing_label = null;
                     }
-                    $view_is_esc_subsidy = ($view_pricing_variant === 'esc' && $view_year_total <= 0.009);
+                    $view_grade_key_raw = strtolower(str_replace([' ', '-', '_'], '', (string) ($view['grade_key'] ?? '')));
+                    if ($view_grade_key_raw === '' && $view_key === 'current') {
+                        $view_grade_key_raw = strtolower((string) $grade_key);
+                    }
+                    $view_is_esc_subsidy = (
+                        $view_pricing_variant === 'esc'
+                        && $view_year_total <= 0.009
+                        && in_array($view_grade_key_raw, $escSubsidyEligibleGrades, true)
+                    );
                     if ($view_is_esc_subsidy) {
                         $view_schedule_rows = [];
                         $view_schedule_message = 'Tuition is fully covered by the ESC government subsidy for this grade.';
