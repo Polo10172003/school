@@ -12,15 +12,44 @@ if (!function_exists('mailer_default_config')) {
      */
     function mailer_default_config(): array
     {
-        $cryptoMethod = 0;
-        if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
-            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        $cryptoMethod = getenv('SMTP_CRYPTO_METHOD');
+        if (is_string($cryptoMethod) && $cryptoMethod !== '') {
+            $cryptoMethod = strtolower(trim($cryptoMethod));
+        } else {
+            $cryptoMethod = null;
         }
-        if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
-            $cryptoMethod |= STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
-        }
-        if ($cryptoMethod === 0 && defined('STREAM_CRYPTO_METHOD_TLS_CLIENT')) {
-            $cryptoMethod = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+
+        $resolvedCrypto = null;
+        switch ($cryptoMethod) {
+            case 'tls_client':
+                if (defined('STREAM_CRYPTO_METHOD_TLS_CLIENT')) {
+                    $resolvedCrypto = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+                }
+                break;
+            case 'tls12':
+            case 'tls1_2':
+            case 'tlsv1.2':
+            case 'tlsv1_2':
+                if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
+                    $resolvedCrypto = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+                }
+                break;
+            case 'tls13':
+            case 'tls1_3':
+            case 'tlsv1.3':
+            case 'tlsv1_3':
+                if (defined('STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT')) {
+                    $resolvedCrypto = STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+                }
+                break;
+            default:
+                // Hostinger (and most shared SMTP providers) expect TLS 1.2.
+                if (defined('STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT')) {
+                    $resolvedCrypto = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT;
+                } elseif (defined('STREAM_CRYPTO_METHOD_TLS_CLIENT')) {
+                    $resolvedCrypto = STREAM_CRYPTO_METHOD_TLS_CLIENT;
+                }
+                break;
         }
 
         $sslOptions = [
@@ -29,8 +58,8 @@ if (!function_exists('mailer_default_config')) {
             'allow_self_signed' => true,
             'ciphers'           => 'DEFAULT@SECLEVEL=1',
         ];
-        if ($cryptoMethod !== 0) {
-            $sslOptions['crypto_method'] = $cryptoMethod;
+        if ($resolvedCrypto !== null) {
+            $sslOptions['crypto_method'] = $resolvedCrypto;
         }
 
         $base = [

@@ -235,9 +235,6 @@ if ($grade_filter) {
       <h2>Academic Performance Dropbox</h2>
       <p class="text-muted">Workbooks uploaded by advisers appear below. Need updates? Ask the assigned adviser to submit a new file through their portal.</p>
       <div class="grade-dropbox-callout">
-        <div class="grade-dropbox-callout__icon" aria-hidden="true">
-          <i class="bi bi-people-fill"></i>
-        </div>
       </div>
 
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
