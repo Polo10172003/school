@@ -96,7 +96,7 @@ if (!function_exists('mailer_default_config')) {
         }
 
         if ($base['force_ipv4'] === null) {
-            $base['force_ipv4'] = false;
+            $base['force_ipv4'] = true;
         }
 
         $debugLevel = getenv('SMTP_DEBUG_LEVEL');
@@ -129,6 +129,12 @@ if (!function_exists('mailer_default_config')) {
         $mail->SMTPAutoTLS = true;
         $mail->CharSet = (string) $config['charset'];
         $mail->Encoding = (string) $config['encoding'];
+        if (!empty($config['force_ipv4'])) {
+            $socketOptions = $config['smtp_options']['socket'] ?? [];
+            $socketOptions['bindto'] = '0.0.0.0:0';
+            $config['smtp_options']['socket'] = $socketOptions;
+        }
+
         $smtpHost = (string) $config['host'];
         $hostList = [$smtpHost];
         if (!empty($config['force_ipv4'])) {
