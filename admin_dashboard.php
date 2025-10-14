@@ -2,6 +2,7 @@
 require_once __DIR__ . '/includes/session.php';
 include 'db_connection.php';
 require_once __DIR__ . '/admin_functions.php';
+require_once __DIR__ . '/includes/adviser_assignments.php';
 
 $userManagementMessage = $_SESSION['admin_users_success'] ?? '';
 $userManagementError   = $_SESSION['admin_users_error'] ?? '';
@@ -30,6 +31,8 @@ require_once __DIR__ . '/includes/homepage_images.php';
 
 $scheduleMessage = '';
 $scheduleError   = '';
+$adviserMessage  = '';
+$adviserError    = '';
 $homeImageMessage = '';
 $homeImageError   = '';
 
@@ -42,6 +45,8 @@ $scheduleGradeOptions = [
 ];
 
 $scheduleDaysOfWeek = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+adviser_assignments_ensure_table($conn);
 
 $homepageSections = [
   'cards' => [
@@ -220,6 +225,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_form'])) {
   }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adviser_form'])) {
+  $action = $_POST['adviser_action'] ?? 'save';
+  $assignmentId = isset($_POST['assignment_id']) ? (int) $_POST['assignment_id'] : 0;
+  $gradeLevel = trim((string) ($_POST['adviser_grade'] ?? ''));
+  $section    = trim((string) ($_POST['adviser_section'] ?? ''));
+  $adviser    = trim((string) ($_POST['adviser_name'] ?? ''));
+
+  if ($action === 'delete') {
+    if ($assignmentId > 0) {
+      $current = adviser_assignments_get($conn, $assignmentId);
+      if ($current && adviser_assignments_delete($conn, $assignmentId)) {
+        adviser_assignments_update_students($conn, $current['grade_level'], $current['section'], 'To be assigned');
+        $adviserMessage = 'Adviser assignment removed.';
+      } else {
+        $adviserError = 'Unable to remove adviser assignment.';
+      }
+    } else {
+      $adviserError = 'Invalid adviser assignment specified.';
+    }
+  } elseif ($action === 'update') {
+    if ($assignmentId <= 0) {
+      $adviserError = 'Invalid adviser assignment specified.';
+    } else {
+      $error = null;
+      if (adviser_assignments_update($conn, $assignmentId, $gradeLevel, $section, $adviser, $error)) {
+        $adviserMessage = 'Adviser assignment updated.';
+      } else {
+        $adviserError = $error ?? 'Unable to update adviser assignment.';
+      }
+    }
+  } else {
+    if (adviser_assignments_upsert($conn, $gradeLevel, $section, $adviser)) {
+      $adviserMessage = 'Adviser assignment saved.';
+    } else {
+      $adviserError = 'Please provide a grade level, section, and adviser name.';
+    }
+  }
+
+  unset($_POST['adviser_grade'], $_POST['adviser_section'], $_POST['adviser_name']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_homepage_images'])) {
   $defaults = homepage_images_defaults();
   if (homepage_images_save($defaults)) {
@@ -362,6 +408,8 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
   $scheduleRows = $resultSchedules->fetch_all(MYSQLI_ASSOC);
   $resultSchedules->close();
 }
+
+$adviserAssignments = adviser_assignments_fetch($conn);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -600,6 +648,104 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
         <button type="submit" class="dashboard-btn">Save Schedule</button>
       </div>
       </form>
+
+      <div class="dashboard-subsection" id="adviserAssignments" style="margin-top:32px;">
+        <h3 style="margin-bottom:16px;">Section Adviser Assignments</h3>
+        <p class="text-muted" style="margin-bottom:20px;">Link a section to its adviser so automatic placements and registrar tools stay in sync. Provide the grade, then type the section name and adviser.</p>
+
+        <?php if ($adviserMessage !== ''): ?>
+          <div class="dashboard-alert success">
+            <?= htmlspecialchars($adviserMessage) ?>
+          </div>
+        <?php endif; ?>
+        <?php if ($adviserError !== ''): ?>
+          <div class="dashboard-alert error">
+            <?= htmlspecialchars($adviserError) ?>
+          </div>
+        <?php endif; ?>
+
+        <form class="dashboard-form" method="POST" action="#adviserAssignments" style="margin-bottom:24px;">
+          <input type="hidden" name="adviser_form" value="1">
+          <input type="hidden" name="adviser_action" value="save">
+          <div class="dashboard-grid three">
+            <div>
+              <label for="adviser_grade">Grade Level</label>
+              <select name="adviser_grade" id="adviser_grade" required>
+                <option value="">Select grade</option>
+                <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
+                  <option value="<?= htmlspecialchars($gradeOption) ?>" <?= (($_POST['adviser_grade'] ?? '') === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label for="adviser_section">Section</label>
+              <input type="text" name="adviser_section" id="adviser_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['adviser_section'] ?? '') ?>" required>
+            </div>
+            <div>
+              <label for="adviser_name">Adviser</label>
+              <input type="text" name="adviser_name" id="adviser_name" placeholder="e.g., Mrs. dela Cruz" value="<?= htmlspecialchars($_POST['adviser_name'] ?? '') ?>" required>
+            </div>
+          </div>
+          <div class="dashboard-actions">
+            <button type="submit" class="dashboard-btn">Save Adviser</button>
+          </div>
+        </form>
+
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:18%;">Grade</th>
+                <th style="width:28%;">Section</th>
+                <th style="width:28%;">Adviser</th>
+                <th style="width:26%;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($adviserAssignments)): ?>
+                <tr>
+                  <td colspan="4" style="text-align:center;">No adviser assignments yet. Use the form above to add one.</td>
+                </tr>
+              <?php else: ?>
+                <?php foreach ($adviserAssignments as $assignment): 
+                  $formId = 'update-adviser-' . (int) $assignment['id'];
+                  $deleteFormId = 'delete-adviser-' . (int) $assignment['id'];
+                ?>
+                  <tr>
+                    <td>
+                      <form id="<?= $formId ?>" method="POST" action="#adviserAssignments">
+                        <input type="hidden" name="adviser_form" value="1">
+                        <input type="hidden" name="adviser_action" value="update">
+                        <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
+                      </form>
+                      <select name="adviser_grade" form="<?= $formId ?>" required>
+                        <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
+                          <option value="<?= htmlspecialchars($gradeOption) ?>" <?= ($assignment['grade_level'] === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </td>
+                    <td>
+                      <input type="text" name="adviser_section" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['section']) ?>" required>
+                    </td>
+                    <td>
+                      <input type="text" name="adviser_name" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['adviser']) ?>" required>
+                    </td>
+                    <td>
+                      <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $formId ?>">Update</button>
+                      <form id="<?= $deleteFormId ?>" method="POST" action="#adviserAssignments" style="display:inline;">
+                        <input type="hidden" name="adviser_form" value="1">
+                        <input type="hidden" name="adviser_action" value="delete">
+                        <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
+                      </form>
+                      <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $deleteFormId ?>" style="background:#fbeaea;color:#c0392b;" onclick="return confirm('Remove this adviser assignment?');">Delete</button>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <hr style="margin:32px 0; border:none; border-top:1px solid #d4dce1;">
 

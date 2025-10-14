@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../includes/adviser_assignments.php';
+
 /**
  * Helper functions for automatic section assignment triggered during cashier operations.
  */
@@ -51,25 +53,25 @@ function cashier_determine_section_assignment(mysqli $conn, string $year, ?strin
     if (in_array($normalizedYear, ['Pre-Prime 1', 'Pre-Prime 2', 'Kindergarten'], true)) {
         $hersheyCount = cashier_section_sum_count($conn, $gradeVariants, 'Hershey');
         if ($hersheyCount < 20) {
-            return ['Hershey', 'Ms. Cruz'];
+            return cashier_section_pack_assignment($conn, $normalizedYear, 'Hershey');
         }
-        return ['Kisses', 'Mr. Reyes'];
+        return cashier_section_pack_assignment($conn, $normalizedYear, 'Kisses');
     }
 
     if (in_array($normalizedYear, ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6'], true)) {
         $sectionACount = cashier_section_sum_count($conn, $gradeVariants, 'Section A');
         if ($sectionACount < 30) {
-            return ['Section A', 'Ms. Santos'];
+            return cashier_section_pack_assignment($conn, $normalizedYear, 'Section A');
         }
-        return ['Section B', 'Mr. Dela Cruz'];
+        return cashier_section_pack_assignment($conn, $normalizedYear, 'Section B');
     }
 
     if (in_array($normalizedYear, ['Grade 7','Grade 8','Grade 9','Grade 10'], true)) {
         $sectionACount = cashier_section_sum_count($conn, $gradeVariants, 'Section A');
         if ($sectionACount < 40) {
-            return ['Section A', 'Ms. Gonzales'];
+            return cashier_section_pack_assignment($conn, $normalizedYear, 'Section A');
         }
-        return ['Section B', 'Mr. Lopez'];
+        return cashier_section_pack_assignment($conn, $normalizedYear, 'Section B');
     }
 
     if (in_array($normalizedYear, ['Grade 11','Grade 12'], true)) {
@@ -78,18 +80,30 @@ function cashier_determine_section_assignment(mysqli $conn, string $year, ?strin
             return null;
         }
         $section = $strand . ' - Section 1';
-        $adviser = match (strtoupper($strand)) {
-            'ABM' => 'Sir Mendoza',
-            'GAS' => 'Ma’am Ramirez',
-            'HUMMS' => 'Sir Villanueva',
-            'ICT' => 'Ma’am Bautista',
-            'TVL' => 'Ma’am Ortega',
-            default => 'To be assigned',
-        };
-        return [$section, $adviser];
+        return cashier_section_pack_assignment($conn, $normalizedYear, $section);
     }
 
     return null;
+}
+
+/**
+ * Bundle the section with the adviser configured by administrators.
+ *
+ * @return array{0:string,1:string}|null
+ */
+function cashier_section_pack_assignment(mysqli $conn, string $gradeLevel, string $section): ?array
+{
+    $section = trim($section);
+    if ($section === '') {
+        return null;
+    }
+
+    $adviser = adviser_assignments_adviser_for_section($conn, $gradeLevel, $section);
+    if ($adviser === null || $adviser === '') {
+        $adviser = 'To be assigned';
+    }
+
+    return [$section, $adviser];
 }
 
 function cashier_section_sum_count(mysqli $conn, array $gradeVariants, string $section): int
@@ -130,4 +144,3 @@ function cashier_section_grade_synonyms(string $grade): array
     }
     return [$normalized];
 }
-

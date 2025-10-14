@@ -1,5 +1,6 @@
 <?php
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/adviser_assignments.php';
 
 function uniqueOptions(array $options): array {
     $clean = [];
@@ -23,7 +24,7 @@ function normalizeEarlyYear(string $year): string {
     return $year;
 }
 
-function sectionSuggestions(string $year, string $strand): array {
+function sectionSuggestions(mysqli $conn, string $year, string $strand): array {
     $year = normalizeEarlyYear($year);
     $strand = trim($strand);
     $suggestions = [];
@@ -45,33 +46,24 @@ function sectionSuggestions(string $year, string $strand): array {
         }
     }
 
+    $dbSections = adviser_assignments_sections_for_grade($conn, $year);
+    if (!empty($dbSections)) {
+        $suggestions = array_merge($suggestions, $dbSections);
+    }
+
     return uniqueOptions($suggestions);
 }
 
-function adviserSuggestions(string $year, string $strand): array {
+function adviserSuggestions(mysqli $conn, string $year, string $strand): array {
     $year = normalizeEarlyYear($year);
     $strand = trim($strand);
-    $suggestions = [];
+    $suggestions = adviser_assignments_adviser_options($conn, $year);
 
-    if (in_array($year, ['Pre-Prime 1', 'Pre-Prime 2', 'Kindergarten'], true)) {
-        $suggestions = ['Ms. Cruz', 'Mr. Reyes'];
-    } elseif (in_array($year, ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'], true)) {
-        $suggestions = ['Ms. Santos', 'Mr. Dela Cruz'];
-    } elseif (in_array($year, ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10'], true)) {
-        $suggestions = ['Ms. Gonzales', 'Mr. Lopez'];
-    } elseif (in_array($year, ['Grade 11', 'Grade 12'], true)) {
-        $map = [
-            'ABM'   => 'Sir Mendoza',
-            'GAS'   => 'Ma\'am Ramirez',
-            'HUMMS' => 'Sir Villanueva',
-            'HUMSS' => 'Sir Villanueva',
-            'ICT'   => 'Ma\'am Bautista',
-            'TVL'   => 'Ma\'am Ortega',
-            'TVL - ICT' => 'Ma\'am Bautista',
-            'TVL - HE'  => 'Ma\'am Ortega'
-        ];
-        if (isset($map[$strand])) {
-            $suggestions[] = $map[$strand];
+    if (empty($suggestions) && in_array($year, ['Grade 11', 'Grade 12'], true) && $strand !== '') {
+        $strandSection = $strand . ' - Section 1';
+        $adviser = adviser_assignments_adviser_for_section($conn, $year, $strandSection);
+        if ($adviser !== null && $adviser !== '') {
+            $suggestions[] = $adviser;
         }
     }
 
@@ -138,8 +130,8 @@ if (!$student) {
 $currentSection = trim($student['section'] ?? '');
 $currentAdviser = trim($student['adviser'] ?? '');
 
-$baseSectionOptions = sectionSuggestions($student['year'] ?? '', $student['course'] ?? '');
-$baseAdviserOptions = adviserSuggestions($student['year'] ?? '', $student['course'] ?? '');
+$baseSectionOptions = sectionSuggestions($conn, $student['year'] ?? '', $student['course'] ?? '');
+$baseAdviserOptions = adviserSuggestions($conn, $student['year'] ?? '', $student['course'] ?? '');
 
 $sectionOptions = $baseSectionOptions;
 if ($currentSection !== '') {
