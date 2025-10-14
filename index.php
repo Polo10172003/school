@@ -298,7 +298,6 @@ $page_title = 'Escuela de Sto. Rosario - Home';
               <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
-        </div>
       <div class="row g-4">
         <div class="col-md-4">
             <div class="card info-card border-0 shadow-sm h-100">
