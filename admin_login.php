@@ -92,5 +92,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             </div>
         </div>
     </div>
+    <script src="assets/js/auth_forms.js"></script>
 </body>
 </html>
