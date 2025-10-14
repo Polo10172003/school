@@ -292,21 +292,21 @@ $page_title = 'Escuela de Sto. Rosario - Home';
       <div class="row g-4">
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic programs" class="w-100">
             <div class="card-body">
-              <h5 class="fw-bold text-success">Life on Campus</h5>
-              <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>
-              <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
+              <h5 class="fw-bold text-success">Academic Programs</h5>
+              <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
+              <a href="#primarySecondaryCarousel" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View academic tracks <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
         </div>
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic programs" class="w-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
             <div class="card-body">
-              <h5 class="fw-bold text-success">Academic Programs</h5>
-              <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
-              <a href="#seniorHighCarousel" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View academic tracks <i class="bi bi-arrow-right-short"></i></a>
+              <h5 class="fw-bold text-success">Life on Campus</h5>
+              <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>
+              <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
         </div>
