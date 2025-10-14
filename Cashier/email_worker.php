@@ -57,7 +57,8 @@ if (!function_exists('cashier_email_worker_process')) {
         // Align character set / collation to avoid mixed comparison errors in lookups.
         if ($conn instanceof mysqli) {
             @$conn->set_charset('utf8mb4');
-            @$conn->query("SET collation_connection = 'utf8mb4_general_ci'");
+            @$conn->query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_uca1400_ai_ci'");
+            @$conn->query("SET collation_connection = 'utf8mb4_uca1400_ai_ci'");
         }
 
         $tempDir = __DIR__ . '/../temp';
