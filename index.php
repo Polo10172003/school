@@ -289,7 +289,8 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         <h2 class="fw-bold text-success mt-3">Everything you need for a confident start</h2>
         <p class="lead text-muted">Quick guides for exploring programs, admissions, and day-to-day life at ESR.</p>
       </div>
-      <div class="col-md-4">
+      <div class="row g-4">
+        <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
             <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
             <div class="card-body">
@@ -299,7 +300,6 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             </div>
           </div>
         </div>
-      <div class="row g-4">
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
             <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic programs" class="w-100">
