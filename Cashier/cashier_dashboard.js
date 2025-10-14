@@ -1,6 +1,33 @@
 (function () {
   'use strict';
 
+  const PAYMENT_POLL_INTERVAL = 15000;
+  let paymentPollHandle = null;
+  let refreshPaymentRecords;
+
+  const escapeHtml = (value) =>
+    String(value ?? '').replace(/[&<>"']/g, (char) => {
+      switch (char) {
+        case '&':
+          return '&amp;';
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '"':
+          return '&quot;';
+        case "'":
+          return '&#039;';
+        default:
+          return char;
+      }
+    });
+
+  const currencyFormatter = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
   const bindPaymentModal = () => {
     const modal = document.getElementById('paymentModal');
     if (!modal) {
@@ -73,6 +100,10 @@
     };
 
     document.querySelectorAll('.view-payment-btn').forEach((btn) => {
+      if (btn.dataset.modalBound === '1') {
+        return;
+      }
+      btn.dataset.modalBound = '1';
       btn.addEventListener('click', () => {
         activeButton = btn;
         document.getElementById('modalStudent').textContent = btn.dataset.student || '';
@@ -173,6 +204,9 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
               }
             }
             document.getElementById('modalStatus').textContent = 'Paid';
+            if (typeof refreshPaymentRecords === 'function') {
+              await refreshPaymentRecords({ silent: true });
+            }
             alert('✅ Student’s payment has been accepted.');
             modal.style.display = 'none';
           } else if (data) {
@@ -209,6 +243,9 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
               activeButton.dataset.status = 'Declined';
             }
             document.getElementById('modalStatus').textContent = 'Declined';
+            if (typeof refreshPaymentRecords === 'function') {
+              await refreshPaymentRecords({ silent: true });
+            }
             alert('❌ Student’s payment has been declined.');
             modal.style.display = 'none';
           } else if (data) {
@@ -224,7 +261,7 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
     }
   };
 
-  const bindFinancialViewSwitchers = () => {
+const bindFinancialViewSwitchers = () => {
     const activateView = (studentId, viewKey) => {
       document
         .querySelectorAll(`.cashier-view[data-student="${studentId}"]`)
@@ -324,6 +361,133 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
     });
   };
 
+  refreshPaymentRecords = async function refreshPaymentRecords(options = {}) {
+    const { silent = false } = options;
+    const tableBody = document.getElementById('paymentTableBody');
+    if (!tableBody) {
+      return;
+    }
+
+    const recordsWrapper = document.getElementById('paymentRecords');
+    const toggleBtn = document.getElementById('paymentRecordsToggle');
+    const emptyState = document.getElementById('paymentEmptyState');
+
+    try {
+      const queryString = window.location.search || '';
+      const response = await fetch(`fetch_payment_records.php${queryString}`, { cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (!payload || payload.success !== true) {
+        throw new Error(payload && payload.error ? payload.error : 'Unexpected response');
+      }
+
+      const payments = Array.isArray(payload.payments) ? payload.payments : [];
+      const pendingCount = Number(payload.pending_count || 0);
+
+      const badge = document.getElementById('pendingPaymentsBadge');
+      if (badge) {
+        if (pendingCount > 0) {
+          badge.style.display = '';
+          badge.textContent = pendingCount;
+        } else {
+          badge.style.display = 'none';
+          badge.textContent = '';
+        }
+      }
+
+      const alertBox = document.getElementById('pendingPaymentsAlert');
+      const alertText = document.getElementById('pendingPaymentsAlertText');
+      if (alertBox && alertText) {
+        if (pendingCount > 0) {
+          alertText.textContent = `${pendingCount} payment${pendingCount > 1 ? 's' : ''} awaiting review.`;
+          alertBox.style.display = 'block';
+        } else {
+          alertText.textContent = '';
+          alertBox.style.display = 'none';
+        }
+      }
+
+      const rowsHtml = payments
+        .map((payment) => {
+          const createdAt = escapeHtml(payment.created_at || '');
+          const student = escapeHtml(payment.student || '');
+          const amountNumeric = Number(payment.amount || 0);
+          const amountDisplay = currencyFormatter.format(amountNumeric);
+          const rawStatus = (payment.status || 'Pending').toString();
+          const statusDisplay = escapeHtml(
+            rawStatus.length > 0 ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : 'Pending'
+          );
+          const paymentType = escapeHtml(payment.payment_type || '');
+          const refValue = payment.reference_number || payment.or_number || 'N/A';
+
+          return `
+            <tr>
+              <td>${createdAt}</td>
+              <td>${student}</td>
+              <td>${paymentType}</td>
+              <td>₱ ${amountDisplay}</td>
+              <td id="status-${payment.id}">${statusDisplay}</td>
+              <td class="text-center">
+                <button
+                  type="button"
+                  class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
+                  data-id="${payment.id}"
+                  data-student-id="${payment.student_id || ''}"
+                  data-student="${student}"
+                  data-type="${paymentType}"
+                  data-amount="${amountNumeric}"
+                  data-status="${escapeHtml(payment.status || 'Pending')}"
+                  data-ref="${escapeHtml(refValue || 'N/A')}"
+                  data-reference="${escapeHtml(payment.reference_number || '')}"
+                  data-or="${escapeHtml(payment.or_number || '')}"
+                  data-screenshot="${escapeHtml(payment.screenshot_path || '')}"
+                >
+                  View Payment
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join('');
+
+      tableBody.innerHTML = rowsHtml;
+
+      if (emptyState) {
+        emptyState.style.display = payments.length === 0 ? '' : 'none';
+      }
+
+      if (toggleBtn) {
+        const defaultLabel = payload.default_label || 'View Payment Records';
+        const activeLabel = payload.active_label || 'Hide Payment Records';
+        toggleBtn.dataset.toggleLabel = defaultLabel;
+        toggleBtn.dataset.toggleActiveLabel = activeLabel;
+        toggleBtn.setAttribute('data-toggle-label', defaultLabel);
+        toggleBtn.setAttribute('data-toggle-active-label', activeLabel);
+        toggleBtn.style.display = payments.length === 0 ? 'none' : '';
+
+        if (recordsWrapper) {
+          const isOpen = window.getComputedStyle(recordsWrapper).display !== 'none';
+          toggleBtn.textContent = isOpen ? activeLabel : defaultLabel;
+        } else {
+          toggleBtn.textContent = defaultLabel;
+        }
+      }
+
+      if (recordsWrapper && payments.length === 0) {
+        recordsWrapper.style.display = 'none';
+      }
+
+      bindPaymentModal();
+    } catch (error) {
+      if (!silent) {
+        console.error('[cashier] Unable to refresh payment records.', error);
+      }
+    }
+  };
+
   const triggerReceiptPrint = () => {
     if (!window.cashierReceiptData) {
       return;
@@ -409,6 +573,23 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
     bindFinancialViewSwitchers();
     bindPlanSelectors();
     bootReceiptIfNeeded();
+    refreshPaymentRecords({ silent: true });
+    if (paymentPollHandle) {
+      clearInterval(paymentPollHandle);
+    }
+    paymentPollHandle = setInterval(() => refreshPaymentRecords({ silent: true }), PAYMENT_POLL_INTERVAL);
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (paymentPollHandle) {
+        clearInterval(paymentPollHandle);
+        paymentPollHandle = null;
+      }
+    } else if (!paymentPollHandle) {
+      refreshPaymentRecords({ silent: true });
+      paymentPollHandle = setInterval(() => refreshPaymentRecords({ silent: true }), PAYMENT_POLL_INTERVAL);
+    }
   });
 
   window.calculatePayment = function () {

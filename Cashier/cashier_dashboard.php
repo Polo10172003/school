@@ -335,7 +335,7 @@ if ($receiptPaymentId) {
     </div>
     <nav class="dashboard-nav">
       <a href="#record">Record Payment</a>
-      <a href="#records">Payment Records<?php if ($pendingPaymentCount > 0): ?><span class="nav-indicator"><?= $pendingPaymentCount ?></span><?php endif; ?></a>
+      <a href="#records">Payment Records<span class="nav-indicator" id="pendingPaymentsBadge" style="<?= $pendingPaymentCount > 0 ? '' : 'display:none;' ?>"><?= $pendingPaymentCount ?></span></a>
       <a href="#fees">Manage Fees</a>
     </nav>
     <a href="cashier_logout.php" class="dashboard-logout">Logout</a>
@@ -771,18 +771,29 @@ if ($receiptPaymentId) {
       <span class="dashboard-section-title">Payments Oversight</span>
       <h2>Payment Records</h2>
       <p class="text-muted">Review online submissions and onsite receipts queued for verification.</p>
-      <?php if ($pendingPaymentCount > 0): ?>
-        <div class="dashboard-alert warning" style="margin-bottom:12px;">
-          <?= $pendingPaymentCount ?> payment<?= $pendingPaymentCount > 1 ? 's' : '' ?> awaiting review.
-        </div>
-      <?php endif; ?>
+      <?php
+        $pendingAlertText = $pendingPaymentCount > 0
+            ? ($pendingPaymentCount . ' payment' . ($pendingPaymentCount > 1 ? 's' : '') . ' awaiting review.')
+            : '';
+      ?>
+      <div class="dashboard-alert warning" id="pendingPaymentsAlert" style="<?= $pendingPaymentCount > 0 ? 'margin-bottom:12px;' : 'display:none;margin-bottom:12px;' ?>">
+        <span id="pendingPaymentsAlertText"><?= htmlspecialchars($pendingAlertText) ?></span>
+      </div>
 
-      <?php if (!empty($paymentRows)): ?>
-        <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="<?= htmlspecialchars($paymentToggleLabel, ENT_QUOTES, 'UTF-8'); ?>" data-toggle-active-label="<?= htmlspecialchars($paymentToggleActiveLabel, ENT_QUOTES, 'UTF-8'); ?>" data-toggle-target="paymentRecords" onclick="toggleSection(this);" style="margin-bottom:16px;">
-          <?= htmlspecialchars($paymentToggleLabel); ?>
-        </button>
-        <div class="table-responsive collapsible" id="paymentRecords" style="display:none;">
-          <table id="paymentTable">
+      <button
+        type="button"
+        class="dashboard-btn secondary dashboard-btn--small"
+        id="paymentRecordsToggle"
+        data-toggle-label="<?= htmlspecialchars($paymentToggleLabel, ENT_QUOTES, 'UTF-8'); ?>"
+        data-toggle-active-label="<?= htmlspecialchars($paymentToggleActiveLabel, ENT_QUOTES, 'UTF-8'); ?>"
+        data-toggle-target="paymentRecords"
+        onclick="toggleSection(this);"
+        style="margin-bottom:16px;<?= empty($paymentRows) ? 'display:none;' : '' ?>"
+      >
+        <?= htmlspecialchars($paymentToggleLabel); ?>
+      </button>
+      <div class="table-responsive collapsible" id="paymentRecords" style="display:none;">
+        <table id="paymentTable">
             <thead>
               <tr>
                 <th>Date</th>
@@ -793,35 +804,39 @@ if ($receiptPaymentId) {
                 <th class="text-center">Action</th>
               </tr>
             </thead>
-            <tbody>
-              <?php foreach ($paymentRows as $row): ?>
-                <tr>
-                  <td><?= date('Y-m-d', strtotime($row['created_at'])) ?></td>
-                  <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?> <?= htmlspecialchars($row['middlename']) ?></td>
-                  <td><?= htmlspecialchars($row['payment_type']) ?></td>
-                  <td>₱ <?= number_format($row['amount'], 2) ?></td>
-                  <td id="status-<?= $row['id'] ?>"><?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?></td>
-                  <td class="text-center">
-                    <button type="button" class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
-                      data-id="<?= $row['id'] ?>"
-                      data-student-id="<?= (int) $row['student_id'] ?>"
-                      data-student="<?= htmlspecialchars($row['lastname'] . ', ' . $row['firstname']) ?>"
-                      data-type="<?= htmlspecialchars($row['payment_type']) ?>"
-                      data-amount="<?= $row['amount'] ?>"
-                      data-status="<?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?>"
-                      data-ref="<?= htmlspecialchars($row['reference_number'] ?? $row['or_number'] ?? 'N/A') ?>"
-                      data-screenshot="<?= htmlspecialchars($row['screenshot_path'] ?? '') ?>">
-                      View Payment
-                    </button>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
+            <tbody id="paymentTableBody">
+              <?php if (!empty($paymentRows)): ?>
+                <?php foreach ($paymentRows as $row): ?>
+                  <tr>
+                    <td><?= date('Y-m-d', strtotime($row['created_at'])) ?></td>
+                    <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?> <?= htmlspecialchars($row['middlename']) ?></td>
+                    <td><?= htmlspecialchars($row['payment_type']) ?></td>
+                    <td>₱ <?= number_format($row['amount'], 2) ?></td>
+                    <td id="status-<?= $row['id'] ?>"><?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?></td>
+                    <td class="text-center">
+                      <button
+                        type="button"
+                        class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
+                        data-id="<?= $row['id'] ?>"
+                        data-student-id="<?= (int) $row['student_id'] ?>"
+                        data-student="<?= htmlspecialchars($row['lastname'] . ', ' . $row['firstname']) ?>"
+                        data-type="<?= htmlspecialchars($row['payment_type']) ?>"
+                        data-amount="<?= $row['amount'] ?>"
+                        data-status="<?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?>"
+                        data-ref="<?= htmlspecialchars($row['reference_number'] ?? $row['or_number'] ?? 'N/A') ?>"
+                        data-reference="<?= htmlspecialchars($row['reference_number'] ?? '') ?>"
+                        data-or="<?= htmlspecialchars($row['or_number'] ?? '') ?>"
+                        data-screenshot="<?= htmlspecialchars($row['screenshot_path'] ?? '') ?>">
+                        View Payment
+                      </button>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </tbody>
           </table>
         </div>
-      <?php else: ?>
-        <div class="dashboard-empty-state">No payments recorded yet.</div>
-      <?php endif; ?>
+      <div class="dashboard-empty-state" id="paymentEmptyState" style="<?= empty($paymentRows) ? '' : 'display:none;' ?>">No payments recorded yet.</div>
     </section>
 
     <section class="dashboard-card" id="fees">
