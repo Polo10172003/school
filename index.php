@@ -352,20 +352,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
     </div>
   </section>
 
-  <section class="py-5">
-    <div class="container">
-      <div class="staff-access text-center shadow-lg">
-        <span class="section-label text-white">Staff Access</span>
-        <h2 class="fw-bold mt-3">Log in to your workspace</h2>
-        <p class="mb-4">Dedicated portals for our cashier, registrar, and admin teams keep operations running smoothly.</p>
-        <div class="d-flex flex-wrap justify-content-center gap-3">
-          <a class="staff-btn" href="Cashier/cashier_login.php">Cashier Login</a>
-          <a class="staff-btn" href="Registrar/registrar_login.php">Registrar Login</a>
-          <a class="staff-btn" href="admin_login.php">Admin Login</a>
-        </div>
-      </div>
-    </div>
-  </section>
+
 
   <div id="aboutus" class="container mb-4 pb-5">
     <p><!-- Invisible spacer to adjust scroll position for About Us tab --></p>
