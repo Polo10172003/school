@@ -608,7 +608,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <label for="schedule_school_year">School Year</label>
                 <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
               </div>
-              <div class="grid-span-2">
+              <div>
                 <label for="schedule_section">Section (optional)</label>
                 <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
                 <label class="dashboard-checkbox-inline">
