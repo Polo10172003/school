@@ -301,11 +301,11 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         </div>
       <div class="row g-4">
         <div class="col-md-4">
-          <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic programs" class="w-100">
+            <div class="card info-card border-0 shadow-sm h-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['programs'] ?? '')); ?>" alt="Academic progress" class="w-100">
             <div class="card-body">
-              <h5 class="fw-bold text-success">Academic Programs</h5>
-              <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
+              <h5 class="fw-bold text-success">Academic Progress</h5>
+              <p class="text-muted">Explore milestones, strands, and support that guide students from preschool foundations to senior high achievements.</p>
               <a href="#primarySecondaryCarousel" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View academic tracks <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
