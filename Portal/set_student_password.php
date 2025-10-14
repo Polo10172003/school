@@ -3,6 +3,20 @@ require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 date_default_timezone_set('Asia/Manila');
 
+function student_password_matches_current(?string $storedPassword, string $newPassword): bool
+{
+    if (empty($storedPassword)) {
+        return false;
+    }
+
+    $info = password_get_info((string) $storedPassword);
+    if (($info['algo'] ?? 0) !== 0) {
+        return password_verify($newPassword, $storedPassword);
+    }
+
+    return hash_equals((string) $storedPassword, $newPassword);
+}
+
 $error = '';
 $success = '';
 $email = '';
@@ -14,7 +28,7 @@ if (isset($_GET['token'])) {
     $mode = 'reset';
     $token = $_GET['token'];
 
-    $stmt = $conn->prepare("SELECT email FROM student_accounts WHERE reset_token = ? AND token_expiry > NOW()");
+    $stmt = $conn->prepare("SELECT email, password FROM student_accounts WHERE reset_token = ? AND token_expiry > NOW()");
     $stmt->bind_param("s", $token);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -22,17 +36,26 @@ if (isset($_GET['token'])) {
     if ($result->num_rows === 1) {
         $row = $result->fetch_assoc();
         $email = $row['email'];
+        $currentPassword = $row['password'] ?? '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newPass = $_POST['new_password'];
             $confirmPass = $_POST['confirm_password'];
 
             if ($newPass === $confirmPass) {
-                $hashed = password_hash($newPass, PASSWORD_DEFAULT);
-                $update = $conn->prepare("UPDATE student_accounts SET password = ?, reset_token = NULL, token_expiry = NULL WHERE email = ?");
-                $update->bind_param("ss", $hashed, $email);
-                $update->execute();
-                $success = "Your password has been reset. You may now <a href='student_login.php'>log in</a>.";
+                if (student_password_matches_current($currentPassword, $newPass)) {
+                    $error = 'Your new password must be different from the previous password.';
+                } else {
+                    $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+                    $update = $conn->prepare("UPDATE student_accounts SET password = ?, reset_token = NULL, token_expiry = NULL WHERE email = ?");
+                    $update->bind_param("ss", $hashed, $email);
+                    if ($update->execute()) {
+                        $success = "Your password has been reset. You may now <a href='student_login.php'>log in</a>.";
+                    } else {
+                        $error = 'Unable to reset your password right now. Please try again.';
+                    }
+                    $update->close();
+                }
             } else {
                 $error = 'Passwords do not match!';
             }
@@ -40,17 +63,20 @@ if (isset($_GET['token'])) {
     } else {
         $error = 'Invalid or expired reset link.';
     }
+    $stmt->close();
 } elseif (isset($_SESSION['student_number'])) {
     $mode = 'first_login';
     $studentNumber = $_SESSION['student_number'];
 
-    $acctStmt = $conn->prepare("SELECT email, is_first_login FROM student_accounts WHERE student_number = ?");
+    $acctStmt = $conn->prepare("SELECT email, is_first_login, password FROM student_accounts WHERE student_number = ?");
     $acctStmt->bind_param("s", $studentNumber);
     $acctStmt->execute();
     $account = $acctStmt->get_result()->fetch_assoc();
+    $acctStmt->close();
 
     if ($account) {
         $email = $account['email'] ?? '';
+        $currentPassword = $account['password'] ?? '';
         $infoStmt = $conn->prepare("SELECT firstname, lastname FROM students_registration WHERE student_number = ?");
         $infoStmt->bind_param("s", $studentNumber);
         $infoStmt->execute();
@@ -64,15 +90,21 @@ if (isset($_GET['token'])) {
             $confirmPass = $_POST['confirm_password'];
 
             if ($newPass === $confirmPass) {
-                $hashed = password_hash($newPass, PASSWORD_DEFAULT);
-                $update = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE student_number = ?");
-                $update->bind_param("ss", $hashed, $studentNumber);
-                if ($update->execute()) {
-                    session_regenerate_id(true);
-                    header('Location: student_portal.php');
-                    exit();
+                if (student_password_matches_current($currentPassword, $newPass)) {
+                    $error = 'Please choose a password you have not used before.';
+                } else {
+                    $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+                    $update = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE student_number = ?");
+                    $update->bind_param("ss", $hashed, $studentNumber);
+                    if ($update->execute()) {
+                        $update->close();
+                        session_regenerate_id(true);
+                        header('Location: student_portal.php');
+                        exit();
+                    }
+                    $update->close();
+                    $error = 'Unable to update password right now. Please try again.';
                 }
-                $error = 'Unable to update password right now. Please try again.';
             } else {
                 $error = 'Passwords do not match!';
             }
@@ -84,18 +116,33 @@ if (isset($_GET['token'])) {
     $mode = 'first_login_email';
     $email = $_SESSION['student_email'];
 
+    $acctStmt = $conn->prepare("SELECT password FROM student_accounts WHERE email = ?");
+    $acctStmt->bind_param("s", $email);
+    $acctStmt->execute();
+    $acctRow = $acctStmt->get_result()->fetch_assoc();
+    $acctStmt->close();
+    $currentPassword = $acctRow['password'] ?? '';
+
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $newPass = $_POST['new_password'];
         $confirmPass = $_POST['confirm_password'];
 
         if ($newPass === $confirmPass) {
-            $hashed = password_hash($newPass, PASSWORD_DEFAULT);
-            $stmt = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE email = ?");
-            $stmt->bind_param("ss", $hashed, $email);
-            $stmt->execute();
-            session_regenerate_id(true);
-            header('Location: student_portal.php');
-            exit();
+            if (student_password_matches_current($currentPassword, $newPass)) {
+                $error = 'Please choose a password you have not used before.';
+            } else {
+                $hashed = password_hash($newPass, PASSWORD_DEFAULT);
+                $stmt = $conn->prepare("UPDATE student_accounts SET password = ?, is_first_login = 0 WHERE email = ?");
+                $stmt->bind_param("ss", $hashed, $email);
+                if ($stmt->execute()) {
+                    $stmt->close();
+                    session_regenerate_id(true);
+                    header('Location: student_portal.php');
+                    exit();
+                }
+                $stmt->close();
+                $error = 'Unable to update password right now. Please try again.';
+            }
         } else {
             $error = 'Passwords do not match!';
         }
