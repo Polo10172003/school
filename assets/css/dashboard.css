@@ -484,8 +484,14 @@ body.dashboard-body {
   grid-auto-rows: minmax(0, 1fr);
 }
 
+.dashboard-grid.four {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+}
+
 .dashboard-grid.two > div,
-.dashboard-grid.three > div {
+.dashboard-grid.three > div,
+.dashboard-grid.four > div {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -499,17 +505,20 @@ body.dashboard-body {
 }
 
 .dashboard-grid.two > div label,
-.dashboard-grid.three > div label {
+.dashboard-grid.three > div label,
+.dashboard-grid.four > div label {
   margin-top: 0;
 }
 
 .dashboard-grid.two > div .dashboard-checkbox-inline,
-.dashboard-grid.three > div .dashboard-checkbox-inline {
+.dashboard-grid.three > div .dashboard-checkbox-inline,
+.dashboard-grid.four > div .dashboard-checkbox-inline {
   margin-top: 6px;
 }
 
 .dashboard-grid.two > div .dashboard-field-pair label,
-.dashboard-grid.three > div .dashboard-field-pair label {
+.dashboard-grid.three > div .dashboard-field-pair label,
+.dashboard-grid.four > div .dashboard-field-pair label {
   margin-top: 0;
 }
 

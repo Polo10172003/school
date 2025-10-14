@@ -608,6 +608,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <label for="schedule_school_year">School Year</label>
                 <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
               </div>
+            </div>
+            <div class="dashboard-grid three" style="margin-top:20px;">
               <div>
                 <label for="schedule_section">Section (optional)</label>
                 <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
@@ -619,10 +621,12 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <label for="schedule_subject">Subject</label>
                 <input type="text" name="schedule_subject" id="schedule_subject" required value="<?= htmlspecialchars($_POST['schedule_subject'] ?? '') ?>">
               </div>
-              <div class="grid-span-2">
+              <div>
                 <label for="schedule_teacher">Teacher (optional)</label>
                 <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
               </div>
+            </div>
+            <div class="dashboard-grid four" style="margin-top:20px;">
               <div>
                 <label for="schedule_day">Day of Week</label>
                 <select name="schedule_day" id="schedule_day" required>
@@ -634,15 +638,13 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="grid-span-2 dashboard-field-pair">
-                <div>
-                  <label for="schedule_start">Start Time (optional)</label>
-                  <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
-                </div>
-                <div>
-                  <label for="schedule_end">End Time (optional)</label>
-                  <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
-                </div>
+              <div>
+                <label for="schedule_start">Start Time (optional)</label>
+                <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="schedule_end">End Time (optional)</label>
+                <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
               </div>
               <div>
                 <label for="schedule_room">Room (optional)</label>
