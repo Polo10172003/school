@@ -84,6 +84,10 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
 });
         document.getElementById('modalStatus').textContent = btn.dataset.status || '';
         document.getElementById('modalPaymentId').value = btn.dataset.id || '';
+        const studentIdInput = document.getElementById('modalStudentId');
+        if (studentIdInput) {
+          studentIdInput.value = btn.dataset.studentId || '';
+        }
 
         const shot = (btn.dataset.screenshot || '').trim();
         if (shot) {
@@ -147,6 +151,10 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         setProcessingState(true, 'accept');
 
         const payload = { id, status: 'paid' };
+        const studentIdInput = document.getElementById('modalStudentId');
+        if (studentIdInput && studentIdInput.value) {
+          payload.student_id = studentIdInput.value;
+        }
         if (currentType === 'cash') {
           payload.or_number = document.getElementById('modalRefOr').textContent;
         }
@@ -186,7 +194,12 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         setProcessingState(true, 'decline');
 
         try {
-          const data = await postForm('update_payment_status.php', { id, status: 'declined' });
+          const declinePayload = { id, status: 'declined' };
+          const studentIdInput = document.getElementById('modalStudentId');
+          if (studentIdInput && studentIdInput.value) {
+            declinePayload.student_id = studentIdInput.value;
+          }
+          const data = await postForm('update_payment_status.php', declinePayload);
           if (data && data.success) {
             const statusCell = document.getElementById('status-' + id);
             if (statusCell) {

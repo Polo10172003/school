@@ -804,6 +804,7 @@ if ($receiptPaymentId) {
                   <td class="text-center">
                     <button type="button" class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
                       data-id="<?= $row['id'] ?>"
+                      data-student-id="<?= (int) $row['student_id'] ?>"
                       data-student="<?= htmlspecialchars($row['lastname'] . ', ' . $row['firstname']) ?>"
                       data-type="<?= htmlspecialchars($row['payment_type']) ?>"
                       data-amount="<?= $row['amount'] ?>"
@@ -1003,8 +1004,9 @@ if ($receiptPaymentId) {
       <img id="modalScreenshot" class="payment-modal__screenshot-img" src="" alt="Payment Screenshot">
     </div>
 
-    <!-- Hidden input -->
+    <!-- Hidden inputs -->
     <input type="hidden" id="modalPaymentId">
+    <input type="hidden" id="modalStudentId">
 
     <!-- Accept / Decline Buttons -->
     <div class="payment-modal__actions">
