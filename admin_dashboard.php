@@ -609,7 +609,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
               </div>
             </div>
-            <div class="dashboard-grid three" style="margin-top:20px;">
+            <div class="dashboard-grid two schedule-row">
               <div>
                 <label for="schedule_section">Section (optional)</label>
                 <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
@@ -621,12 +621,12 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <label for="schedule_subject">Subject</label>
                 <input type="text" name="schedule_subject" id="schedule_subject" required value="<?= htmlspecialchars($_POST['schedule_subject'] ?? '') ?>">
               </div>
+            </div>
+            <div class="dashboard-grid two schedule-row">
               <div>
                 <label for="schedule_teacher">Teacher (optional)</label>
                 <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
               </div>
-            </div>
-            <div class="dashboard-grid four" style="margin-top:20px;">
               <div>
                 <label for="schedule_day">Day of Week</label>
                 <select name="schedule_day" id="schedule_day" required>
@@ -638,6 +638,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                   <?php endforeach; ?>
                 </select>
               </div>
+            </div>
+            <div class="dashboard-grid three schedule-row">
               <div>
                 <label for="schedule_start">Start Time (optional)</label>
                 <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
@@ -930,16 +932,16 @@ unset($sections);
         </div>
       <?php endif; ?>
 
-      <form class="dashboard-form" method="POST" enctype="multipart/form-data" style="display:flex; flex-direction:column; gap:18px;">
+      <form class="dashboard-form dashboard-media-form" method="POST" enctype="multipart/form-data">
       <input type="hidden" name="homepage_images_form" value="1">
       <?php foreach ($homepageSections as $sectionKey => $sectionData):
         $sectionLabel = $sectionData['label'];
         $sectionType  = $sectionData['type'] ?? 'static';
         $isCarousel   = $sectionType === 'carousel';
       ?>
-        <details style="background:#fff; border:1px solid #d4dce1; border-radius:10px; padding:16px;">
-          <summary style="cursor:pointer; font-weight:700; color:#145A32; margin-bottom:12px;"><?= htmlspecialchars($sectionLabel) ?></summary>
-          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+        <details class="dashboard-media-details">
+          <summary class="dashboard-media-summary"><?= htmlspecialchars($sectionLabel) ?></summary>
+          <div class="dashboard-media-grid">
             <?php if ($isCarousel): ?>
               <?php
                 $slides = isset($homepageImages[$sectionKey]) && is_array($homepageImages[$sectionKey])
@@ -953,39 +955,39 @@ unset($sections);
                 $displayLabel = $itemLabelPrefix . ' ' . $slideNumber;
                 $slideNumber++;
               ?>
-                <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc; position:relative;">
-                  <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($displayLabel) ?></div>
-                  <div style="margin-bottom:10px;">
-                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($displayLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+                <div class="dashboard-media-card">
+                  <div class="dashboard-media-card__title"><?= htmlspecialchars($displayLabel) ?></div>
+                  <div class="dashboard-media-card__preview">
+                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($displayLabel) ?>">
                   </div>
-                  <label style="display:block; font-weight:500; margin-bottom:6px;">Replace image</label>
+                  <label class="dashboard-media-card__label">Replace image</label>
                   <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
-                  <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
-                  <label style="display:flex; gap:6px; align-items:center; font-size:13px; margin-top:8px; color:#5d6d6f;">
+                  <p class="dashboard-media-card__hint">Current: <?= htmlspecialchars($currentImage) ?></p>
+                  <label class="dashboard-media-card__option">
                     <input type="checkbox" name="homeimg_<?= htmlspecialchars($sectionKey) ?>_delete[]" value="<?= htmlspecialchars($itemKey) ?>">
                     Remove this slide
                   </label>
                 </div>
               <?php endforeach; ?>
-              <div style="border:1px dashed #b8c6cc; border-radius:10px; padding:12px; background:#fdfefe; display:flex; flex-direction:column; justify-content:center; gap:8px;">
-                <div style="font-weight:600; color:#145A32;">Add new slides</div>
-                <p style="font-size:12px; color:#5d6d6f; margin:0;">Upload one or more images to append to this carousel.</p>
+              <div class="dashboard-media-card dashboard-media-card--add">
+                <div class="dashboard-media-card__title">Add new slides</div>
+                <p class="dashboard-media-card__hint">Upload one or more images to append to this carousel.</p>
                 <input type="file" name="homeimg_<?= htmlspecialchars($sectionKey) ?>_new[]" accept="image/*" multiple>
-                <p style="font-size:12px; color:#5d6d6f; margin:0;">Tip: hold Ctrl/Cmd to select multiple files.</p>
+                <p class="dashboard-media-card__hint">Tip: hold Ctrl/Cmd to select multiple files.</p>
               </div>
             <?php else: ?>
               <?php foreach ($sectionData['items'] as $itemKey => $itemLabel):
                 $currentImage = homepage_images_get($homepageImages, [$sectionKey, $itemKey]);
                 $fieldName = 'homeimg_' . $sectionKey . '_' . $itemKey;
               ?>
-                <div style="border:1px solid #e0e6ed; border-radius:10px; padding:12px; background:#f8fafc;">
-                  <div style="font-weight:600; margin-bottom:8px; color:#145A32;"><?= htmlspecialchars($itemLabel) ?></div>
-                  <div style="margin-bottom:10px;">
-                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($itemLabel) ?>" style="max-width:100%; max-height:150px; object-fit:cover; border-radius:8px; border:1px solid #d4dce1;">
+                <div class="dashboard-media-card">
+                  <div class="dashboard-media-card__title"><?= htmlspecialchars($itemLabel) ?></div>
+                  <div class="dashboard-media-card__preview">
+                    <img src="<?= htmlspecialchars($currentImage) ?>" alt="<?= htmlspecialchars($itemLabel) ?>">
                   </div>
-                  <label style="display:block; font-weight:500; margin-bottom:6px;">Upload new image</label>
+                  <label class="dashboard-media-card__label">Upload new image</label>
                   <input type="file" name="<?= htmlspecialchars($fieldName) ?>" accept="image/*">
-                  <p style="font-size:12px; color:#5d6d6f; margin-top:6px;">Current: <?= htmlspecialchars($currentImage) ?></p>
+                  <p class="dashboard-media-card__hint">Current: <?= htmlspecialchars($currentImage) ?></p>
                 </div>
               <?php endforeach; ?>
             <?php endif; ?>
