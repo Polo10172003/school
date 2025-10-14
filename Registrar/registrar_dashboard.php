@@ -239,7 +239,7 @@ if ($grade_filter) {
 
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
         <label for="dropbox_grade_filter">Filter by Grade</label>
-        <select id="dropbox_grade_filter" name="grade_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;">
+        <select id="dropbox_grade_filter" name="grade_filter" style="max-width:280px; margin-top:10px;">
           <option value="">All Grades</option>
           <?php foreach ($gradeLevels as $level): ?>
             <option value="<?= htmlspecialchars($level) ?>" <?= ($grade_filter === $level) ? 'selected' : '' ?>>
@@ -300,7 +300,7 @@ if ($grade_filter) {
 
       <form class="dashboard-form" method="GET" style="margin-bottom:12px;">
         <label for="grade_filter">Filter by Grade</label>
-        <select name="grade_filter" id="grade_filter" onchange="this.form.submit()">
+        <select name="grade_filter" id="grade_filter">
           <option value="">All Grades</option>
           <?php foreach ($gradeLevels as $g): ?>
             <option value="<?= htmlspecialchars($g) ?>" <?= ($grade_filter === $g) ? 'selected' : '' ?>>
@@ -376,6 +376,50 @@ if ($grade_filter) {
         <?php endif; ?>
       </form>
     </section>
+
+<script>
+  (function () {
+    function setupGradeFilter(selectId, anchorId) {
+      const select = document.getElementById(selectId);
+      if (!select) {
+        return;
+      }
+
+      const anchor = anchorId && anchorId.charAt(0) === '#' ? anchorId : '#' + anchorId;
+      select.addEventListener('change', function (event) {
+        event.preventDefault();
+
+        const url = new URL(window.location.href);
+        const paramName = select.name || 'grade_filter';
+        const params = new URLSearchParams(url.search);
+
+        if (select.value) {
+          params.set(paramName, select.value);
+        } else {
+          params.delete(paramName);
+        }
+
+        const nextSearch = params.toString();
+        url.search = nextSearch;
+        url.hash = anchor;
+
+        window.location.assign(url.toString());
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      setupGradeFilter('dropbox_grade_filter', 'grade-dropbox');
+      setupGradeFilter('grade_filter', 'students');
+
+      if (window.location.hash) {
+        const target = document.querySelector(window.location.hash);
+        if (target && typeof target.scrollIntoView === 'function') {
+          target.scrollIntoView({ behavior: 'auto', block: 'start' });
+        }
+      }
+    });
+  })();
+</script>
 
 <script>
 // Check/uncheck all checkboxes
