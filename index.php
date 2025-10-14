@@ -289,6 +289,16 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         <h2 class="fw-bold text-success mt-3">Everything you need for a confident start</h2>
         <p class="lead text-muted">Quick guides for exploring programs, admissions, and day-to-day life at ESR.</p>
       </div>
+      <div class="col-md-4">
+          <div class="card info-card border-0 shadow-sm h-100">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
+            <div class="card-body">
+              <h5 class="fw-bold text-success">Life on Campus</h5>
+              <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>
+              <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
+            </div>
+          </div>
+        </div>
       <div class="row g-4">
         <div class="col-md-4">
           <div class="card info-card border-0 shadow-sm h-100">
@@ -304,19 +314,9 @@ $page_title = 'Escuela de Sto. Rosario - Home';
           <div class="card info-card border-0 shadow-sm h-100">
             <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['admissions'] ?? '')); ?>" alt="Admissions" class="w-100">
             <div class="card-body">
-              <h5 class="fw-bold text-success">Admissions Checklist</h5>
+              <h5 class="fw-bold text-success">How to Enroll</h5>
               <p class="text-muted">Follow easy steps for document submission, interviews, and payment options.</p>
               <a href="enrollment_steps.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">See enrollment steps <i class="bi bi-arrow-right-short"></i></a>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card info-card border-0 shadow-sm h-100">
-            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['campus'] ?? '')); ?>" alt="Campus life" class="w-100">
-            <div class="card-body">
-              <h5 class="fw-bold text-success">Life on Campus</h5>
-              <p class="text-muted">Discover clubs, facilities, and activities that keep students inspired daily.</p>
-              <a href="#highlights" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">Tour our highlights <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
         </div>

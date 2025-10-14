@@ -123,8 +123,8 @@ $homepageImages = homepage_images_load();
           <h1 class="display-5 fw-bold mt-4">Follow the path that fits your family.</h1>
           <p class="hero-lead mt-3">Whether you are joining ESR for the first time or returning for another year, choose the steps for online or onsite enrollment and stay on track with every requirement.</p>
           <div class="d-flex flex-wrap gap-3 mt-4 hero-actions">
-            <a class="btn btn-warning btn-lg text-dark fw-semibold" href="#new-online">New Students Online</a>
-            <a class="btn btn-outline-light btn-lg fw-semibold" href="#old-online">Old Students Online</a>
+            <a class="btn btn-warning btn-lg text-dark fw-semibold" href="StudentNoVerification/ineeditNaregistration.php">Start Registration</a>
+            <a class="btn btn-outline-light btn-lg fw-semibold" href="Portal/student_login.php">Old Students Online</a>
           </div>
         </div>
       </div>
