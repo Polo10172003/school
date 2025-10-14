@@ -68,14 +68,16 @@ $stmt->close();
 $student_stmt = $conn->prepare('
     SELECT
         sp.student_id AS payment_student_id,
+        sp.grade_level AS payment_grade_level,
+        sp.school_year AS payment_school_year,
+        sp.payment_type,
+        sp.amount,
         sr.id AS matched_student_id,
         sr.emailaddress,
         sr.firstname,
         sr.lastname,
-        sr.year,
-        sp.payment_type,
-        sp.amount,
-        sp.grade_level
+        sr.year AS student_grade_level,
+        sr.school_year AS student_school_year
     FROM student_payments sp
     LEFT JOIN students_registration sr ON sr.id = sp.student_id
     WHERE sp.id = ?
@@ -89,6 +91,8 @@ $student_stmt->close();
 
 $payment_student_id = (int) ($studentRow['payment_student_id'] ?? 0);
 $matched_student_id = (int) ($studentRow['matched_student_id'] ?? 0);
+$payment_grade_level = trim((string) ($studentRow['payment_grade_level'] ?? ''));
+$payment_school_year = trim((string) ($studentRow['payment_school_year'] ?? ''));
 
 $target_student_id = $requested_student_id > 0 ? $requested_student_id : ($matched_student_id ?: $payment_student_id);
 
@@ -100,16 +104,18 @@ if ($target_student_id <= 0 || !$studentRow) {
 $email = $studentRow['emailaddress'] ?? '';
 $firstname = $studentRow['firstname'] ?? '';
 $lastname = $studentRow['lastname'] ?? '';
-$current_grade_level = $studentRow['year'] ?? null;
+$current_grade_level = trim((string) ($studentRow['student_grade_level'] ?? ''));
+$current_school_year = trim((string) ($studentRow['student_school_year'] ?? ''));
 $payment_type = $studentRow['payment_type'] ?? '';
 $amount = (float) ($studentRow['amount'] ?? 0);
-$existing_grade_level = $studentRow['grade_level'] ?? null;
+$existing_grade_level = $payment_grade_level;
+$existing_school_year = $payment_school_year;
 
 if ($matched_student_id !== $target_student_id) {
-    $student_lookup = $conn->prepare('SELECT emailaddress, firstname, lastname, year FROM students_registration WHERE id = ? LIMIT 1');
+    $student_lookup = $conn->prepare('SELECT emailaddress, firstname, lastname, year, school_year FROM students_registration WHERE id = ? LIMIT 1');
     $student_lookup->bind_param('i', $target_student_id);
     $student_lookup->execute();
-    $student_lookup->bind_result($lookup_email, $lookup_firstname, $lookup_lastname, $lookup_year);
+    $student_lookup->bind_result($lookup_email, $lookup_firstname, $lookup_lastname, $lookup_year, $lookup_school_year);
     $hasLookup = $student_lookup->fetch();
     $student_lookup->close();
 
@@ -117,12 +123,14 @@ if ($matched_student_id !== $target_student_id) {
         $email = $lookup_email ?? $email;
         $firstname = $lookup_firstname ?? $firstname;
         $lastname = $lookup_lastname ?? $lastname;
-        $current_grade_level = $lookup_year ?? $current_grade_level;
+        $current_grade_level = trim((string) ($lookup_year ?? $current_grade_level));
+        $current_school_year = trim((string) ($lookup_school_year ?? $current_school_year));
 
-        $updatePaymentStudent = $conn->prepare('UPDATE student_payments SET student_id = ?, firstname = ?, lastname = ?, grade_level = CASE WHEN grade_level IS NULL OR grade_level = \'\' THEN ? ELSE grade_level END WHERE id = ?');
+        $updatePaymentStudent = $conn->prepare('UPDATE student_payments SET student_id = ?, firstname = ?, lastname = ?, grade_level = CASE WHEN grade_level IS NULL OR grade_level = \'\' THEN ? ELSE grade_level END, school_year = CASE WHEN school_year IS NULL OR school_year = \'\' THEN ? ELSE school_year END WHERE id = ?');
         if ($updatePaymentStudent) {
-            $gradeForUpdate = $current_grade_level ?? '';
-            $updatePaymentStudent->bind_param('isssi', $target_student_id, $firstname, $lastname, $gradeForUpdate, $id);
+            $gradeForUpdate = $current_grade_level !== '' ? $current_grade_level : $existing_grade_level;
+            $schoolYearForUpdate = $current_school_year !== '' ? $current_school_year : $existing_school_year;
+            $updatePaymentStudent->bind_param('issssi', $target_student_id, $firstname, $lastname, $gradeForUpdate, $schoolYearForUpdate, $id);
             $updatePaymentStudent->execute();
             $updatePaymentStudent->close();
         }
@@ -132,12 +140,29 @@ if ($matched_student_id !== $target_student_id) {
 }
 
 $student_id = $target_student_id;
+$resolved_grade_level = $current_grade_level !== '' ? $current_grade_level : $existing_grade_level;
+$resolved_school_year = $current_school_year !== '' ? $current_school_year : $existing_school_year;
 
-if ($status === 'paid' && $existing_grade_level === null && !empty($current_grade_level)) {
-    $gradeUpdate = $conn->prepare('UPDATE student_payments SET grade_level = ? WHERE id = ?');
-    $gradeUpdate->bind_param('si', $current_grade_level, $id);
-    $gradeUpdate->execute();
-    $gradeUpdate->close();
+if (
+    $status === 'paid'
+    && (
+        $existing_grade_level === null
+        || $existing_grade_level === ''
+        || $existing_school_year === null
+        || $existing_school_year === ''
+    )
+) {
+    $gradeParam = $resolved_grade_level ?? '';
+    $schoolYearParam = $resolved_school_year ?? '';
+    if ($gradeParam !== '' || $schoolYearParam !== '') {
+        $sql = "UPDATE student_payments SET grade_level = CASE WHEN grade_level IS NULL OR grade_level = '' THEN ? ELSE grade_level END, school_year = CASE WHEN school_year IS NULL OR school_year = '' THEN ? ELSE school_year END WHERE id = ?";
+        $gradeUpdate = $conn->prepare($sql);
+        if ($gradeUpdate) {
+            $gradeUpdate->bind_param('ssi', $gradeParam, $schoolYearParam, $id);
+            $gradeUpdate->execute();
+            $gradeUpdate->close();
+        }
+    }
 }
 
 if ($status === 'paid') {

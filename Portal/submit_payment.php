@@ -19,11 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $grade_level = null;
+    $school_year = null;
     if ($student_id) {
-        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year FROM students_registration WHERE id = ?");
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year, school_year FROM students_registration WHERE id = ?");
         $stmt->bind_param("i", $student_id);
     } elseif ($student_number) {
-        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year FROM students_registration WHERE student_number = ?");
+        $stmt = $conn->prepare("SELECT id, firstname, lastname, student_number, year, school_year FROM students_registration WHERE student_number = ?");
         $stmt->bind_param("s", $student_number);
     } else {
         die("Not logged in. Please log in again.");
@@ -38,6 +39,7 @@ if ($row = $result->fetch_assoc()) {
     $lastname   = $row['lastname'];
     $student_number = $row['student_number'];
     $grade_level   = $row['year'] ?? null;
+    $school_year   = $row['school_year'] ?? null;
     } else {
         die("Student not found.");
     }
@@ -69,7 +71,12 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     $stmt = $conn->prepare($sql);
-    $school_year = null; // Online submissions do not capture school year explicitly.
+    if ($school_year !== null) {
+        $school_year = trim((string) $school_year);
+        if ($school_year === '') {
+            $school_year = null;
+        }
+    }
     $stmt->bind_param(
         "issssssdsss",
         $student_id,

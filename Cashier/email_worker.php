@@ -143,8 +143,26 @@ if (!function_exists('cashier_email_worker_process')) {
         $stmt->fetch();
         $stmt->close();
 
+        @file_put_contents(
+            $tempDir . '/cashier_worker_trace.log',
+            sprintf(
+                "[%s] resolved student=%d email=%s grade=%s student_type=%s\n",
+                date('c'),
+                $student_id,
+                $email !== null && $email !== '' ? $email : 'N/A',
+                (string) $grade_level,
+                (string) $student_type
+            ),
+            FILE_APPEND
+        );
+
         if (!$email) {
             error_log('Cashier email worker: student record missing email.');
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] abort student=%d reason=missing_email\n", date('c'), $student_id),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
@@ -590,6 +608,11 @@ if (!function_exists('cashier_email_worker_process')) {
                 $mailError->getMessage()
             );
             @file_put_contents($tempDir . '/email_worker_errors.log', $logLine, FILE_APPEND);
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf("[%s] send_failed student=%d error=%s\n", date('c'), $student_id, $mailError->getMessage()),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
