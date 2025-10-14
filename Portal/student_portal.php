@@ -1723,6 +1723,23 @@ unset($finance_view_ref);
             return lastSlash >= 0 ? path.substring(0, lastSlash + 1) : '/';
         })();
 
+        function formatTimestampFromIso(isoString, fallback = '') {
+            if (isoString) {
+                const parsed = new Date(isoString);
+                if (!Number.isNaN(parsed.getTime())) {
+                    try {
+                        return new Intl.DateTimeFormat(undefined, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short'
+                        }).format(parsed);
+                    } catch (error) {
+                        return parsed.toLocaleString();
+                    }
+                }
+            }
+            return fallback || '';
+        }
+
         function resolveAnnouncementImage(path) {
             if (!path) {
                 return '';
@@ -1734,10 +1751,19 @@ unset($finance_view_ref);
             if (/^https?:\/\//i.test(trimmed)) {
                 return trimmed;
             }
+            if (/^data:/i.test(trimmed)) {
+                return trimmed;
+            }
             if (trimmed.startsWith('/')) {
                 return trimmed;
             }
-            return portalBasePath + trimmed.replace(/^\/+/g, '');
+            const origin = window.location.origin || '';
+            const base = origin + portalBasePath;
+            try {
+                return new URL(trimmed.replace(/^\/+/g, ''), base).toString();
+            } catch (error) {
+                return portalBasePath + trimmed.replace(/^\/+/g, '');
+            }
         }
 
         function appendAnnouncementBody(contentContainer, item) {
@@ -1798,7 +1824,7 @@ unset($finance_view_ref);
 
                 const timeEl = document.createElement('div');
                 timeEl.className = 'small text-muted';
-                timeEl.textContent = item.sent_at || '';
+                timeEl.textContent = item.sent_at_display || item.sent_at || '';
                 textCol.appendChild(timeEl);
 
                 const snippetEl = document.createElement('div');
@@ -1927,7 +1953,7 @@ unset($finance_view_ref);
 
             if (announcementModal) {
                 announcementModalTitle.textContent = item.subject || 'Announcement';
-                announcementModalTime.textContent = item.sent_at || '';
+                announcementModalTime.textContent = item.sent_at_display || item.sent_at || '';
                 announcementModalBody.innerHTML = '';
                 appendAnnouncementBody(announcementModalBody, item);
                 announcementModal.show();
@@ -1959,6 +1985,8 @@ unset($finance_view_ref);
                     body_html: raw.body_html || '',
                     body_plain: typeof raw.body_plain === 'string' ? raw.body_plain : '',
                     sent_at: raw.sent_at || '',
+                    sent_at_iso: raw.sent_at_iso || '',
+                    sent_at_display: formatTimestampFromIso(raw.sent_at_iso || '', raw.sent_at || ''),
                     is_read: Boolean(Number(raw.is_read ?? 0)),
                     image_url: resolveAnnouncementImage(raw.image_path || '')
                 })).filter(item => isValidAnnouncementId(item.id));

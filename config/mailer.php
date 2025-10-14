@@ -62,6 +62,13 @@ if (!function_exists('mailer_default_config')) {
             $sslOptions['crypto_method'] = $resolvedCrypto;
         }
 
+        $forceIpv4 = getenv('SMTP_FORCE_IPV4');
+        if ($forceIpv4 !== false) {
+            $forceIpv4 = filter_var($forceIpv4, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        } else {
+            $forceIpv4 = null;
+        }
+
         $base = [
             'host'        => getenv('SMTP_HOST') ?: 'smtp.hostinger.com',
             'username'    => getenv('SMTP_USERNAME') ?: 'no-reply@rosariodigital.site',
@@ -71,6 +78,7 @@ if (!function_exists('mailer_default_config')) {
             'charset'     => 'UTF-8',
             'encoding'    => 'base64',
             'timeout'     => 20,
+            'force_ipv4'  => $forceIpv4,
             'smtp_options' => [
                 'ssl' => $sslOptions,
                 'tls' => $sslOptions,
@@ -85,6 +93,10 @@ if (!function_exists('mailer_default_config')) {
 
         if ($base['fallback_to_mail'] === null) {
             $base['fallback_to_mail'] = true;
+        }
+
+        if ($base['force_ipv4'] === null) {
+            $base['force_ipv4'] = true;
         }
 
         $debugLevel = getenv('SMTP_DEBUG_LEVEL');
@@ -117,7 +129,17 @@ if (!function_exists('mailer_default_config')) {
         $mail->SMTPAutoTLS = true;
         $mail->CharSet = (string) $config['charset'];
         $mail->Encoding = (string) $config['encoding'];
-        $mail->Host = (string) $config['host'];
+        $smtpHost = (string) $config['host'];
+        if (!empty($config['force_ipv4'])) {
+            $resolved = gethostbyname($smtpHost);
+            if (is_string($resolved) && $resolved !== '' && $resolved !== $smtpHost) {
+                $mail->Host = $resolved;
+            } else {
+                $mail->Host = $smtpHost;
+            }
+        } else {
+            $mail->Host = $smtpHost;
+        }
         $mail->Username = (string) $config['username'];
         $mail->Password = (string) $config['password'];
         $mail->Timeout = (int) $config['timeout'];

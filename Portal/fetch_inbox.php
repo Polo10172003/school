@@ -99,8 +99,80 @@ function map_grade_code($label)
     return $map[$compacted] ?? [];
 }
 
+/**
+ * Normalize announcement timestamps for display and ISO transport.
+ *
+ * @param string|null   $value
+ * @param DateTimeZone  $targetTimezone
+ *
+ * @return array{display:string,iso:string}
+ */
+function portal_format_announcement_timestamp(?string $value, DateTimeZone $targetTimezone): array
+{
+    $now = new DateTimeImmutable('now', $targetTimezone);
+    $fallback = [
+        'display' => $now->format('M d, Y g:i A'),
+        'iso'     => $now->format(DateTimeInterface::ATOM),
+    ];
+
+    if ($value === null) {
+        return $fallback;
+    }
+
+    $input = trim((string) $value);
+    if ($input === '') {
+        return $fallback;
+    }
+
+    $candidates = [];
+
+    try {
+        $candidates[] = (new DateTimeImmutable($input, new DateTimeZone('UTC')))->setTimezone($targetTimezone);
+    } catch (Throwable $utcError) {
+        // Ignore and try other strategies.
+    }
+
+    try {
+        $candidates[] = new DateTimeImmutable($input, $targetTimezone);
+    } catch (Throwable $localError) {
+        // Ignore and fall back later.
+    }
+
+    if (empty($candidates)) {
+        try {
+            $candidates[] = (new DateTimeImmutable($input))->setTimezone($targetTimezone);
+        } catch (Throwable $genericError) {
+            // Still nothing, return fallback.
+        }
+    }
+
+    if (empty($candidates)) {
+        return $fallback;
+    }
+
+    usort($candidates, static function (DateTimeImmutable $a, DateTimeImmutable $b) use ($now): int {
+        return abs($a->getTimestamp() - $now->getTimestamp()) <=> abs($b->getTimestamp() - $now->getTimestamp());
+    });
+
+    $selected = $candidates[0];
+
+    return [
+        'display' => $selected->format('M d, Y g:i A'),
+        'iso'     => $selected->format(DateTimeInterface::ATOM),
+    ];
+}
+
 $gradeCodes = map_grade_code($gradeLevel);
 
+$timezoneName = getenv('APP_TIMEZONE');
+if (!is_string($timezoneName) || $timezoneName === '') {
+    $timezoneName = date_default_timezone_get() ?: 'Asia/Manila';
+}
+try {
+    $appTimezone = new DateTimeZone($timezoneName);
+} catch (Exception $timezoneException) {
+    $appTimezone = new DateTimeZone('Asia/Manila');
+}
 
 $query = "SELECT sa.id, sa.subject, sa.body, sa.target_scope, sa.image_path, sa.created_at,
                   COALESCE(sas.is_read, 0) AS is_read,
@@ -145,6 +217,7 @@ if ($result) {
 
         $body = trim((string) ($row['body'] ?? ''));
         $subject = trim((string) ($row['subject'] ?? 'Announcement'));
+        $timestampInfo = portal_format_announcement_timestamp($row['created_at'] ?? '', $appTimezone);
 
         $imagePath = trim((string) ($row['image_path'] ?? ''));
         $items[] = [
@@ -152,7 +225,8 @@ if ($result) {
             'subject' => $subject === '' ? 'Announcement' : $subject,
             'body_html' => nl2br(htmlspecialchars($body, ENT_QUOTES, 'UTF-8')),
             'body_plain' => $body,
-            'sent_at' => date('M d, Y g:i A', strtotime($row['created_at'] ?? 'now')),
+            'sent_at' => $timestampInfo['display'],
+            'sent_at_iso' => $timestampInfo['iso'],
             'is_read' => $isRead ? 1 : 0,
             'image_path' => $imagePath,
         ];
