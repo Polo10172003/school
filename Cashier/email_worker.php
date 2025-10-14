@@ -65,34 +65,35 @@ if (!function_exists('cashier_email_worker_process')) {
             @mkdir($tempDir, 0777, true);
         }
 
-        @file_put_contents(
-            $tempDir . '/cashier_worker_trace.log',
-            sprintf(
-                "[%s] worker start student=%d type=%s amount=%.2f status=%s\n",
-                date('c'),
-                $student_id,
-                $payment_type,
-                $amountFloat,
-                $status
-            ),
-            FILE_APPEND
-        );
-
-        if ($appendDebugLog) {
-            $debugPayload = [
-                'timestamp'     => date('c'),
-                'student_id'    => $student_id,
-                'payment_type'  => $payment_type,
-                'amount'        => $amountFloat,
-                'status'        => $status,
-                'environment'   => php_sapi_name(),
-            ];
+        try {
             @file_put_contents(
-                $tempDir . '/cashier_worker_debug.txt',
-                print_r($debugPayload, true),
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf(
+                    "[%s] worker start student=%d type=%s amount=%.2f status=%s\n",
+                    date('c'),
+                    $student_id,
+                    $payment_type,
+                    $amountFloat,
+                    $status
+                ),
                 FILE_APPEND
             );
-        }
+
+            if ($appendDebugLog) {
+                $debugPayload = [
+                    'timestamp'     => date('c'),
+                    'student_id'    => $student_id,
+                    'payment_type'  => $payment_type,
+                    'amount'        => $amountFloat,
+                    'status'        => $status,
+                    'environment'   => php_sapi_name(),
+                ];
+                @file_put_contents(
+                    $tempDir . '/cashier_worker_debug.txt',
+                    print_r($debugPayload, true),
+                    FILE_APPEND
+                );
+            }
 
         $scheduleColumnAvailable = true;
         $stmt = $conn->prepare("
@@ -643,11 +644,38 @@ if (!function_exists('cashier_email_worker_process')) {
             return false;
         }
 
-        if ($createdConnection) {
-            $conn->close();
-        }
+            if ($createdConnection) {
+                $conn->close();
+            }
 
-        return true;
+            return true;
+        } catch (Throwable $emailWorkerException) {
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf(
+                    "[%s] worker_exception student=%d error=%s\n",
+                    date('c'),
+                    $student_id,
+                    $emailWorkerException->getMessage()
+                ),
+                FILE_APPEND
+            );
+            @file_put_contents(
+                $tempDir . '/email_worker_errors.log',
+                sprintf(
+                    "[%s] Cashier worker exception student_id=%d: %s\n",
+                    date('c'),
+                    $student_id,
+                    $emailWorkerException->getMessage()
+                ),
+                FILE_APPEND
+            );
+            if ($createdConnection && isset($conn) && $conn instanceof mysqli) {
+                $conn->close();
+            }
+
+            return false;
+        }
     }
 }
 
