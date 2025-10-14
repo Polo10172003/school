@@ -493,51 +493,16 @@ if (!function_exists('cashier_email_worker_process')) {
         $mail->addAddress($email, trim($firstname . ' ' . $lastname));
 
         $mail->isHTML(true);
-
-        $statusNormalized = strtolower($status);
-        $statusDisplay = strtoupper($statusNormalized !== '' ? $statusNormalized : 'PENDING');
-        $isApprovedStatus = in_array($statusNormalized, ['paid', 'approved', 'completed', 'cleared'], true);
-        $isDeclinedStatus = in_array($statusNormalized, ['declined', 'rejected', 'failed', 'void'], true);
-
-        $mail->Subject = 'Payment Update - ' . ($isApprovedStatus ? 'Approved' : ($isDeclinedStatus ? 'Declined' : ucfirst($statusNormalized ?: 'Pending')));
-
-        $heading = $isApprovedStatus
-            ? 'Payment Receipt Confirmation'
-            : ($isDeclinedStatus ? 'Payment Review Notice' : 'Payment Status Update');
-        $intro = $isApprovedStatus
-            ? 'We have received and posted your payment.'
-            : ($isDeclinedStatus
-                ? 'We reviewed your recent payment submission, but it was not approved.'
-                : 'Here is the latest update on your payment.');
-        $receiptIntro = $isApprovedStatus
-            ? 'This serves as your official proof of payment.'
-            : ($isDeclinedStatus
-                ? 'The details below reflect the submission we reviewed.'
-                : 'Review the current payment details below.');
-
-        $amountLabel = $isDeclinedStatus ? 'Amount Submitted' : 'Amount Paid';
-        $enrollmentLine = $isApprovedStatus
-            ? "<p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>"
-            : ($isDeclinedStatus
-                ? "<p style='color:#c0392b; font-weight:600;'>Status: DECLINED. Your enrollment remains pending until a successful payment is recorded.</p>"
-                : '');
-
-        $nextSteps = $isApprovedStatus
-            ? "<p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>"
-            : ($isDeclinedStatus
-                ? "<p>If you believe this decision is in error, kindly reply to this email with your proof of payment or visit the cashier for assistance.</p>"
-                : "<p>If you have questions about this update, please contact the cashier’s office.</p>");
-
-        $receiptTitle = $isDeclinedStatus ? 'Payment Review Summary' : 'Official Receipt';
+        $mail->Subject = 'Payment Receipt and Portal Access';
 
         $mail->Body = "
-            <h2 style='color:#2c3e50;'>" . htmlspecialchars($heading, ENT_QUOTES) . "</h2>
+            <h2 style='color:#2c3e50;'>Payment Receipt Confirmation</h2>
             <p>Dear <strong>" . htmlspecialchars($firstname . ' ' . $lastname, ENT_QUOTES) . "</strong>,</p>
-            <p>" . htmlspecialchars($intro, ENT_QUOTES) . "</p>
+            <p>We have received your payment for the following:</p>
             <div style='border:2px solid #333; padding:15px; border-radius:8px; background:#f9f9f9; margin:20px 0;'>
                 <h3 style='text-align:center; margin:0;'>Escuela De Sto. Rosario</h3>
-                <h4 style='text-align:center; margin:0;'>" . htmlspecialchars($receiptTitle, ENT_QUOTES) . "</h4>
-                <p style='text-align:center; font-size:12px; margin:5px 0 15px;'>" . htmlspecialchars($receiptIntro, ENT_QUOTES) . "</p>
+                <h4 style='text-align:center; margin:0;'>Official Receipt</h4>
+                <p style='text-align:center; font-size:12px; margin:5px 0 15px;'>This serves as your official proof of payment</p>
                 <table style='width:100%; border-collapse:collapse;'>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Student Name</strong></td>
@@ -552,22 +517,22 @@ if (!function_exists('cashier_email_worker_process')) {
                         <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($payment_type, ENT_QUOTES) . "</td>
                     </tr>
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>" . htmlspecialchars($amountLabel, ENT_QUOTES) . "</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>Amount Paid</strong></td>
                         <td style='padding:6px; border:1px solid #ccc;'>&#8369;" . number_format($amountFloat, 2) . "</td>
                     </tr>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Status</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($statusDisplay, ENT_QUOTES) . "</td>
+                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($status, ENT_QUOTES) . "</td>
                     </tr>
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>Date Updated</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>Date Issued</strong></td>
                         <td style='padding:6px; border:1px solid #ccc;'>" . date('F j, Y') . "</td>
                     </tr>";
 
         if ($or_number !== null && $or_number !== '') {
             $mail->Body .= "
                     <tr>
-                        <td style='padding:6px; border:1px solid #ccc;'><strong>OR / Ref. Number</strong></td>
+                        <td style='padding:6px; border:1px solid #ccc;'><strong>OR Number</strong></td>
                         <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($or_number, ENT_QUOTES) . "</td>
                     </tr>";
         }
@@ -575,15 +540,15 @@ if (!function_exists('cashier_email_worker_process')) {
         $mail->Body .= "
                 </table>
             </div>
-            $enrollmentLine
-            $nextSteps
+            <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
+            <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
         ";
 
-        if ($scheduleHtml !== '' && $isApprovedStatus) {
+        if ($scheduleHtml !== '') {
             $mail->Body .= $scheduleHtml;
         }
 
-        if ($scheduleIncluded && $isApprovedStatus && !$schedulePreviouslySent && $scheduleColumnAvailable) {
+        if ($scheduleIncluded && !$schedulePreviouslySent && $scheduleColumnAvailable) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
             if ($updateSchedule) {
                 $updateSchedule->bind_param('si', $scheduleSentNow, $student_id);
