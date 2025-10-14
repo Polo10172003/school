@@ -306,7 +306,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             <div class="card-body">
               <h5 class="fw-bold text-success">Admissions Checklist</h5>
               <p class="text-muted">Follow easy steps for document submission, interviews, and payment options.</p>
-              <a href="StudentNoVerification/early_registration.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">See enrollment steps <i class="bi bi-arrow-right-short"></i></a>
+              <a href="enrollment_steps.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">See enrollment steps <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
         </div>
