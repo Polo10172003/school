@@ -96,7 +96,7 @@ if (!function_exists('mailer_default_config')) {
         }
 
         if ($base['force_ipv4'] === null) {
-            $base['force_ipv4'] = true;
+            $base['force_ipv4'] = false;
         }
 
         $debugLevel = getenv('SMTP_DEBUG_LEVEL');
@@ -130,15 +130,16 @@ if (!function_exists('mailer_default_config')) {
         $mail->CharSet = (string) $config['charset'];
         $mail->Encoding = (string) $config['encoding'];
         $smtpHost = (string) $config['host'];
+        $hostList = [$smtpHost];
         if (!empty($config['force_ipv4'])) {
             $resolved = gethostbyname($smtpHost);
             if (is_string($resolved) && $resolved !== '' && $resolved !== $smtpHost) {
-                $mail->Host = $resolved;
-            } else {
-                $mail->Host = $smtpHost;
+                $hostList[] = $resolved;
             }
-        } else {
-            $mail->Host = $smtpHost;
+        }
+        $mail->Host = implode(';', array_unique(array_filter($hostList)));
+        if (!empty($config['force_ipv4'])) {
+            $mail->Hostname = $smtpHost;
         }
         $mail->Username = (string) $config['username'];
         $mail->Password = (string) $config['password'];

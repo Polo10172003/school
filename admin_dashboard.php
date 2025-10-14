@@ -605,7 +605,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         <label for="schedule_school_year">School Year</label>
         <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
       </div>
-      <div>
+      <div class="grid-span-2">
         <label for="schedule_section">Section (optional)</label>
         <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
         <label class="dashboard-checkbox-inline">
@@ -616,7 +616,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         <label for="schedule_subject">Subject</label>
         <input type="text" name="schedule_subject" id="schedule_subject" required value="<?= htmlspecialchars($_POST['schedule_subject'] ?? '') ?>">
       </div>
-      <div>
+      <div class="grid-span-2">
         <label for="schedule_teacher">Teacher (optional)</label>
         <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
       </div>
@@ -631,13 +631,15 @@ $adviserAssignments = adviser_assignments_fetch($conn);
           <?php endforeach; ?>
         </select>
       </div>
-      <div>
-        <label for="schedule_start">Start Time (optional)</label>
-        <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
-      </div>
-      <div>
-        <label for="schedule_end">End Time (optional)</label>
-        <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
+      <div class="grid-span-2 dashboard-field-pair">
+        <div>
+          <label for="schedule_start">Start Time (optional)</label>
+          <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
+        </div>
+        <div>
+          <label for="schedule_end">End Time (optional)</label>
+          <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
+        </div>
       </div>
       <div>
         <label for="schedule_room">Room (optional)</label>
@@ -731,13 +733,15 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                       <input type="text" name="adviser_name" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['adviser']) ?>" required>
                     </td>
                     <td>
-                      <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $formId ?>">Update</button>
-                      <form id="<?= $deleteFormId ?>" method="POST" action="#adviserAssignments" style="display:inline;">
-                        <input type="hidden" name="adviser_form" value="1">
-                        <input type="hidden" name="adviser_action" value="delete">
-                        <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
-                      </form>
-                      <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $deleteFormId ?>" style="background:#fbeaea;color:#c0392b;" onclick="return confirm('Remove this adviser assignment?');">Delete</button>
+                      <div class="dashboard-inline-actions">
+                        <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $formId ?>">Update</button>
+                        <form id="<?= $deleteFormId ?>" method="POST" action="#adviserAssignments">
+                          <input type="hidden" name="adviser_form" value="1">
+                          <input type="hidden" name="adviser_action" value="delete">
+                          <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
+                        </form>
+                        <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $deleteFormId ?>" style="background:#fbeaea;color:#c0392b;" onclick="return confirm('Remove this adviser assignment?');">Delete</button>
+                      </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>

@@ -9,6 +9,72 @@ require_once __DIR__ . '/../config/mailer.php';
 
 if (!function_exists('portal_dispatch_announcement')) {
     /**
+     * Map audience codes to grade-level labels stored in the students table.
+     *
+     * @param string $token
+     *
+     * @return array<int,string>
+     */
+    function portal_announcement_grade_variants(string $token): array
+    {
+        $normalized = strtolower(trim($token));
+        $compact = preg_replace('/[^a-z0-9]/', '', $normalized);
+
+        $map = [
+            'preschool'   => ['Preschool'],
+            'preprime1'   => ['Pre-Prime 1'],
+            'pp1'         => ['Pre-Prime 1'],
+            'preprime2'   => ['Pre-Prime 2'],
+            'pp2'         => ['Pre-Prime 2'],
+            'preprime12'  => ['Pre-Prime 1', 'Pre-Prime 2'],
+            'pp12'        => ['Pre-Prime 1', 'Pre-Prime 2'],
+            'kinder'      => ['Kindergarten', 'Kinder 1', 'Kinder 2'],
+            'kindergarten'=> ['Kindergarten', 'Kinder 1', 'Kinder 2'],
+            'kinder1'     => ['Kinder 1'],
+            'k1'          => ['Kinder 1'],
+            'kinder2'     => ['Kinder 2'],
+            'k2'          => ['Kinder 2'],
+            'kg'          => ['Kindergarten', 'Kinder 1', 'Kinder 2'],
+            'grade1'      => ['Grade 1'],
+            'g1'          => ['Grade 1'],
+            'grade2'      => ['Grade 2'],
+            'g2'          => ['Grade 2'],
+            'grade3'      => ['Grade 3'],
+            'g3'          => ['Grade 3'],
+            'grade4'      => ['Grade 4'],
+            'g4'          => ['Grade 4'],
+            'grade5'      => ['Grade 5'],
+            'g5'          => ['Grade 5'],
+            'grade6'      => ['Grade 6'],
+            'g6'          => ['Grade 6'],
+            'grade7'      => ['Grade 7'],
+            'g7'          => ['Grade 7'],
+            'grade8'      => ['Grade 8'],
+            'g8'          => ['Grade 8'],
+            'grade9'      => ['Grade 9'],
+            'g9'          => ['Grade 9'],
+            'grade10'     => ['Grade 10'],
+            'g10'         => ['Grade 10'],
+            'grade11'     => ['Grade 11'],
+            'g11'         => ['Grade 11'],
+            'grade12'     => ['Grade 12'],
+            'g12'         => ['Grade 12'],
+        ];
+
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+        if ($compact !== '' && isset($map[$compact])) {
+            return $map[$compact];
+        }
+        if ($normalized === '' || $normalized === 'everyone' || $normalized === 'all') {
+            return [];
+        }
+
+        return [ucwords($normalized)];
+    }
+
+    /**
      * Dispatch announcement emails to the selected scope.
      *
      * @param string      $subject
@@ -64,10 +130,23 @@ if (!function_exists('portal_dispatch_announcement')) {
             );
         }
 
-        $audiences = array_values(array_filter(array_map('trim', explode(',', strtolower($scope)))));
-        $recipients = [];
+        $audienceTokensRaw = array_filter(array_map('trim', explode(',', $scope)), static function ($token): bool {
+            return $token !== null && $token !== '';
+        });
+        $audienceTokens = array_map(static function ($token): string {
+            return strtolower(trim((string) $token));
+        }, $audienceTokensRaw);
 
-        if (in_array('everyone', $audiences, true)) {
+        $recipients = [];
+        $targetsEveryone = false;
+        foreach ($audienceTokens as $token) {
+            if ($token === 'everyone' || $token === 'all') {
+                $targetsEveryone = true;
+                break;
+            }
+        }
+
+        if ($targetsEveryone) {
             $stmt = $conn->prepare(
                 'SELECT DISTINCT emailaddress, firstname, lastname
                  FROM students_registration
@@ -75,15 +154,35 @@ if (!function_exists('portal_dispatch_announcement')) {
                    AND emailaddress <> \'\''
             );
         } else {
-            $audiences = array_filter(array_map('trim', explode(',', $scope)));
-            if (empty($audiences)) {
+            $gradeFilters = [];
+            foreach ($audienceTokensRaw as $token) {
+                $variants = portal_announcement_grade_variants($token);
+                foreach ($variants as $variant) {
+                    $variant = trim($variant);
+                    if ($variant === '') {
+                        continue;
+                    }
+                    $gradeFilters[strtolower($variant)] = $variant;
+                }
+            }
+
+            if (empty($gradeFilters)) {
+                if ($appendDebugLog) {
+                    @file_put_contents(
+                        $traceLog,
+                        sprintf("[%s] no grade filters matched scope=%s\n", date('c'), $scope),
+                        FILE_APPEND
+                    );
+                }
                 if ($createdConnection) {
                     $conn->close();
                 }
                 return false;
             }
-            $placeholders = implode(',', array_fill(0, count($audiences), '?'));
-            $types = str_repeat('s', count($audiences));
+
+            $gradeValues = array_values($gradeFilters);
+            $placeholders = implode(',', array_fill(0, count($gradeValues), '?'));
+            $types = str_repeat('s', count($gradeValues));
             $stmt = $conn->prepare(
                 "SELECT DISTINCT emailaddress, firstname, lastname
                  FROM students_registration
@@ -92,7 +191,7 @@ if (!function_exists('portal_dispatch_announcement')) {
                    AND emailaddress <> ''"
             );
             if ($stmt) {
-                $stmt->bind_param($types, ...$audiences);
+                $stmt->bind_param($types, ...$gradeValues);
             }
         }
 
@@ -128,6 +227,14 @@ if (!function_exists('portal_dispatch_announcement')) {
             $result->close();
         }
         $stmt->close();
+
+        if ($appendDebugLog) {
+            @file_put_contents(
+                $traceLog,
+                sprintf("[%s] matched recipients=%d\n", date('c'), count($recipients)),
+                FILE_APPEND
+            );
+        }
 
         if (empty($recipients)) {
             if ($appendDebugLog) {

@@ -475,7 +475,7 @@ body.dashboard-body {
 }
 
 .dashboard-grid.two {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   grid-auto-rows: auto;
 }
 
@@ -487,7 +487,7 @@ body.dashboard-body {
 }
 
 .dashboard-grid.three {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .grid-span-2 {
@@ -510,6 +510,7 @@ body.dashboard-body {
   text-align: left;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(20, 90, 50, 0.08);
+  vertical-align: middle;
 }
 
 .dashboard-card table th {
@@ -519,6 +520,56 @@ body.dashboard-body {
 
 .dashboard-card table tbody tr:nth-child(even) {
   background: rgba(20, 90, 50, 0.03);
+}
+
+.dashboard-card table input[type="text"],
+.dashboard-card table input[type="time"],
+.dashboard-card table select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 90, 50, 0.22);
+  background: #fff;
+  font: inherit;
+}
+
+.dashboard-card table input[type="text"]:focus,
+.dashboard-card table input[type="time"]:focus,
+.dashboard-card table select:focus {
+  outline: none;
+  border-color: rgba(20, 90, 50, 0.45);
+  box-shadow: 0 0 0 3px rgba(20, 90, 50, 0.12);
+}
+
+.dashboard-field-pair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.dashboard-field-pair > div {
+  flex: 1 1 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.dashboard-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.dashboard-inline-actions form {
+  margin: 0;
+}
+
+.dashboard-inline-actions .dashboard-btn {
+  flex: 0 0 auto;
 }
 
 .dashboard-form label {
