@@ -147,13 +147,12 @@ $homepageImages = homepage_images_load();
               <h3 class="h4">Online Enrollment</h3>
               <ol class="mt-4">
                 <li><strong>Secure a temporary student number.</strong> Launch the digital form and request for a student number through <a href="StudentNoVerification/student_number.php">Student Number Request</a>.</li>
-                <li><strong>Complete the early registration form.</strong> Fill out learner, parent, and previous school details then upload the initial digital copies of your documents.</li>
-                <li><strong>Schedule your campus interview.</strong> Choose an appointment from the confirmation email so the Registrar can meet you and your child.</li>
+                <li><strong>Complete the early registration form.</strong> Fill out learner, parent, and previous school details.</li>
                 <li><strong>Visit the school for interview and document check.</strong> Bring the original certificates, IDs, and report cards for validation during the onsite interview.</li>
-                <li><strong>Settle tuition at the cashier.</strong> After the Registrar approves your interview, pay the reservation or tuition fee with the cashier team.</li>
+                <li><strong>Settle tuition at the cashier.</strong> After the Admin approves your interview, pay the reservation or tuition fee with the cashier team.</li>
                 <li><strong>Wait for registrar activation.</strong> The Registrar finalizes your student record, activates your portal account, and emails the permanent student number.</li>
               </ol>
-              <p class="mb-0 text-muted"><i class="bi bi-info-circle-fill text-success me-2"></i>Keep clear photos or PDFs of your birth certificate, latest report card, and parent/guardian ID before registering, and bring the originals to your interview.</p>
+              <p class="mb-0 text-muted"><i class="bi bi-info-circle-fill text-success me-2"></i>Keep your orignal birth certificate, latest report card, and parent/guardian ID upon registration.</p>
             </div>
           </div>
 
@@ -168,7 +167,7 @@ $homepageImages = homepage_images_load();
                 <li><strong>Proceed to the cashier.</strong> Settle the reservation or tuition fee at the cashier counter to secure your slot.</li>
                 <li><strong>Wait for registrar activation.</strong> The Registrar activates your official student account and releases the permanent student number with next steps.</li>
               </ol>
-              <p class="mb-0 text-muted"><i class="bi bi-building-check text-success me-2"></i>Office hours are Monday to Friday, 8:00 AM – 4:00 PM. Call ahead to book a queue number during peak weeks.</p>
+              <p class="mb-0 text-muted"><i class="bi bi-building-check text-success me-2"></i>Office hours are Monday to Friday, 8:00 AM – 4:00 PM.</p>
             </div>
           </div>
 
@@ -178,11 +177,9 @@ $homepageImages = homepage_images_load();
               <h3 class="h4">Online Re-enrollment</h3>
               <ol class="mt-4">
                 <li><strong>Log in to the student portal.</strong> Go to <a href="Portal/student_login.php">Student Portal</a> using your current credentials, or reset through <a href="Portal/forgot_password.php">Forgot Password</a> if needed.</li>
-                <li><strong>Review your profile.</strong> Confirm contact numbers, guardian information, and strand or section preferences before submitting.</li>
-                <li><strong>Pick your payment plan.</strong> Open <a href="Portal/choose_payment.php">Choose Payment</a>, select full or installment, and proceed with the online channel you prefer.</li>
+                <li><strong>Pick your payment plan.</strong> Click Enroll Now select full or installment, and proceed with the online channel you prefer.</li>
                 <li><strong>Pay and upload proof.</strong> Complete the online payment then attach the digital receipt or reference number inside the portal.</li>
-                <li><strong>Monitor validation.</strong> Track the status inside <a href="Portal/student_portal.php">My Enrollment</a> until the cashier clears your payment and the Registrar reactivates your account.</li>
-                <li><strong>Download your enrollment slip.</strong> Once marked paid and validated, print or save the slip for the first-day requirements.</li>
+                <li><strong>Monitor validation.</strong> Track the status inside the Student Portal until the cashier clears your payment and labeled as Officially Enrolled.</li>
               </ol>
               <p class="mb-0 text-muted"><i class="bi bi-shield-check text-success me-2"></i>Old students should finish tuition payment online; status updates and receipts appear instantly inside the portal.</p>
             </div>
@@ -197,7 +194,7 @@ $homepageImages = homepage_images_load();
                 <li><strong>Select a plan online.</strong> Staff can help you log in and complete the <a href="Portal/choose_payment.php">Choose Payment</a> flow if you need assistance onsite.</li>
                 <li><strong>Complete the online payment.</strong> Use the school’s digital payment channels (GCash, bank transfer, etc.) while onsite or beforehand, then upload the receipt.</li>
                 <li><strong>Verify payment posting.</strong> Present the reference number to the cashier team so they can confirm it in the system.</li>
-                <li><strong>Receive clearance.</strong> After validation, download the updated enrollment slip and wait for any registrar advisory on class schedules.</li>
+                <li><strong>Payment received.</strong> After validation, wait for any registrar advisory on class schedules.</li>
               </ol>
               <p class="mb-0 text-muted"><i class="bi bi-calendar-check text-success me-2"></i>Need help with the online payment flow? Our cashier and registrar staff can guide you at the onsite support desks.</p>
             </div>
