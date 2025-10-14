@@ -207,13 +207,30 @@ if (!empty($email)) {
         require_once __DIR__ . '/email_worker.php';
     }
 
+    $traceFile = __DIR__ . '/../temp/cashier_worker_trace.log';
     try {
-        $inlineResult = cashier_email_worker_process((int) $student_id, (string) $payment_type, (float) $amount, (string) $status, $conn);
-        if (!$inlineResult) {
+        $inlineResult = cashier_email_worker_process((int) $student_id, (string) $payment_type, (float) $amount, (string) $status, $conn, true);
+        if ($inlineResult) {
+            @file_put_contents(
+                $traceFile,
+                sprintf('[%s] inline worker succeeded student=%d payment=%d' . "\n", date('c'), $student_id, $id),
+                FILE_APPEND
+            );
+        } else {
             error_log('[cashier] update_payment_status inline worker failed for payment ' . $id);
+            @file_put_contents(
+                $traceFile,
+                sprintf('[%s] inline worker failed student=%d payment=%d' . "\n", date('c'), $student_id, $id),
+                FILE_APPEND
+            );
         }
     } catch (Throwable $workerError) {
         error_log('[cashier] update_payment_status worker exception for payment ' . $id . ': ' . $workerError->getMessage());
+        @file_put_contents(
+            $traceFile,
+            sprintf('[%s] inline worker exception student=%d payment=%d error=%s' . "\n", date('c'), $student_id, $id, $workerError->getMessage()),
+            FILE_APPEND
+        );
     }
 
     $workerPath = __DIR__ . '/email_worker.php';
@@ -233,6 +250,11 @@ if (!empty($email)) {
         ];
         $cmd = implode(' ', $cmdParts);
         exec($cmd . ' > /dev/null 2>&1');
+        @file_put_contents(
+            $traceFile,
+            sprintf('[%s] background worker dispatched student=%d payment=%d' . "\n", date('c'), $student_id, $id),
+            FILE_APPEND
+        );
     }
 }
 

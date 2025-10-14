@@ -108,6 +108,11 @@ if (!function_exists('cashier_email_worker_process')) {
 
         if (!$stmt) {
             error_log('Cashier email worker: fallback student query failed. ' . $conn->error);
+            @file_put_contents(
+                $tempDir . '/cashier_worker_trace.log',
+                sprintf('[%s] abort student=%d reason=student_lookup_failed error=%s' . "\n", date('c'), $student_id, $conn->error),
+                FILE_APPEND
+            );
             if ($createdConnection) {
                 $conn->close();
             }
