@@ -124,7 +124,7 @@ $homepageImages = homepage_images_load();
           <p class="hero-lead mt-3">Whether you are joining ESR for the first time or returning for another year, choose the steps for online or onsite enrollment and stay on track with every requirement.</p>
           <div class="d-flex flex-wrap gap-3 mt-4 hero-actions">
             <a class="btn btn-warning btn-lg text-dark fw-semibold" href="#new-online">New Students Online</a>
-            <a class="btn btn-outline-light btn-lg fw-semibold" href="#returning-online">Returning Students Online</a>
+            <a class="btn btn-outline-light btn-lg fw-semibold" href="#old-online">Old Students Online</a>
           </div>
         </div>
       </div>
@@ -147,12 +147,13 @@ $homepageImages = homepage_images_load();
               <h3 class="h4">Online Enrollment</h3>
               <ol class="mt-4">
                 <li><strong>Secure a temporary student number.</strong> Launch the digital form and request for a student number through <a href="StudentNoVerification/student_number.php">Student Number Request</a>.</li>
-                <li><strong>Complete the early registration form.</strong> Fill out all learner, parent, and previous school fields then upload required IDs and report cards.</li>
-                <li><strong>Await registrar review.</strong> Watch for status updates via email and the confirmation page while the Registrar validates your submission.</li>
-                <li><strong>Choose your payment option.</strong> Once approved, open the portal link sent to your email and proceed to <a href="Portal/choose_payment.php">Choose Payment</a> to reserve your slot.</li>
-                <li><strong>Receive your official portal access.</strong> After payment is validated the school will send your permanent student number and login instructions.</li>
+                <li><strong>Complete the early registration form.</strong> Fill out learner, parent, and previous school details then upload the initial digital copies of your documents.</li>
+                <li><strong>Schedule your campus interview.</strong> Choose an appointment from the confirmation email so the Registrar can meet you and your child.</li>
+                <li><strong>Visit the school for interview and document check.</strong> Bring the original certificates, IDs, and report cards for validation during the onsite interview.</li>
+                <li><strong>Settle tuition at the cashier.</strong> After the Registrar approves your interview, pay the reservation or tuition fee with the cashier team.</li>
+                <li><strong>Wait for registrar activation.</strong> The Registrar finalizes your student record, activates your portal account, and emails the permanent student number.</li>
               </ol>
-              <p class="mb-0 text-muted"><i class="bi bi-info-circle-fill text-success me-2"></i>Keep clear photos or PDFs of your birth certificate, latest report card, and parent/guardian ID ready before you start.</p>
+              <p class="mb-0 text-muted"><i class="bi bi-info-circle-fill text-success me-2"></i>Keep clear photos or PDFs of your birth certificate, latest report card, and parent/guardian ID before registering, and bring the originals to your interview.</p>
             </div>
           </div>
 
@@ -162,42 +163,43 @@ $homepageImages = homepage_images_load();
               <h3 class="h4">Onsite Enrollment</h3>
               <ol class="mt-4">
                 <li><strong>Visit the Registrar’s Office.</strong> Bring your child’s PSA birth certificate, latest report card, certificate of good moral, and two 1x1 ID photos.</li>
-                <li><strong>Fill out the registration packets.</strong> Complete the learner profile, parent information sheet, and consent forms with the assistance of our staff.</li>
-                <li><strong>Submit requirements for verification.</strong> The registrar reviews originals and keeps photocopies for school records.</li>
-                <li><strong>Proceed to the cashier.</strong> Settle the reservation or enrollment fee at the cashier counter or coordinate deferred payment plans.</li>
-                <li><strong>Claim your welcome kit.</strong> Receive your official student number, uniform guidelines, and class schedule release date.</li>
+                <li><strong>Complete forms and interview.</strong> Fill out the learner profile with our staff and join the short interview that confirms grade placement and readiness.</li>
+                <li><strong>Submit requirements for verification.</strong> The Registrar reviews originals, keeps photocopies, and issues the approved enrollment checklist.</li>
+                <li><strong>Proceed to the cashier.</strong> Settle the reservation or tuition fee at the cashier counter to secure your slot.</li>
+                <li><strong>Wait for registrar activation.</strong> The Registrar activates your official student account and releases the permanent student number with next steps.</li>
               </ol>
               <p class="mb-0 text-muted"><i class="bi bi-building-check text-success me-2"></i>Office hours are Monday to Friday, 8:00 AM – 4:00 PM. Call ahead to book a queue number during peak weeks.</p>
             </div>
           </div>
 
-          <div class="col-lg-6" id="returning-online">
+          <div class="col-lg-6" id="old-online">
             <div class="step-card h-100">
-              <span class="badge mb-3">Returning Students</span>
+              <span class="badge mb-3">Old Students</span>
               <h3 class="h4">Online Re-enrollment</h3>
               <ol class="mt-4">
-                <li><strong>Log in to the student portal.</strong> Go to <a href="Portal/student_login.php">Student Portal</a> using the credentials you set last year. Reset through <a href="Portal/forgot_password.php">Forgot Password</a> if needed.</li>
-                <li><strong>Confirm your profile details.</strong> Update contact numbers, guardian information, and preferred strand or section if changes apply.</li>
-                <li><strong>Pick a payment plan.</strong> Open <a href="Portal/choose_payment.php">Choose Payment</a> to select full, installment, or onsite settlement. Upload the proof of payment if you pay online.</li>
-                <li><strong>Track approval.</strong> Monitor the status inside <a href="Portal/student_portal.php">My Enrollment</a> or wait for the confirmation email from the cashier team.</li>
-                <li><strong>Download your enrollment slip.</strong> Once marked paid and validated, print or save the enrollment slip for the first-day requirements.</li>
+                <li><strong>Log in to the student portal.</strong> Go to <a href="Portal/student_login.php">Student Portal</a> using your current credentials, or reset through <a href="Portal/forgot_password.php">Forgot Password</a> if needed.</li>
+                <li><strong>Review your profile.</strong> Confirm contact numbers, guardian information, and strand or section preferences before submitting.</li>
+                <li><strong>Pick your payment plan.</strong> Open <a href="Portal/choose_payment.php">Choose Payment</a>, select full or installment, and proceed with the online channel you prefer.</li>
+                <li><strong>Pay and upload proof.</strong> Complete the online payment then attach the digital receipt or reference number inside the portal.</li>
+                <li><strong>Monitor validation.</strong> Track the status inside <a href="Portal/student_portal.php">My Enrollment</a> until the cashier clears your payment and the Registrar reactivates your account.</li>
+                <li><strong>Download your enrollment slip.</strong> Once marked paid and validated, print or save the slip for the first-day requirements.</li>
               </ol>
-              <p class="mb-0 text-muted"><i class="bi bi-shield-check text-success me-2"></i>Returning parents may still visit the cashier to settle fees in person—just present the digital confirmation once payment is posted.</p>
+              <p class="mb-0 text-muted"><i class="bi bi-shield-check text-success me-2"></i>Old students should finish tuition payment online; status updates and receipts appear instantly inside the portal.</p>
             </div>
           </div>
 
-          <div class="col-lg-6" id="returning-onsite">
+          <div class="col-lg-6" id="old-onsite">
             <div class="step-card h-100">
-              <span class="badge mb-3">Returning Students</span>
-              <h3 class="h4">Onsite Re-enrollment</h3>
+              <span class="badge mb-3">Old Students</span>
+              <h3 class="h4">Onsite Assistance</h3>
               <ol class="mt-4">
-                <li><strong>Confirm learner status.</strong> Drop by the Registrar or message through the portal inbox to ensure your student is cleared of pending requirements.</li>
-                <li><strong>Visit the cashier window.</strong> Bring the latest report card or enrollment slip from the previous year plus any scholarship documents.</li>
-                <li><strong>Select the payment scheme.</strong> Our cashier will review tuition matrices, issue the official assessment, and note your preferred schedule.</li>
-                <li><strong>Submit proof of payment if banked.</strong> Hand over deposit slips or GCash screenshots so the cashier can issue receipts immediately.</li>
-                <li><strong>Collect updated documents.</strong> Receive the stamped enrollment slip, class assignment info, and reminders for orientation or bridge programs.</li>
+                <li><strong>Confirm learner status.</strong> Coordinate with the Registrar or message through the portal inbox to ensure there are no pending requirements.</li>
+                <li><strong>Select a plan online.</strong> Staff can help you log in and complete the <a href="Portal/choose_payment.php">Choose Payment</a> flow if you need assistance onsite.</li>
+                <li><strong>Complete the online payment.</strong> Use the school’s digital payment channels (GCash, bank transfer, etc.) while onsite or beforehand, then upload the receipt.</li>
+                <li><strong>Verify payment posting.</strong> Present the reference number to the cashier team so they can confirm it in the system.</li>
+                <li><strong>Receive clearance.</strong> After validation, download the updated enrollment slip and wait for any registrar advisory on class schedules.</li>
               </ol>
-              <p class="mb-0 text-muted"><i class="bi bi-calendar-check text-success me-2"></i>Walk-ins are welcome, but scheduling through the Registrar helps minimize wait times, especially during opening week.</p>
+              <p class="mb-0 text-muted"><i class="bi bi-calendar-check text-success me-2"></i>Need help with the online payment flow? Our cashier and registrar staff can guide you at the onsite support desks.</p>
             </div>
           </div>
         </div>

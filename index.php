@@ -296,7 +296,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
             <div class="card-body">
               <h5 class="fw-bold text-success">Academic Programs</h5>
               <p class="text-muted">From preschool to senior high, our programs are tailored to each stage of your child’s growth.</p>
-              <a href="tuition_fees.php" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View program tracks <i class="bi bi-arrow-right-short"></i></a>
+              <a href="#seniorHighCarousel" class="fw-semibold text-decoration-none" style="color: var(--brand-green);">View academic tracks <i class="bi bi-arrow-right-short"></i></a>
             </div>
           </div>
         </div>
