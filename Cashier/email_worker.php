@@ -561,16 +561,16 @@ if (!function_exists('cashier_email_worker_process')) {
             <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
         ";
 
-        if ($scheduleHtml !== '') {
-            $mail->Body .= $scheduleHtml;
-        }
+       if ($scheduleHtml !== '') {
+           $mail->Body .= $scheduleHtml;
+       }
 
-        // Capture the final rendered email for diagnostics.
-        $previewPath = $tempDir . '/cashier_last_email.html';
-        @file_put_contents(
-            $previewPath,
-            "<!-- Generated: " . date('c') . " | Student ID: {$student_id} -->\n" . $mail->Body
-        );
+       // Capture the final rendered email for diagnostics.
+       $previewPath = $tempDir . '/cashier_last_email.html';
+       @file_put_contents(
+           $previewPath,
+           "<!-- Generated: " . date('c') . " | Student ID: {$student_id} -->\n" . $mail->Body
+       );
 
         if ($scheduleIncluded && !$schedulePreviouslySent && $scheduleColumnAvailable) {
             $updateSchedule = $conn->prepare('UPDATE students_registration SET schedule_sent_at = ? WHERE id = ?');
@@ -585,19 +585,32 @@ if (!function_exists('cashier_email_worker_process')) {
             }
         }
 
-        $smtpLogger = static function (string $line) use ($tempDir, $student_id): void {
-            @file_put_contents(
-                $tempDir . '/cashier_worker_trace.log',
-                sprintf("[%s][student:%d] %s\n", date('c'), $student_id, $line),
-                FILE_APPEND
-            );
-        };
+       $smtpLogger = static function (string $line) use ($tempDir, $student_id): void {
+           @file_put_contents(
+               $tempDir . '/cashier_worker_trace.log',
+               sprintf("[%s][student:%d] %s\n", date('c'), $student_id, $line),
+               FILE_APPEND
+           );
+       };
 
-        try {
-            mailer_send_with_fallback(
-                $mail,
-                [],
-                $smtpLogger,
+        @file_put_contents(
+            $tempDir . '/cashier_worker_trace.log',
+            sprintf(
+                "[%s] preparing_send student=%d type=%s amount=%.2f status=%s\n",
+                date('c'),
+                $student_id,
+                $payment_type,
+                $amountFloat,
+                $status
+            ),
+            FILE_APPEND
+        );
+
+       try {
+           mailer_send_with_fallback(
+               $mail,
+               [],
+               $smtpLogger,
                 (bool) ($mailerConfig['fallback_to_mail'] ?? false)
             );
             @file_put_contents(
