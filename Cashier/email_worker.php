@@ -527,17 +527,11 @@ if (!function_exists('cashier_email_worker_process')) {
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>Date Issued</strong></td>
                         <td style='padding:6px; border:1px solid #ccc;'>" . date('F j, Y') . "</td>
-                    </tr>";
-
-        if ($or_number !== null && $or_number !== '') {
-            $mail->Body .= "
+                    </tr>
                     <tr>
                         <td style='padding:6px; border:1px solid #ccc;'><strong>OR Number</strong></td>
-                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($or_number, ENT_QUOTES) . "</td>
-                    </tr>";
-        }
-
-        $mail->Body .= "
+                        <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($or_number ?? 'N/A', ENT_QUOTES) . "</td>
+                    </tr>
                 </table>
             </div>
             <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
