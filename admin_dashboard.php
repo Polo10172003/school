@@ -575,179 +575,183 @@ $adviserAssignments = adviser_assignments_fetch($conn);
     </section>
     <section class="dashboard-card" id="schedules">
       <span class="dashboard-section-title">Schedule Planner</span>
-      <h2>Class Schedules</h2>
-      <?php if ($scheduleMessage !== ''): ?>
-        <div class="dashboard-alert success">
-          <?= htmlspecialchars($scheduleMessage) ?>
-        </div>
-      <?php endif; ?>
-      <?php if ($scheduleError !== ''): ?>
-        <div class="dashboard-alert error">
-          <?= htmlspecialchars($scheduleError) ?>
-        </div>
-      <?php endif; ?>
-
-      <form class="dashboard-form" method="POST" action="#schedules">
-      <input type="hidden" name="schedule_form" value="1">
-      <div class="dashboard-grid two">
-      <div>
-        <label for="schedule_grade">Grade Level</label>
-        <select name="schedule_grade" id="schedule_grade" required>
-          <option value="">Select grade</option>
-          <?php foreach ($scheduleGradeOptions as $gradeOption):
-            $sel = (($_POST['schedule_grade'] ?? '') === $gradeOption) ? 'selected' : '';
-          ?>
-            <option value="<?= htmlspecialchars($gradeOption) ?>" <?= $sel ?>><?= htmlspecialchars($gradeOption) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div>
-        <label for="schedule_school_year">School Year</label>
-        <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
-      </div>
-      <div class="grid-span-2">
-        <label for="schedule_section">Section (optional)</label>
-        <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
-        <label class="dashboard-checkbox-inline">
-          <input type="checkbox" name="schedule_all_sections" <?= isset($_POST['schedule_all_sections']) ? 'checked' : '' ?>> Apply to all sections
-        </label>
-      </div>
-      <div>
-        <label for="schedule_subject">Subject</label>
-        <input type="text" name="schedule_subject" id="schedule_subject" required value="<?= htmlspecialchars($_POST['schedule_subject'] ?? '') ?>">
-      </div>
-      <div class="grid-span-2">
-        <label for="schedule_teacher">Teacher (optional)</label>
-        <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
-      </div>
-      <div>
-        <label for="schedule_day">Day of Week</label>
-        <select name="schedule_day" id="schedule_day" required>
-          <option value="">Select day</option>
-          <?php foreach ($scheduleDaysOfWeek as $dayOption):
-            $sel = (($_POST['schedule_day'] ?? '') === $dayOption) ? 'selected' : '';
-          ?>
-            <option value="<?= htmlspecialchars($dayOption) ?>" <?= $sel ?>><?= htmlspecialchars($dayOption) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="grid-span-2 dashboard-field-pair">
-        <div>
-          <label for="schedule_start">Start Time (optional)</label>
-          <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
-        </div>
-        <div>
-          <label for="schedule_end">End Time (optional)</label>
-          <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
-        </div>
-      </div>
-      <div>
-        <label for="schedule_room">Room (optional)</label>
-        <input type="text" name="schedule_room" id="schedule_room" value="<?= htmlspecialchars($_POST['schedule_room'] ?? '') ?>">
-      </div>
-      </div>
-      <div class="dashboard-actions">
-        <button type="submit" class="dashboard-btn">Save Schedule</button>
-      </div>
-      </form>
-
-      <div class="dashboard-subsection" id="adviserAssignments" style="margin-top:32px;">
-        <h3 style="margin-bottom:16px;">Section Adviser Assignments</h3>
-        <p class="text-muted" style="margin-bottom:20px;">Link a section to its adviser so automatic placements and registrar tools stay in sync. Provide the grade, then type the section name and adviser.</p>
-
-        <?php if ($adviserMessage !== ''): ?>
-          <div class="dashboard-alert success">
-            <?= htmlspecialchars($adviserMessage) ?>
-          </div>
-        <?php endif; ?>
-        <?php if ($adviserError !== ''): ?>
-          <div class="dashboard-alert error">
-            <?= htmlspecialchars($adviserError) ?>
-          </div>
-        <?php endif; ?>
-
-        <form class="dashboard-form" method="POST" action="#adviserAssignments" style="margin-bottom:24px;">
-          <input type="hidden" name="adviser_form" value="1">
-          <input type="hidden" name="adviser_action" value="save">
-          <div class="dashboard-grid three">
-            <div>
-              <label for="adviser_grade">Grade Level</label>
-              <select name="adviser_grade" id="adviser_grade" required>
-                <option value="">Select grade</option>
-                <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
-                  <option value="<?= htmlspecialchars($gradeOption) ?>" <?= (($_POST['adviser_grade'] ?? '') === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
-                <?php endforeach; ?>
-              </select>
+      <h2>Class Schedules &amp; Section Advisers</h2>
+      <div class="dashboard-panels two-columns">
+        <div class="dashboard-panel" id="schedulePanel">
+          <h3>Create Class Schedule</h3>
+          <?php if ($scheduleMessage !== ''): ?>
+            <div class="dashboard-alert success">
+              <?= htmlspecialchars($scheduleMessage) ?>
             </div>
-            <div>
-              <label for="adviser_section">Section</label>
-              <input type="text" name="adviser_section" id="adviser_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['adviser_section'] ?? '') ?>" required>
+          <?php endif; ?>
+          <?php if ($scheduleError !== ''): ?>
+            <div class="dashboard-alert error">
+              <?= htmlspecialchars($scheduleError) ?>
             </div>
-            <div>
-              <label for="adviser_name">Adviser</label>
-              <input type="text" name="adviser_name" id="adviser_name" placeholder="e.g., Mrs. dela Cruz" value="<?= htmlspecialchars($_POST['adviser_name'] ?? '') ?>" required>
-            </div>
-          </div>
-          <div class="dashboard-actions">
-            <button type="submit" class="dashboard-btn">Save Adviser</button>
-          </div>
-        </form>
+          <?php endif; ?>
 
-        <div class="table-responsive">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:18%;">Grade</th>
-                <th style="width:28%;">Section</th>
-                <th style="width:28%;">Adviser</th>
-                <th style="width:26%;">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php if (empty($adviserAssignments)): ?>
+          <form class="dashboard-form" method="POST" action="#schedules">
+            <input type="hidden" name="schedule_form" value="1">
+            <div class="dashboard-grid two">
+              <div>
+                <label for="schedule_grade">Grade Level</label>
+                <select name="schedule_grade" id="schedule_grade" required>
+                  <option value="">Select grade</option>
+                  <?php foreach ($scheduleGradeOptions as $gradeOption):
+                    $sel = (($_POST['schedule_grade'] ?? '') === $gradeOption) ? 'selected' : '';
+                  ?>
+                    <option value="<?= htmlspecialchars($gradeOption) ?>" <?= $sel ?>><?= htmlspecialchars($gradeOption) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div>
+                <label for="schedule_school_year">School Year</label>
+                <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
+              </div>
+              <div class="grid-span-2">
+                <label for="schedule_section">Section (optional)</label>
+                <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
+                <label class="dashboard-checkbox-inline">
+                  <input type="checkbox" name="schedule_all_sections" <?= isset($_POST['schedule_all_sections']) ? 'checked' : '' ?>> Apply to all sections
+                </label>
+              </div>
+              <div>
+                <label for="schedule_subject">Subject</label>
+                <input type="text" name="schedule_subject" id="schedule_subject" required value="<?= htmlspecialchars($_POST['schedule_subject'] ?? '') ?>">
+              </div>
+              <div class="grid-span-2">
+                <label for="schedule_teacher">Teacher (optional)</label>
+                <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
+              </div>
+              <div>
+                <label for="schedule_day">Day of Week</label>
+                <select name="schedule_day" id="schedule_day" required>
+                  <option value="">Select day</option>
+                  <?php foreach ($scheduleDaysOfWeek as $dayOption):
+                    $sel = (($_POST['schedule_day'] ?? '') === $dayOption) ? 'selected' : '';
+                  ?>
+                    <option value="<?= htmlspecialchars($dayOption) ?>" <?= $sel ?>><?= htmlspecialchars($dayOption) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="grid-span-2 dashboard-field-pair">
+                <div>
+                  <label for="schedule_start">Start Time (optional)</label>
+                  <input type="time" name="schedule_start" id="schedule_start" value="<?= htmlspecialchars($_POST['schedule_start'] ?? '') ?>">
+                </div>
+                <div>
+                  <label for="schedule_end">End Time (optional)</label>
+                  <input type="time" name="schedule_end" id="schedule_end" value="<?= htmlspecialchars($_POST['schedule_end'] ?? '') ?>">
+                </div>
+              </div>
+              <div>
+                <label for="schedule_room">Room (optional)</label>
+                <input type="text" name="schedule_room" id="schedule_room" value="<?= htmlspecialchars($_POST['schedule_room'] ?? '') ?>">
+              </div>
+            </div>
+            <div class="dashboard-actions">
+              <button type="submit" class="dashboard-btn">Save Schedule</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="dashboard-panel" id="adviserAssignments">
+          <h3>Section Adviser Assignments</h3>
+          <p class="text-muted">Link a section to its adviser so registrar tools stay in sync. Provide the grade, section, and adviser below.</p>
+          <?php if ($adviserMessage !== ''): ?>
+            <div class="dashboard-alert success">
+              <?= htmlspecialchars($adviserMessage) ?>
+            </div>
+          <?php endif; ?>
+          <?php if ($adviserError !== ''): ?>
+            <div class="dashboard-alert error">
+              <?= htmlspecialchars($adviserError) ?>
+            </div>
+          <?php endif; ?>
+
+          <form class="dashboard-form" method="POST" action="#adviserAssignments">
+            <input type="hidden" name="adviser_form" value="1">
+            <input type="hidden" name="adviser_action" value="save">
+            <div class="dashboard-grid three">
+              <div>
+                <label for="adviser_grade">Grade Level</label>
+                <select name="adviser_grade" id="adviser_grade" required>
+                  <option value="">Select grade</option>
+                  <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
+                    <option value="<?= htmlspecialchars($gradeOption) ?>" <?= (($_POST['adviser_grade'] ?? '') === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div>
+                <label for="adviser_section">Section</label>
+                <input type="text" name="adviser_section" id="adviser_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['adviser_section'] ?? '') ?>" required>
+              </div>
+              <div>
+                <label for="adviser_name">Adviser</label>
+                <input type="text" name="adviser_name" id="adviser_name" placeholder="e.g., Mrs. dela Cruz" value="<?= htmlspecialchars($_POST['adviser_name'] ?? '') ?>" required>
+              </div>
+            </div>
+            <div class="dashboard-actions">
+              <button type="submit" class="dashboard-btn">Save Adviser</button>
+            </div>
+          </form>
+
+          <div class="table-responsive">
+            <table>
+              <thead>
                 <tr>
-                  <td colspan="4" style="text-align:center;">No adviser assignments yet. Use the form above to add one.</td>
+                  <th style="width:18%;">Grade</th>
+                  <th style="width:28%;">Section</th>
+                  <th style="width:28%;">Adviser</th>
+                  <th style="width:26%;">Actions</th>
                 </tr>
-              <?php else: ?>
-                <?php foreach ($adviserAssignments as $assignment): 
-                  $formId = 'update-adviser-' . (int) $assignment['id'];
-                  $deleteFormId = 'delete-adviser-' . (int) $assignment['id'];
-                ?>
+              </thead>
+              <tbody>
+                <?php if (empty($adviserAssignments)): ?>
                   <tr>
-                    <td>
-                      <form id="<?= $formId ?>" method="POST" action="#adviserAssignments">
-                        <input type="hidden" name="adviser_form" value="1">
-                        <input type="hidden" name="adviser_action" value="update">
-                        <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
-                      </form>
-                      <select name="adviser_grade" form="<?= $formId ?>" required>
-                        <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
-                          <option value="<?= htmlspecialchars($gradeOption) ?>" <?= ($assignment['grade_level'] === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
-                        <?php endforeach; ?>
-                      </select>
-                    </td>
-                    <td>
-                      <input type="text" name="adviser_section" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['section']) ?>" required>
-                    </td>
-                    <td>
-                      <input type="text" name="adviser_name" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['adviser']) ?>" required>
-                    </td>
-                    <td>
-                      <div class="dashboard-inline-actions">
-                        <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $formId ?>">Update</button>
-                        <form id="<?= $deleteFormId ?>" method="POST" action="#adviserAssignments">
+                    <td colspan="4" style="text-align:center;">No adviser assignments yet. Use the form above to add one.</td>
+                  </tr>
+                <?php else: ?>
+                  <?php foreach ($adviserAssignments as $assignment): 
+                    $formId = 'update-adviser-' . (int) $assignment['id'];
+                    $deleteFormId = 'delete-adviser-' . (int) $assignment['id'];
+                  ?>
+                    <tr>
+                      <td>
+                        <form id="<?= $formId ?>" method="POST" action="#adviserAssignments">
                           <input type="hidden" name="adviser_form" value="1">
-                          <input type="hidden" name="adviser_action" value="delete">
+                          <input type="hidden" name="adviser_action" value="update">
                           <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
                         </form>
-                        <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $deleteFormId ?>" style="background:#fbeaea;color:#c0392b;" onclick="return confirm('Remove this adviser assignment?');">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </tbody>
-          </table>
+                        <select name="adviser_grade" form="<?= $formId ?>" required>
+                          <?php foreach ($scheduleGradeOptions as $gradeOption): ?>
+                            <option value="<?= htmlspecialchars($gradeOption) ?>" <?= ($assignment['grade_level'] === $gradeOption) ? 'selected' : '' ?>><?= htmlspecialchars($gradeOption) ?></option>
+                          <?php endforeach; ?>
+                        </select>
+                      </td>
+                      <td>
+                        <input type="text" name="adviser_section" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['section']) ?>" required>
+                      </td>
+                      <td>
+                        <input type="text" name="adviser_name" form="<?= $formId ?>" value="<?= htmlspecialchars($assignment['adviser']) ?>" required>
+                      </td>
+                      <td>
+                        <div class="dashboard-inline-actions">
+                          <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $formId ?>">Update</button>
+                          <form id="<?= $deleteFormId ?>" method="POST" action="#adviserAssignments">
+                            <input type="hidden" name="adviser_form" value="1">
+                            <input type="hidden" name="adviser_action" value="delete">
+                            <input type="hidden" name="assignment_id" value="<?= (int) $assignment['id'] ?>">
+                          </form>
+                          <button type="submit" class="dashboard-btn secondary dashboard-btn--small" form="<?= $deleteFormId ?>" style="background:#fbeaea;color:#c0392b;" onclick="return confirm('Remove this adviser assignment?');">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  <?php endforeach; ?>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
