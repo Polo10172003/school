@@ -238,10 +238,6 @@ if ($grade_filter) {
         <div class="grade-dropbox-callout__icon" aria-hidden="true">
           <i class="bi bi-people-fill"></i>
         </div>
-        <div>
-          <h3 class="grade-dropbox-callout__title">Adviser-managed submissions</h3>
-          <p class="grade-dropbox-callout__text">Registrars now review files provided by advisers. Preview or download the latest uploads for each grade below.</p>
-        </div>
       </div>
 
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
