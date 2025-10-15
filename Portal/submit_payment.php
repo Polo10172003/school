@@ -96,6 +96,12 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
             if ($stmt->execute()) {
                 $paymentId = $stmt->insert_id ?: $conn->insert_id;
 
+                $logDir = __DIR__ . '/../logs';
+                if (!is_dir($logDir)) {
+                    @mkdir($logDir, 0755, true);
+                }
+                $logFile = $logDir . '/pusher.log';
+
                 try {
                     $pusherConfig = require __DIR__ . '/../config/pusher.php';
                     $pusherKey = $pusherConfig['key'] ?? '';
@@ -127,7 +133,13 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
                         ]);
                     }
                 } catch (Throwable $pusherException) {
-                    error_log('[payments] Failed to broadcast payment event: ' . $pusherException->getMessage());
+                    $message = sprintf(
+                        "[%s] Failed to broadcast payment event: %s%s",
+                        date('c'),
+                        $pusherException->getMessage(),
+                        PHP_EOL
+                    );
+                    error_log($message, 3, $logFile);
                 }
 
                 $_SESSION['payment_success'] = true;
