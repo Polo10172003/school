@@ -162,14 +162,30 @@ SQL;
     /**
      * Automatically validate any known session contexts for the active request.
      */
+    function session_guard_base_path(string $suffix): string
+    {
+        $base = defined('APP_BASE_PATH') ? APP_BASE_PATH : '/';
+        if ($base === '') {
+            $base = '/';
+        }
+        if (substr($base, -1) !== '/') {
+            $base .= '/';
+        }
+        return $base . ltrim($suffix, '/');
+    }
+
     function session_guard_auto_check(mysqli $conn): void
     {
+        if (defined('SESSION_GUARD_SKIP') && SESSION_GUARD_SKIP) {
+            return;
+        }
+
         $contexts = [
-            'student'   => ['key' => 'student_number',      'redirect' => (APP_BASE_PATH ?? '/') . 'Portal/student_login.php'],
-            'cashier'   => ['key' => 'cashier_username',    'redirect' => (APP_BASE_PATH ?? '/') . 'Cashier/cashier_login.php'],
-            'registrar' => ['key' => 'registrar_username',  'redirect' => (APP_BASE_PATH ?? '/') . 'Registrar/registrar_login.php'],
-            'admin'     => ['key' => 'admin_username',      'redirect' => (APP_BASE_PATH ?? '/') . 'admin_login.php'],
-            'adviser'   => ['key' => 'adviser_username',    'redirect' => (APP_BASE_PATH ?? '/') . 'Adviser/adviser_login.php'],
+            'student'   => ['key' => 'student_number',      'redirect' => session_guard_base_path('Portal/student_login.php')],
+            'cashier'   => ['key' => 'cashier_username',    'redirect' => session_guard_base_path('Cashier/cashier_login.php')],
+            'registrar' => ['key' => 'registrar_username',  'redirect' => session_guard_base_path('Registrar/registrar_login.php')],
+            'admin'     => ['key' => 'admin_username',      'redirect' => session_guard_base_path('admin_login.php')],
+            'adviser'   => ['key' => 'adviser_username',    'redirect' => session_guard_base_path('Adviser/adviser_login.php')],
         ];
 
         foreach ($contexts as $context => $meta) {

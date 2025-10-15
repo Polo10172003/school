@@ -1,6 +1,8 @@
 <?php
 
-include '../db_connection.php';
+require_once __DIR__ . '/../includes/session.php';
+define('SESSION_GUARD_SKIP', true);
+include __DIR__ . '/../db_connection.php';
 
 $page_title = 'Escuela de Sto. Rosario - Student Number Check';
 $message = "";
@@ -101,7 +103,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
     }
 }
-    include '../includes/header.php';
+    include __DIR__ . '/../includes/header.php';
 ?>
 <!DOCTYPE html>
 <html>
@@ -152,9 +154,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <p class="mt-3 text-center">
             No student number yet? 
-            <a href="StudentNoVerification/ineeditNaregistration.php">Click here to register</a>
+            <a href="ineeditNaregistration.php">Click here to register</a>
         </p>
     </div>
     </div>
 </main>
-<?php include '../includes/footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -2121,5 +2121,17 @@ unset($finance_view_ref);
         resetTimer();
     })();
 </script>
+<?php
+$sessionMonitorConfig = [
+    'pingUrl' => APP_BASE_PATH . 'session_ping.php',
+    'redirectUrl' => APP_BASE_PATH . 'Portal/student_login.php?session=expired',
+    'message' => 'Your student session ended because this account was used elsewhere.',
+];
+$sessionMonitorJson = json_encode($sessionMonitorConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+?>
+<script>
+    window.SESSION_MONITOR = <?= $sessionMonitorJson !== false ? $sessionMonitorJson : 'null'; ?>;
+</script>
+<script src="../assets/js/session_monitor.js?v=20241017"></script>
 
 <?php include '../includes/footer.php'; ?>
