@@ -5,7 +5,8 @@
   const pingUrl = config.pingUrl || '';
   const redirectUrl = config.redirectUrl || '';
   const message = config.message || 'New login detected. Please sign in again.';
-  const intervalMs = Number(config.intervalMs || 15000);
+  const storageKey = config.storageKey || '';
+  const sessionToken = config.sessionToken || '';
 
   if (!pingUrl || !redirectUrl) {
     return;
@@ -26,6 +27,52 @@
       window.location.replace(redirectUrl);
     }
   };
+
+  const parsePayload = (rawValue) => {
+    if (!rawValue) {
+      return null;
+    }
+    try {
+      const data = JSON.parse(rawValue);
+      return typeof data === 'object' && data !== null ? data : null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const evaluateIncomingToken = (incomingToken) => {
+    if (!incomingToken || incomingToken === sessionToken) {
+      return;
+    }
+    handleSessionExpired();
+  };
+
+  if (storageKey && sessionToken) {
+    try {
+      const existingPayload = parsePayload(localStorage.getItem(storageKey));
+      if (existingPayload && typeof existingPayload.token === 'string') {
+        evaluateIncomingToken(existingPayload.token);
+      }
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ token: sessionToken, ts: Date.now() })
+      );
+    } catch (_) {
+      // Access to localStorage can fail (e.g. privacy mode); ignore silently.
+    }
+
+    window.addEventListener('storage', (event) => {
+      if (event.key !== storageKey || isHandlingLogout) {
+        return;
+      }
+      const payload = parsePayload(event.newValue);
+      if (payload && typeof payload.token === 'string') {
+        evaluateIncomingToken(payload.token);
+      } else {
+        handleSessionExpired();
+      }
+    });
+  }
 
   const performPing = () => {
     fetch(pingUrl, {
@@ -48,5 +95,4 @@
   };
 
   performPing();
-  setInterval(performPing, intervalMs);
 })();

@@ -505,13 +505,18 @@ $sessionMonitorConfig = [
     'pingUrl' => APP_BASE_PATH . 'session_ping.php',
     'redirectUrl' => APP_BASE_PATH . 'Registrar/registrar_login.php',
     'message' => 'Your registrar session ended because this account was used elsewhere.',
+    'storageKey' => 'esr_session_registrar',
 ];
+$registrarSessionToken = $_SESSION['session_tokens']['registrar'] ?? null;
+if (!empty($registrarSessionToken)) {
+    $sessionMonitorConfig['sessionToken'] = $registrarSessionToken;
+}
 $sessionMonitorJson = json_encode($sessionMonitorConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 ?>
 <script>
   window.SESSION_MONITOR = <?= $sessionMonitorJson !== false ? $sessionMonitorJson : 'null'; ?>;
 </script>
-<script src="../assets/js/session_monitor.js?v=20241017"></script>
+<script src="../assets/js/session_monitor.js?v=20241018"></script>
 <?php $conn->close(); ?>
   </main>
 </div>
