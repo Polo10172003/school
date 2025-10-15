@@ -31,7 +31,7 @@
     const firstname = student.firstname || '';
     const lastname = student.lastname || '';
     const name = `${firstname} ${lastname}`.trim();
-    const gradeLevel = student.grade_level || '';
+    const gradeLevel = student.year || student.grade_level || '';
     const section = student.section && student.section !== '' ? student.section : 'Not Assigned';
     const adviser = student.adviser && student.adviser !== '' ? student.adviser : 'Not Assigned';
     const academicStatusRaw = student.academic_status || '';
