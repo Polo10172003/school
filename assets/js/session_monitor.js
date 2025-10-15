@@ -49,10 +49,6 @@
 
   if (storageKey && sessionToken) {
     try {
-      const existingPayload = parsePayload(localStorage.getItem(storageKey));
-      if (existingPayload && typeof existingPayload.token === 'string') {
-        evaluateIncomingToken(existingPayload.token);
-      }
       localStorage.setItem(
         storageKey,
         JSON.stringify({ token: sessionToken, ts: Date.now() })
