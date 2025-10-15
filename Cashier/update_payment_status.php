@@ -1,4 +1,6 @@
 <?php
+define('SESSION_GUARD_JSON', true);
+require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 include __DIR__ . '/../db_connection.php';
 

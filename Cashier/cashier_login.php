@@ -46,6 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['cashier_username'] = $cashier['username'];
             $_SESSION['cashier_fullname'] = $cashier['fullname'] ?? $cashier['username'];
             $_SESSION['cashier_role'] = $cashier['role'] ?? 'cashier';
+            session_guard_store($conn, 'cashier', $cashier['username']);
             header("Location: cashier_dashboard.php");
             exit;
         }

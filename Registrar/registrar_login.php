@@ -46,6 +46,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['registrar_username'] = $registrar['username'];
             $_SESSION['registrar_fullname'] = $registrar['fullname'] ?? $registrar['username'];
             $_SESSION['registrar_role'] = $registrar['role'] ?? 'registrar';
+            session_guard_store($conn, 'registrar', $registrar['username']);
             header("Location: registrar_dashboard.php");
             exit;
         }

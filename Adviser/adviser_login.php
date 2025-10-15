@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['adviser_username'] = $adviser['username'];
                 $_SESSION['adviser_fullname'] = $adviser['fullname'] ?? $adviser['username'];
                 $_SESSION['adviser_role'] = $adviser['role'] ?? 'adviser';
+                session_guard_store($conn, 'adviser', $adviser['username']);
                 header('Location: adviser_dashboard.php');
                 exit;
             }

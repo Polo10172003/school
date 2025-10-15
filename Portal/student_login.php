@@ -51,6 +51,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($account['is_first_login']) {
             session_regenerate_id(true);
             $_SESSION['student_number'] = $student_number;
+            session_guard_store($conn, 'student', $student_number);
             header("Location: set_student_password.php");
             exit();
         }
@@ -86,6 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         if ($authenticated) {
             session_regenerate_id(true);
             $_SESSION['student_number'] = $student_number;
+            session_guard_store($conn, 'student', $student_number);
             header('Location: student_portal.php');
             exit();
         }

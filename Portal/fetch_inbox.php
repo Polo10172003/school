@@ -1,4 +1,5 @@
 <?php
+define('SESSION_GUARD_JSON', true);
 require_once __DIR__ . '/../includes/session.php';
 header('Content-Type: application/json');
 

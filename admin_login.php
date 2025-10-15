@@ -48,6 +48,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $_SESSION['admin_username'] = $admin['username'];
                 $_SESSION['admin_fullname'] = $admin['fullname'] ?? $admin['username'];
                 $_SESSION['admin_role'] = 'Administrator';
+                session_guard_store($conn, 'admin', $admin['username']);
                 header("Location: admin_dashboard.php");
                 exit();
             }

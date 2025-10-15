@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+define('SESSION_GUARD_JSON', true);
+
 require_once __DIR__ . '/../includes/session.php';
 
 if (empty($_SESSION['registrar_username'])) {
