@@ -226,7 +226,7 @@ if (!function_exists('email_worker_process')) {
         <p>Thank you for registering as a <strong>$student_type_label student</strong> of Escuela De Sto. Rosario.</p>
         <p>Attached is a copy of your submitted enrollment form for your records.</p>
         {$requirementsSection}
-        <p><strong>Important:</strong> Early registration records remain active for 14 days. If you are unable to visit the school to submit the requirements and complete the interview within that period, your application will be automatically removed from our system.</p>
+        <p><strong>Important:</strong> Early registration records remain active for 1 month. If you are unable to visit the school to submit the requirements and complete the interview within that period, your application will be automatically removed from our system.</p>
         <p>If you have already submitted these documents, you may disregard this reminder.</p>
         <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>
         ";

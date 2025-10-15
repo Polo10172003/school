@@ -1,8 +1,8 @@
 <?php
 /**
- * tatanggaling lahat ng students na hindi nagverify ng email after 14 days
+ * Tatanggaling lahat ng students na hindi nagverify ng email after 1 month.
  */
-function cleanupExpiredRegistrations(mysqli $conn, int $expiryDays = 14): void
+function cleanupExpiredRegistrations(mysqli $conn, int $expiryDays = 30): void
 {
     $sql = "DELETE FROM students_registration
              WHERE enrollment_status = 'waiting'
