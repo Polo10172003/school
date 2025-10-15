@@ -165,6 +165,7 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'same-origin',
         body,
       });
       const text = await res.text();
@@ -437,7 +438,17 @@ const bindFinancialViewSwitchers = () => {
 
     try {
       const queryString = window.location.search || '';
-      const response = await fetch(`fetch_payment_records.php${queryString}`, { cache: 'no-store' });
+      const response = await fetch(`fetch_payment_records.php${queryString}`, {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (response.status === 401) {
+        console.warn('[cashier] Payment records fetch returned 401 (unauthorised).');
+        if (!silent) {
+          window.location.reload();
+        }
+        return;
+      }
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
