@@ -4,6 +4,7 @@
   const PAYMENT_POLL_INTERVAL = 15000;
   let paymentPollHandle = null;
   let refreshPaymentRecords;
+  let realtimeConnection = null;
 
   const escapeHtml = (value) =>
     String(value ?? '').replace(/[&<>"']/g, (char) => {
@@ -258,6 +259,61 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
           setProcessingState(false, 'decline');
         }
       });
+    }
+  };
+
+  const initRealtimePayments = () => {
+    if (realtimeConnection) {
+      return realtimeConnection;
+    }
+    if (typeof Pusher === 'undefined') {
+      return null;
+    }
+    if (typeof refreshPaymentRecords !== 'function') {
+      return null;
+    }
+
+    const config = window.PUSHER_CONFIG || {};
+    const key = config.key || '';
+    const cluster = config.cluster || '';
+
+    if (!key || !cluster) {
+      return null;
+    }
+
+    try {
+      const client = new Pusher(key, {
+        cluster,
+        forceTLS: config.forceTLS !== undefined ? !!config.forceTLS : true,
+      });
+
+      const channelName = config.channel || 'payments-channel';
+      const eventName = config.event || 'new-payment';
+      const channel = client.subscribe(channelName);
+
+      channel.bind(eventName, (payload) => {
+        const silent = document.hidden;
+        try {
+          refreshPaymentRecords({ silent });
+        } catch (refreshError) {
+          console.error('[cashier] Failed to refresh payments after realtime event.', refreshError);
+        }
+        if (!silent && payload && payload.student) {
+          console.info(`[cashier] New payment received from ${payload.student}.`);
+        }
+      });
+
+      if (client && client.connection && typeof client.connection.bind === 'function') {
+        client.connection.bind('error', (error) => {
+          console.error('[cashier] Realtime connection error:', error);
+        });
+      }
+
+      realtimeConnection = { client, channel };
+      return realtimeConnection;
+    } catch (error) {
+      console.error('[cashier] Unable to initialise realtime updates.', error);
+      return null;
     }
   };
 
@@ -574,6 +630,7 @@ const bindFinancialViewSwitchers = () => {
     bindPlanSelectors();
     bootReceiptIfNeeded();
     refreshPaymentRecords({ silent: true });
+    initRealtimePayments();
     if (paymentPollHandle) {
       clearInterval(paymentPollHandle);
     }

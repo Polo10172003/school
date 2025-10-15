@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $reference_number = $_POST['reference_number'] ?? '';
@@ -93,6 +94,42 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
     );
 
             if ($stmt->execute()) {
+                $paymentId = $stmt->insert_id ?: $conn->insert_id;
+
+                try {
+                    $pusherConfig = require __DIR__ . '/../config/pusher.php';
+                    $pusherKey = $pusherConfig['key'] ?? '';
+                    $pusherSecret = $pusherConfig['secret'] ?? '';
+                    $pusherAppId = $pusherConfig['app_id'] ?? '';
+                    $pusherCluster = $pusherConfig['cluster'] ?? '';
+                    $useTls = array_key_exists('use_tls', $pusherConfig) ? (bool) $pusherConfig['use_tls'] : true;
+
+                    if ($pusherKey && $pusherSecret && $pusherAppId && $pusherCluster) {
+                        $pusher = new Pusher\Pusher(
+                            $pusherKey,
+                            $pusherSecret,
+                            $pusherAppId,
+                            [
+                                'cluster' => $pusherCluster,
+                                'useTLS' => $useTls,
+                            ]
+                        );
+
+                        $channel = $pusherConfig['channel'] ?? 'payments-channel';
+                        $event = $pusherConfig['event'] ?? 'new-payment';
+                        $pusher->trigger($channel, $event, [
+                            'payment_id' => $paymentId,
+                            'student' => trim($lastname . ', ' . $firstname),
+                            'amount' => (float) $amount,
+                            'payment_type' => $payment_type,
+                            'status' => $status,
+                            'submitted_at' => date('c'),
+                        ]);
+                    }
+                } catch (Throwable $pusherException) {
+                    error_log('[payments] Failed to broadcast payment event: ' . $pusherException->getMessage());
+                }
+
                 $_SESSION['payment_success'] = true;
                 $_SESSION['payment_success_message'] = "Thank you for your payment. Your transaction is now being reviewed by our finance department.\nPlease keep your reference number and wait for confirmation via Email.";
                 header("Location: choose_payment.php");

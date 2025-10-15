@@ -10,6 +10,14 @@ if ($conn->connect_error) {
 
 require_once __DIR__ . '/cashier_dashboard_logic.php';
 require_once __DIR__ . '/../admin_functions.php';
+$pusherConfig = require __DIR__ . '/../config/pusher.php';
+$pusherClientConfig = [
+    'key' => $pusherConfig['key'] ?? '',
+    'cluster' => $pusherConfig['cluster'] ?? '',
+    'channel' => $pusherConfig['channel'] ?? 'payments-channel',
+    'event' => $pusherConfig['event'] ?? 'new-payment',
+    'forceTLS' => array_key_exists('use_tls', $pusherConfig) ? (bool) $pusherConfig['use_tls'] : true,
+];
 
 $cashierUsername = $_SESSION['cashier_username'] ?? null;
 $cashierDisplayName = $_SESSION['cashier_fullname'] ?? ($cashierUsername ?? 'Cashier');
@@ -1032,6 +1040,13 @@ if ($receiptPaymentId) {
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<?php
+$pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+?>
+<script>
+  window.PUSHER_CONFIG = <?= $pusherClientJson !== false ? $pusherClientJson : 'null'; ?>;
+</script>
+<script src="https://js.pusher.com/8.4/pusher.min.js"></script>
 <script src="cashier_dashboard.js"></script>
 <script>
 function toggleSection(button) {
