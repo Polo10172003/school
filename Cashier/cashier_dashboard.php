@@ -1047,7 +1047,7 @@ $pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APO
   window.PUSHER_CONFIG = <?= $pusherClientJson !== false ? $pusherClientJson : 'null'; ?>;
 </script>
 <script src="https://js.pusher.com/8.4/pusher.min.js"></script>
-<script src="cashier_dashboard.js"></script>
+<script src="cashier_dashboard.js?v=20241014"></script>
 <script>
 function toggleSection(button) {
   if (!button) return;
