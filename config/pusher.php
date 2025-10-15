@@ -6,5 +6,7 @@ return [
     'cluster' => 'ap1',
     'channel' => 'payments-channel',
     'event' => 'new-payment',
+    'registrar_channel' => 'registrar-enrollments',
+    'registrar_event' => 'student-enrolled',
     'use_tls' => true,
 ];

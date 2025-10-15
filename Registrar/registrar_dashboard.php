@@ -3,6 +3,14 @@ require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../admin_functions.php';
 require_once __DIR__ . '/../includes/registrar_guides.php';
+$pusherConfig = require __DIR__ . '/../config/pusher.php';
+$pusherClientConfig = [
+    'key' => $pusherConfig['key'] ?? '',
+    'cluster' => $pusherConfig['cluster'] ?? '',
+    'channel' => $pusherConfig['registrar_channel'] ?? 'registrar-enrollments',
+    'event' => $pusherConfig['registrar_event'] ?? 'student-enrolled',
+    'forceTLS' => array_key_exists('use_tls', $pusherConfig) ? (bool) $pusherConfig['use_tls'] : true,
+];
 
 if (!function_exists('registrar_format_bytes')) {
     /**
@@ -168,6 +176,7 @@ if ($grade_filter) {
     $stmt->bind_param("s", $grade_filter);
     $stmt->execute();
     $result = $stmt->get_result();
+    $stmt->close();
 } else {
     $sql = "
         SELECT sr.*, sa.email AS emailaddress
@@ -176,6 +185,14 @@ if ($grade_filter) {
         WHERE sr.enrollment_status = 'enrolled'
     ";
     $result = $conn->query($sql);
+}
+
+$enrolledStudents = [];
+if ($result instanceof mysqli_result) {
+    while ($row = $result->fetch_assoc()) {
+        $enrolledStudents[] = $row;
+    }
+    $result->free();
 }
 ?>
 
@@ -311,69 +328,68 @@ if ($grade_filter) {
       </form>
 
       <form class="dashboard-form" method="POST" action="bulk_promote.php">
-        <?php if ($result && $result->num_rows > 0): ?>
-          <div class="table-responsive">
-            <table>
-              <thead>
-                <tr>
-                  <th><input type="checkbox" id="checkAll"></th>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Grade Level</th>
-                  <th>Section</th>
-                  <th>Adviser</th>
-                  <th>Academic Status</th>
-                  <th>Actions</th>
+        <div class="table-responsive" id="enrolledTableWrapper" style="<?= empty($enrolledStudents) ? 'display:none;' : '' ?>">
+          <table id="enrolledStudentsTable">
+            <thead>
+              <tr>
+                <th><input type="checkbox" id="checkAll"></th>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Grade Level</th>
+                <th>Section</th>
+                <th>Adviser</th>
+                <th>Academic Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="enrolledTableBody">
+              <?php foreach ($enrolledStudents as $row): ?>
+                <tr data-student-row="<?= (int) $row['id'] ?>">
+                  <td>
+                    <input type="checkbox" name="student_ids[]" value="<?= (int) $row['id'] ?>">
+                  </td>
+                  <td><?= (int) $row['id'] ?></td>
+                  <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
+                  <td><?= htmlspecialchars($row['year']) ?></td>
+                  <td><?= htmlspecialchars($row['section'] ?? 'Not Assigned') ?></td>
+                  <td><?= htmlspecialchars($row['adviser'] ?? 'Not Assigned') ?></td>
+                  <td>
+                    <?php
+                    if (($row['year'] ?? '') === 'Grade 12' && ($row['academic_status'] ?? '') === 'Passed') {
+                        echo '<span class="dashboard-status-pill success">Graduated</span>';
+                    } else {
+                        $statusLabel = !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Ongoing';
+                        echo $statusLabel;
+                    }
+                    ?>
+                  </td>
+                  <td class="dashboard-table-actions">
+                    <?php if (($row['academic_status'] ?? '') === 'Graduated'): ?>
+                      <a href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
+                      <a href="archive_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
+                      <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
+                    <?php else: ?>
+                      <a href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
+                      <a href="delete_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
+                      <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
+                      <a href="update_student_status.php?id=<?= (int) $row['id'] ?>">Update Status</a>
+                    <?php endif; ?>
+                    <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
+                      <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
+                    </span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                <?php while ($row = $result->fetch_assoc()): ?>
-                  <tr>
-                    <td>
-                      <input type="checkbox" name="student_ids[]" value="<?= $row['id'] ?>">
-                    </td>
-                    <td><?= $row['id'] ?></td>
-                    <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
-                    <td><?= htmlspecialchars($row['year']) ?></td>
-                    <td><?= htmlspecialchars($row['section'] ?? 'Not Assigned') ?></td>
-                    <td><?= htmlspecialchars($row['adviser'] ?? 'Not Assigned') ?></td>
-                    <td>
-                      <?php 
-                      if ($row['year'] === 'Grade 12' && $row['academic_status'] === 'Passed') {
-                          echo '<span class="dashboard-status-pill success">Graduated</span>';
-                      } else {
-                          echo !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Ongoing';
-                      }
-                      ?>
-                    </td>
-                    <td class="dashboard-table-actions">
-                      <?php if ($row['academic_status'] === 'Graduated'): ?>
-                        <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a>
-                        <a href="archive_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
-                        <a href="update_section.php?id=<?= $row['id'] ?>">Change Section</a>
-                      <?php else: ?>
-                        <a href="edit_student.php?id=<?= $row['id'] ?>">Edit</a>
-                        <a href="delete_student.php?id=<?= $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
-                        <a href="update_section.php?id=<?= $row['id'] ?>">Change Section</a>
-                        <a href="update_student_status.php?id=<?= $row['id'] ?>">Update Status</a>
-                      <?php endif; ?>
-                      <span id="portal-status-<?= $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
-                        <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
-                      </span>
-                    </td>
-                  </tr>
-<?php endwhile; ?>
-              </tbody>
-            </table>
-          </div>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
 
-          <div class="dashboard-actions">
-            <button type="submit" class="dashboard-btn">Update Selected Status</button>
-            <button type="button" id="bulkActivateBtn" class="dashboard-btn secondary">Activate Selected Accounts</button>
-          </div>
-        <?php else: ?>
-          <div class="dashboard-empty-state">No enrolled students found.</div>
-        <?php endif; ?>
+        <div class="dashboard-actions" id="enrolledActions" style="<?= empty($enrolledStudents) ? 'display:none;' : '' ?>">
+          <button type="submit" class="dashboard-btn">Update Selected Status</button>
+          <button type="button" id="bulkActivateBtn" class="dashboard-btn secondary">Activate Selected Accounts</button>
+        </div>
+
+        <div class="dashboard-empty-state" id="enrolledEmptyState" style="<?= empty($enrolledStudents) ? '' : 'display:none;' ?>">No enrolled students found.</div>
       </form>
     </section>
 
@@ -476,6 +492,14 @@ if (masterCheckbox) {
 });
 
 </script>
+<?php
+$pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+?>
+<script>
+  window.PUSHER_CONFIG = <?= $pusherClientJson !== false ? $pusherClientJson : 'null'; ?>;
+</script>
+<script src="https://js.pusher.com/8.4/pusher.min.js"></script>
+<script src="registrar_dashboard.js?v=20241017"></script>
 <?php $conn->close(); ?>
   </main>
 </div>

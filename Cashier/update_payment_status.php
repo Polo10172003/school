@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../vendor/autoload.php';
 include __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -206,6 +207,33 @@ if ($status === 'paid') {
     cashier_assign_section_if_needed($conn, (int) $student_id);
 }
 
+$registrarPushPayload = null;
+if ($status === 'paid') {
+    $studentInfoStmt = $conn->prepare('SELECT id, firstname, lastname, year, section, adviser, academic_status, portal_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
+    if ($studentInfoStmt) {
+        $studentInfoStmt->bind_param('i', $student_id);
+        if ($studentInfoStmt->execute()) {
+            $studentInfoResult = $studentInfoStmt->get_result();
+            if ($studentInfoResult && $studentInfoResult->num_rows === 1) {
+                $studentInfoRow = $studentInfoResult->fetch_assoc();
+                $registrarPushPayload = [
+                    'id' => (int) ($studentInfoRow['id'] ?? 0),
+                    'firstname' => (string) ($studentInfoRow['firstname'] ?? ''),
+                    'lastname' => (string) ($studentInfoRow['lastname'] ?? ''),
+                    'grade_level' => (string) ($studentInfoRow['year'] ?? ''),
+                    'section' => (string) ($studentInfoRow['section'] ?? ''),
+                    'adviser' => (string) ($studentInfoRow['adviser'] ?? ''),
+                    'academic_status' => (string) ($studentInfoRow['academic_status'] ?? ''),
+                    'portal_status' => (string) ($studentInfoRow['portal_status'] ?? ''),
+                    'school_year' => (string) ($studentInfoRow['school_year'] ?? ''),
+                    'timestamp' => date('c'),
+                ];
+            }
+        }
+        $studentInfoStmt->close();
+    }
+}
+
 if (!empty($email)) {
     if (!function_exists('cashier_email_worker_process')) {
         require_once __DIR__ . '/email_worker.php';
@@ -259,6 +287,34 @@ if (!empty($email)) {
             sprintf('[%s] background worker dispatched student=%d payment=%d' . "\n", date('c'), $student_id, $id),
             FILE_APPEND
         );
+    }
+}
+
+if ($registrarPushPayload) {
+    try {
+        $pusherConfig = require __DIR__ . '/../config/pusher.php';
+        $pusherKey = $pusherConfig['key'] ?? '';
+        $pusherSecret = $pusherConfig['secret'] ?? '';
+        $pusherAppId = $pusherConfig['app_id'] ?? '';
+        $pusherCluster = $pusherConfig['cluster'] ?? '';
+        $useTls = array_key_exists('use_tls', $pusherConfig) ? (bool) $pusherConfig['use_tls'] : true;
+        if ($pusherKey && $pusherSecret && $pusherAppId && $pusherCluster) {
+            $pusher = new Pusher\Pusher(
+                $pusherKey,
+                $pusherSecret,
+                $pusherAppId,
+                [
+                    'cluster' => $pusherCluster,
+                    'useTLS' => $useTls,
+                ]
+            );
+
+            $registrarChannel = $pusherConfig['registrar_channel'] ?? 'registrar-enrollments';
+            $registrarEvent = $pusherConfig['registrar_event'] ?? 'student-enrolled';
+            $pusher->trigger($registrarChannel, $registrarEvent, $registrarPushPayload);
+        }
+    } catch (Throwable $registrarPushError) {
+        error_log('[registrar-notify] Failed to broadcast enrollment: ' . $registrarPushError->getMessage());
     }
 }
 
