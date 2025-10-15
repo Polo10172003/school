@@ -91,4 +91,19 @@
   };
 
   performPing();
+
+  const schedulePing = () => {
+    if (isHandlingLogout) {
+      return;
+    }
+    performPing();
+  };
+
+  window.addEventListener('focus', schedulePing, true);
+  window.addEventListener('online', schedulePing);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      schedulePing();
+    }
+  });
 })();
