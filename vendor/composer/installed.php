@@ -5,7 +5,7 @@
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'reference' => '47cb63327f8324c01f101130087c93414ef62fed',
+        'reference' => 'b090c9869aa74bec979a3a6669b8d9b39c36fef2',
         'name' => '__root__',
         'dev' => true,
     ),
@@ -16,7 +16,7 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
-            'reference' => '47cb63327f8324c01f101130087c93414ef62fed',
+            'reference' => 'b090c9869aa74bec979a3a6669b8d9b39c36fef2',
             'dev_requirement' => false,
         ),
         'dompdf/dompdf' => array(
@@ -145,6 +145,15 @@
             'reference' => '996434e5492cb4c3edcb9168db6fbb1359ef965a',
             'dev_requirement' => false,
         ),
+        'paragonie/sodium_compat' => array(
+            'pretty_version' => 'v2.4.0',
+            'version' => '2.4.0.0',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../paragonie/sodium_compat',
+            'aliases' => array(),
+            'reference' => '547e2dc4d45107440e76c17ab5a46e4252460158',
+            'dev_requirement' => false,
+        ),
         'phpmailer/phpmailer' => array(
             'pretty_version' => 'v6.10.0',
             'version' => '6.10.0.0',
@@ -231,6 +240,15 @@
             'provided' => array(
                 0 => '3.0.0',
             ),
+        ),
+        'pusher/pusher-php-server' => array(
+            'pretty_version' => '7.2.7',
+            'version' => '7.2.7.0',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../pusher/pusher-php-server',
+            'aliases' => array(),
+            'reference' => '148b0b5100d000ed57195acdf548a2b1b38ee3f7',
+            'dev_requirement' => false,
         ),
         'ralouphie/getallheaders' => array(
             'pretty_version' => '3.0.3',
