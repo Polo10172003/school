@@ -1,6 +1,9 @@
 <?php
 $page_title = 'Tuition Fees';
-include 'db_connection.php';
+
+require_once __DIR__ . '/includes/session.php';
+define('SESSION_GUARD_SKIP', true);
+include __DIR__ . '/db_connection.php';
 
 $gradeOptions = [
     'preprime1' => 'Pre-Prime 1',

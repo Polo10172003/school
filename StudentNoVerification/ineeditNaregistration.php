@@ -2,6 +2,7 @@
 $page_title = 'Escuela de Sto. Rosario - Early Registration';
 
 require_once __DIR__ . '/../includes/session.php';
+define('SESSION_GUARD_SKIP', true);
 
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/cleanup_expired_registrations.php';
@@ -89,10 +90,10 @@ $mother_occupation    = $registration['mother_occupation'] ?? '';
 $guardian_name        = $registration['guardian_name'] ?? '';
 $guardian_occupation  = $registration['guardian_occupation'] ?? '';
 
-include '../includes/header.php';
+include __DIR__ . '/../includes/header.php';
 ?>
 
-<link href="assets/css/registration.css" rel="stylesheet">
+<link href="../assets/css/registration.css" rel="stylesheet">
 
 <main class="pt-5 pb-5">
     <div class="form-container main-content">
@@ -348,4 +349,4 @@ include '../includes/header.php';
     });
 </script>
 
-<?php include '../includes/footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>
