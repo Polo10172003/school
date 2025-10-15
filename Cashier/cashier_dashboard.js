@@ -286,12 +286,16 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         cluster,
         forceTLS: config.forceTLS !== undefined ? !!config.forceTLS : true,
       });
+      if (typeof Pusher.logToConsole === 'function') {
+        console.debug('[cashier] Initialising realtime connection with cluster', cluster);
+      }
 
       const channelName = config.channel || 'payments-channel';
       const eventName = config.event || 'new-payment';
       const channel = client.subscribe(channelName);
 
       channel.bind(eventName, (payload) => {
+        console.debug('[cashier] Realtime event received:', payload);
         const silent = document.hidden;
         try {
           refreshPaymentRecords({ silent });
@@ -306,6 +310,9 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
       if (client && client.connection && typeof client.connection.bind === 'function') {
         client.connection.bind('error', (error) => {
           console.error('[cashier] Realtime connection error:', error);
+        });
+        client.connection.bind('state_change', (states) => {
+          console.debug('[cashier] Realtime state change:', states);
         });
       }
 
