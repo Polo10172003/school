@@ -5,10 +5,8 @@
   const pingUrl = config.pingUrl || '';
   const redirectUrl = config.redirectUrl || '';
   const message = config.message || 'New login detected. Please sign in again.';
-  const intervalMs = Number.isFinite(Number(config.intervalMs)) ? Number(config.intervalMs) : 15000;
   const storageKey = config.storageKey || '';
   const sessionToken = config.sessionToken || '';
-  const shouldPoll = intervalMs > 0;
 
   if (!pingUrl || !redirectUrl) {
     return;
@@ -93,7 +91,17 @@
   };
 
   performPing();
-  if (shouldPoll) {
-    setInterval(performPing, intervalMs);
-  }
+  const schedulePing = () => {
+    if (isHandlingLogout) {
+      return;
+    }
+    performPing();
+  };
+  window.addEventListener('focus', schedulePing, true);
+  window.addEventListener('online', schedulePing);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      schedulePing();
+    }
+  });
 })();
