@@ -111,6 +111,15 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
                     $useTls = array_key_exists('use_tls', $pusherConfig) ? (bool) $pusherConfig['use_tls'] : true;
 
                     if ($pusherKey && $pusherSecret && $pusherAppId && $pusherCluster) {
+                        $message = sprintf(
+                            "[%s] Broadcasting payment %d (%s) via Pusher%s",
+                            date('c'),
+                            $paymentId,
+                            trim($lastname . ', ' . $firstname),
+                            PHP_EOL
+                        );
+                        error_log($message, 3, $logFile);
+
                         $pusher = new Pusher\Pusher(
                             $pusherKey,
                             $pusherSecret,
@@ -123,7 +132,7 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
 
                         $channel = $pusherConfig['channel'] ?? 'payments-channel';
                         $event = $pusherConfig['event'] ?? 'new-payment';
-                        $pusher->trigger($channel, $event, [
+                        $result = $pusher->trigger($channel, $event, [
                             'payment_id' => $paymentId,
                             'student' => trim($lastname . ', ' . $firstname),
                             'amount' => (float) $amount,
@@ -131,6 +140,23 @@ if (move_uploaded_file($_FILES["payment_screenshot"]["tmp_name"], $targetFilePat
                             'status' => $status,
                             'submitted_at' => date('c'),
                         ]);
+                        error_log(
+                            sprintf(
+                                "[%s] Pusher trigger result for payment %d: %s%s",
+                                date('c'),
+                                $paymentId,
+                                is_bool($result) ? ($result ? 'true' : 'false') : json_encode($result),
+                                PHP_EOL
+                            ),
+                            3,
+                            $logFile
+                        );
+                    } else {
+                        error_log(
+                            sprintf("[%s] Pusher credentials missing, skipping broadcast.%s", date('c'), PHP_EOL),
+                            3,
+                            $logFile
+                        );
                     }
                 } catch (Throwable $pusherException) {
                     $message = sprintf(
