@@ -1066,6 +1066,10 @@ $sessionMonitorJson = json_encode($sessionMonitorConfig, JSON_HEX_TAG | JSON_HEX
 </script>
 <script src="../assets/js/session_monitor.js?v=20241018"></script>
 <script>
+  window.AUTO_LOGOUT_CONFIG = { logoutUrl: 'cashier_logout.php' };
+</script>
+<script src="../assets/js/tab_auto_logout.js?v=20241019"></script>
+<script>
 function toggleSection(button) {
   if (!button) return;
   var targetId = button.getAttribute('data-toggle-target');

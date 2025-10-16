@@ -2138,5 +2138,9 @@ $sessionMonitorJson = json_encode($sessionMonitorConfig, JSON_HEX_TAG | JSON_HEX
     window.SESSION_MONITOR = <?= $sessionMonitorJson !== false ? $sessionMonitorJson : 'null'; ?>;
 </script>
 <script src="../assets/js/session_monitor.js?v=20241018"></script>
+<script>
+    window.AUTO_LOGOUT_CONFIG = { logoutUrl: 'logout.php' };
+</script>
+<script src="../assets/js/tab_auto_logout.js?v=20241019"></script>
 
 <?php include '../includes/footer.php'; ?>
