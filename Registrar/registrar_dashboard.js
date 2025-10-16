@@ -8,6 +8,10 @@
   const gradeFilter = document.getElementById('grade_filter');
   const masterCheckbox = document.getElementById('checkAll');
 
+  if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+    console.debug('[registrar] dashboard script initialised');
+  }
+
   const escapeHtml = (value) =>
     String(value ?? '').replace(/[&<>"']/g, (char) => {
       switch (char) {
@@ -123,9 +127,14 @@
 
       if (response.status === 401) {
         if (!silent) {
-          console.warn('[registrar] Session expired while fetching enrolled students. Reloading.');
+          console.warn('[registrar] Session expired while fetching enrolled students. Redirecting to login.');
         }
-        window.location.reload();
+        if (typeof window.__ESR_SKIP_AUTO_LOGOUT__ !== 'boolean') {
+          window.__ESR_SKIP_AUTO_LOGOUT__ = true;
+        } else {
+          window.__ESR_SKIP_AUTO_LOGOUT__ = true;
+        }
+        window.location.href = 'registrar_login.php?session=expired';
         return;
       }
 
