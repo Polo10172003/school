@@ -16,5 +16,11 @@ if (ini_get('session.use_cookies')) {
 }
 
 $conn->close();
+
+if (isset($_GET['auto']) && $_GET['auto'] === '1') {
+    http_response_code(204);
+    exit();
+}
+
 header("Location: student_login.php");
 exit();

@@ -90,15 +90,15 @@
       return;
     }
 
+    const attempts = [];
+
     try {
       if (navigator.sendBeacon) {
-        const blob = new Blob([], { type: 'application/x-www-form-urlencoded' });
-        if (navigator.sendBeacon(beaconUrl.href, blob)) {
-          return;
-        }
+        const beaconSent = navigator.sendBeacon(beaconUrl.href);
+        attempts.push(beaconSent);
       }
     } catch (_) {
-      // Fallback to fetch below.
+      attempts.push(false);
     }
 
     try {
@@ -107,11 +107,20 @@
         credentials: 'include',
         cache: 'no-store',
         keepalive: true,
-      }).catch(() => {
-        // Ignore network failures during unload.
-      });
+      })
+        .then(() => {
+          attempts.push(true);
+        })
+        .catch(() => {
+          attempts.push(false);
+        });
+      attempts.push(true);
     } catch (_) {
-      // Last resort: allow unload to continue even if request fails.
+      attempts.push(false);
+    }
+
+    if (!attempts.some(Boolean)) {
+      isLoggingOut = false;
     }
   };
 
