@@ -350,7 +350,15 @@ if ($result instanceof mysqli_result) {
                   </td>
                   <td><?= (int) $row['id'] ?></td>
                   <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
-                  <td><?= htmlspecialchars($row['year']) ?></td>
+                  <td>
+                    <?php
+                    $gradeLevelValue = $row['year'] ?? '';
+                    if ($gradeLevelValue === '' && isset($row['grade_level'])) {
+                        $gradeLevelValue = $row['grade_level'];
+                    }
+                    echo htmlspecialchars($gradeLevelValue !== '' ? $gradeLevelValue : 'Not Set');
+                    ?>
+                  </td>
                   <td><?= htmlspecialchars($row['section'] ?? 'Not Assigned') ?></td>
                   <td><?= htmlspecialchars($row['adviser'] ?? 'Not Assigned') ?></td>
                   <td>
