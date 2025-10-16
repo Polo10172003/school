@@ -1049,11 +1049,16 @@ $pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APO
 <script src="https://js.pusher.com/8.4/pusher.min.js"></script>
 <script src="cashier_dashboard.js?v=20241017"></script>
 <?php
+$cashierStorageKey = 'esr_session_cashier';
+if (!empty($cashierUsername)) {
+    $cashierStorageKey .= '_' . preg_replace('/[^a-z0-9_-]/i', '_', $cashierUsername);
+}
+
 $sessionMonitorConfig = [
     'pingUrl' => APP_BASE_PATH . 'session_ping.php',
     'redirectUrl' => APP_BASE_PATH . 'Cashier/cashier_login.php',
     'message' => 'Your cashier session ended because this account was used elsewhere.',
-    'storageKey' => 'esr_session_cashier',
+    'storageKey' => $cashierStorageKey,
 ];
 $cashierSessionToken = $_SESSION['session_tokens']['cashier'] ?? null;
 if (!empty($cashierSessionToken)) {

@@ -312,11 +312,16 @@ try {
 })();
 </script>
 <?php
+$adviserStorageKey = 'esr_session_adviser';
+if (!empty($_SESSION['adviser_username'])) {
+    $adviserStorageKey .= '_' . preg_replace('/[^a-z0-9_-]/i', '_', $_SESSION['adviser_username']);
+}
+
 $sessionMonitorConfig = [
     'pingUrl' => APP_BASE_PATH . 'session_ping.php',
     'redirectUrl' => APP_BASE_PATH . 'Adviser/adviser_login.php',
     'message' => 'Your adviser session ended because this account was used elsewhere.',
-    'storageKey' => 'esr_session_adviser',
+    'storageKey' => $adviserStorageKey,
 ];
 $adviserSessionToken = $_SESSION['session_tokens']['adviser'] ?? null;
 if (!empty($adviserSessionToken)) {

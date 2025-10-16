@@ -1170,11 +1170,16 @@ unset($sections);
   }
 </script>
 <?php
+$adminStorageKey = 'esr_session_admin';
+if (!empty($_SESSION['admin_username'])) {
+    $adminStorageKey .= '_' . preg_replace('/[^a-z0-9_-]/i', '_', $_SESSION['admin_username']);
+}
+
 $sessionMonitorConfig = [
     'pingUrl' => APP_BASE_PATH . 'session_ping.php',
     'redirectUrl' => APP_BASE_PATH . 'admin_login.php',
     'message' => 'Your admin session ended because this account was used elsewhere.',
-    'storageKey' => 'esr_session_admin',
+    'storageKey' => $adminStorageKey,
 ];
 $adminSessionToken = $_SESSION['session_tokens']['admin'] ?? null;
 if (!empty($adminSessionToken)) {

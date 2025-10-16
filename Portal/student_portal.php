@@ -2122,11 +2122,16 @@ unset($finance_view_ref);
     })();
 </script>
 <?php
+$studentStorageKey = 'esr_session_student';
+if (!empty($_SESSION['student_number'])) {
+    $studentStorageKey .= '_' . preg_replace('/[^a-z0-9_-]/i', '_', $_SESSION['student_number']);
+}
+
 $sessionMonitorConfig = [
     'pingUrl' => APP_BASE_PATH . 'session_ping.php',
     'redirectUrl' => APP_BASE_PATH . 'Portal/student_login.php?session=expired',
     'message' => 'Your student session ended because this account was used elsewhere.',
-    'storageKey' => 'esr_session_student',
+    'storageKey' => $studentStorageKey,
 ];
 $studentSessionToken = $_SESSION['session_tokens']['student'] ?? null;
 if (!empty($studentSessionToken)) {
