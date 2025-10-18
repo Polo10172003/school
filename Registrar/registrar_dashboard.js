@@ -58,13 +58,13 @@
       actions.push(`<a href="update_section.php?id=${id}">Change Section</a>`);
     } else {
       actions.push(`<a href="edit_student.php?id=${id}">Edit</a>`);
-      actions.push(`<a href="delete_student.php?id=${id}" onclick="return confirm('Are you sure?')">Delete</a>`);
+      actions.push(`<a href="archive_student.php?id=${id}" onclick="return confirm('Archive this student?')">Archive</a>`);
       actions.push(`<a href="update_section.php?id=${id}">Change Section</a>`);
       actions.push(`<a href="update_student_status.php?id=${id}">Update Status</a>`);
     }
 
     const portalClass = portalActive ? 'success' : 'pending';
-    const portalLabel = portalActive ? 'Activated' : 'Not Activated';
+    const portalLabel = portalActive ? 'Activated' : 'Pending';
 
     return `
       <tr data-student-row="${id}">

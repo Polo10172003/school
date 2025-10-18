@@ -33,6 +33,23 @@ $mother_occupation    = trim($data['mother_occupation'] ?? '');
 $guardian_name        = trim($data['guardian_name'] ?? '');
 $guardian_occupation  = trim($data['guardian_occupation'] ?? '');
 
+$normalizeName = static function (string $value): string {
+    $value = preg_replace('/\s+/', ' ', trim($value));
+    if ($value === '') {
+        return '';
+    }
+    if (function_exists('mb_convert_case')) {
+        $value = mb_convert_case($value, MB_CASE_TITLE, 'UTF-8');
+    } else {
+        $value = ucwords(strtolower($value));
+    }
+    return $value;
+};
+
+$lastname = $normalizeName($lastname);
+$firstname = $normalizeName($firstname);
+$middlename = $normalizeName($middlename);
+
 $required = [
     'school_year' => $school_year,
     'yearlevel' => $yearlevel,

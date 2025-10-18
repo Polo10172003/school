@@ -378,12 +378,12 @@ if ($result instanceof mysqli_result) {
                       <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
                     <?php else: ?>
                       <a href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
-                      <a href="delete_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Are you sure?')">Delete</a>
+                      <a href="archive_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
                       <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
                       <a href="update_student_status.php?id=<?= (int) $row['id'] ?>">Update Status</a>
                     <?php endif; ?>
                     <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
-                      <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Not Activated' ?>
+                      <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Pending' ?>
                     </span>
                   </td>
                 </tr>
