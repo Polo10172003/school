@@ -1,6 +1,110 @@
 <?php
 include __DIR__ . '/../db_connection.php';
 
+/**
+ * Move a student record into the archived_students table and remove related portal access.
+ *
+ * @throws RuntimeException|Throwable when archiving fails
+ */
+function registrar_auto_archive_student(mysqli $conn, int $id): void
+{
+    if (!$conn->begin_transaction()) {
+        throw new RuntimeException('Failed to start archive transaction.');
+    }
+
+    try {
+        $fetch = $conn->prepare('SELECT * FROM students_registration WHERE id = ? LIMIT 1');
+        if (!$fetch) {
+            throw new RuntimeException('Failed to prepare student lookup.');
+        }
+        $fetch->bind_param('i', $id);
+        $fetch->execute();
+        $result = $fetch->get_result();
+        $student = $result ? $result->fetch_assoc() : null;
+        $fetch->close();
+
+        if (!$student) {
+            throw new RuntimeException('Student record not found for archiving.');
+        }
+
+        if (array_key_exists('portal_status', $student)) {
+            $student['portal_status'] = 'pending';
+        }
+        if (array_key_exists('academic_status', $student)) {
+            $student['academic_status'] = 'archived';
+        }
+
+        $columns = array_keys($student);
+        if (count($columns) === 0) {
+            throw new RuntimeException('No columns available for archiving.');
+        }
+
+        $columnList = implode(', ', array_map(
+            static function (string $column): string {
+                return '`' . str_replace('`', '``', $column) . '`';
+            },
+            $columns
+        ));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $values = array_values($student);
+        $types = str_repeat('s', count($values));
+
+        $insert = $conn->prepare("INSERT INTO archived_students ($columnList) VALUES ($placeholders)");
+        if (!$insert) {
+            throw new RuntimeException('Failed to prepare archive insert.');
+        }
+        $params = array_merge([$types], $values);
+        $refs = [];
+        foreach ($params as $index => $value) {
+            $refs[$index] = &$params[$index];
+        }
+        call_user_func_array([$insert, 'bind_param'], $refs);
+        $insert->execute();
+        $insert->close();
+
+        $emails = [];
+        if (!empty($student['emailaddress'])) {
+            $emails[] = (string) $student['emailaddress'];
+        }
+        if (!empty($student['email'])) {
+            $emails[] = (string) $student['email'];
+        }
+        $emails = array_unique(array_filter($emails));
+
+        foreach ($emails as $email) {
+            $deleteAccount = $conn->prepare('DELETE FROM student_accounts WHERE email = ?');
+            if ($deleteAccount) {
+                $deleteAccount->bind_param('s', $email);
+                $deleteAccount->execute();
+                $deleteAccount->close();
+            }
+        }
+
+        if (!empty($student['student_number'])) {
+            $studentNumber = (string) $student['student_number'];
+            $deleteByNumber = $conn->prepare('DELETE FROM student_accounts WHERE student_number = ?');
+            if ($deleteByNumber) {
+                $deleteByNumber->bind_param('s', $studentNumber);
+                $deleteByNumber->execute();
+                $deleteByNumber->close();
+            }
+        }
+
+        $delete = $conn->prepare('DELETE FROM students_registration WHERE id = ?');
+        if (!$delete) {
+            throw new RuntimeException('Failed to prepare student removal.');
+        }
+        $delete->bind_param('i', $id);
+        $delete->execute();
+        $delete->close();
+
+        $conn->commit();
+    } catch (Throwable $archiveError) {
+        $conn->rollback();
+        throw $archiveError;
+    }
+}
+
 // Promotion map
 function nextYear($year) {
     $map = [
@@ -64,15 +168,21 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
     $enrollment_status = null;
     $moveToInactive = false;
 
+    $next_year = $current_year;
+    $academic_status = $row['academic_status'] ?? 'Ongoing';
+    $isGrade12Graduate = false;
+
     if ($status === "Passed") {
         if ($current_year === "Grade 12") {
             $next_year = "Graduated";
             $academic_status = "Graduated";
+            $enrollment_status = '';
+            $isGrade12Graduate = true;
         } else {
             $next_year = nextYear($current_year);
             $academic_status = "Ongoing"; // always reset to Ongoing after promotion
+            $enrollment_status = 'ready';
         }
-        $enrollment_status = 'ready';
     } elseif ($status === "Failed") {
         $next_year = $current_year;     // stay same grade
         $academic_status = "Failed";    // mark Failed
@@ -99,32 +209,64 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
         $resetSchedule = true;
     }
 
+    $setClauses = [
+        'year = ?',
+        'academic_status = ?',
+        'student_type = ?',
+    ];
+    $bindValues = [$next_year, $academic_status, $new_student_type];
+    $bindTypes = 'sss';
+
+    if ($enrollment_status !== null) {
+        $setClauses[] = 'enrollment_status = ?';
+        $bindValues[] = $enrollment_status;
+        $bindTypes .= 's';
+    }
+
     if ($resetSchedule) {
         $toBeAssigned = 'To be assigned';
-        if ($enrollment_status === null) {
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
-            $stmt->bind_param("sssssi", $next_year, $academic_status, $new_student_type, $toBeAssigned, $toBeAssigned, $id);
-        } else {
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ?, schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?");
-            $stmt->bind_param("ssssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $toBeAssigned, $toBeAssigned, $id);
-        }
-    } else {
-        if ($enrollment_status === null) {
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ? WHERE id = ?");
-            $stmt->bind_param("sssi", $next_year, $academic_status, $new_student_type, $id);
-        } else {
-            $stmt = $conn->prepare("UPDATE students_registration SET year = ?, academic_status = ?, student_type = ?, enrollment_status = ? WHERE id = ?");
-            $stmt->bind_param("ssssi", $next_year, $academic_status, $new_student_type, $enrollment_status, $id);
-        }
+        $setClauses[] = 'schedule_sent_at = NULL';
+        $setClauses[] = 'section = ?';
+        $bindValues[] = $toBeAssigned;
+        $bindTypes .= 's';
+        $setClauses[] = 'adviser = ?';
+        $bindValues[] = $toBeAssigned;
+        $bindTypes .= 's';
     }
+
+    if ($isGrade12Graduate) {
+        $setClauses[] = 'portal_status = ?';
+        $bindValues[] = 'pending';
+        $bindTypes .= 's';
+    }
+
+    $setSql = implode(', ', $setClauses);
+    $updateSql = "UPDATE students_registration SET {$setSql} WHERE id = ?";
+    $stmt = $conn->prepare($updateSql);
+    if (!$stmt) {
+        die('Prepare failed: ' . $conn->error);
+    }
+
+    $bindValues[] = $id;
+    $bindTypes .= 'i';
+
+    $params = array_merge([$bindTypes], $bindValues);
+    $refs = [];
+    foreach ($params as $index => $value) {
+        $refs[$index] = &$params[$index];
+    }
+    call_user_func_array([$stmt, 'bind_param'], $refs);
+
     if ($stmt->execute()) {
+        $stmt->close();
         $shouldClearPlanSelections = $moveToInactive || ($status === 'Passed' && $resetSchedule);
 
         if ($shouldClearPlanSelections) {
+            $toBeAssignedLabel = 'To be assigned';
             // Reset placement details
-            $clearPlacement = $conn->prepare('UPDATE students_registration SET schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?');
+            $clearPlacement = $conn->prepare('UPDATE students_registration SET schedule_sent_at = NULL, section = ?, adviser = ? WHERE id = ?');
             if ($clearPlacement) {
-                $clearPlacement->bind_param('i', $id);
+                $clearPlacement->bind_param('ssi', $toBeAssignedLabel, $toBeAssignedLabel, $id);
                 $clearPlacement->execute();
                 $clearPlacement->close();
             }
@@ -142,6 +284,23 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
             if ($hasPlanTable instanceof mysqli_result) {
                 $hasPlanTable->close();
             }
+        }
+
+        if ($isGrade12Graduate) {
+            try {
+                registrar_auto_archive_student($conn, $id);
+                echo "<script>
+                        alert('Student marked as graduated and archived automatically.');
+                        window.location.href='registrar_dashboard.php?msg=archived';
+                      </script>";
+            } catch (Throwable $archiveFailure) {
+                error_log('[registrar] auto archive failed: ' . $archiveFailure->getMessage());
+                echo "<script>
+                        alert('Student status updated, but automatic archiving failed. Please archive manually.');
+                        window.location.href='registrar_dashboard.php';
+                      </script>";
+            }
+            exit();
         }
 
 
