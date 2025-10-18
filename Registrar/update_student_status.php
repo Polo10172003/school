@@ -49,7 +49,7 @@ function registrar_auto_archive_student(mysqli $conn, int $id): void
         $values = array_values($student);
         $types = str_repeat('s', count($values));
 
-        $insert = $conn->prepare("INSERT INTO archived_students ($columnList) VALUES ($placeholders)");
+        $insert = $conn->prepare("INSERT INTO archive_students ($columnList) VALUES ($placeholders)");
         if (!$insert) {
             throw new RuntimeException('Failed to prepare archive insert.');
         }
