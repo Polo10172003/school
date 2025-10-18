@@ -43,8 +43,17 @@ try {
         exit();
     }
 
+    $yearValue = strtolower(trim((string) ($student['year'] ?? '')));
+    $statusValue = strtolower(trim((string) ($student['academic_status'] ?? '')));
+    $isGrade12 = in_array($yearValue, ['grade 12', 'grade12'], true);
+    $isGraduated = $statusValue === 'graduated';
+    $targetTable = ($isGrade12 && $isGraduated) ? 'archived_students' : 'inactive_students';
+
     if (array_key_exists('portal_status', $student)) {
         $student['portal_status'] = 'pending';
+    }
+    if ($targetTable === 'archived_students' && array_key_exists('academic_status', $student)) {
+        $student['academic_status'] = 'archived';
     }
 
     $columns = array_keys($student);
@@ -62,7 +71,13 @@ try {
     $values = array_values($student);
     $types = str_repeat('s', count($values));
 
-    $insert = $conn->prepare("INSERT INTO archive_students ($columnList) VALUES ($placeholders)");
+    $insertSql = sprintf(
+        'INSERT INTO %s (%s) VALUES (%s)',
+        $targetTable,
+        $columnList,
+        $placeholders
+    );
+    $insert = $conn->prepare($insertSql);
     if (!$insert) {
         throw new RuntimeException('Failed to prepare archive insert.');
     }
@@ -115,7 +130,11 @@ try {
     $conn->commit();
     $transactionStarted = false;
 
-    echo "<script>alert('Student archived successfully.'); window.location='registrar_dashboard.php?msg=archived';</script>";
+    $successMessage = $targetTable === 'archived_students'
+        ? 'Student archived successfully.'
+        : 'Student moved to inactive records.';
+    $redirectParam = $targetTable === 'archived_students' ? 'archived' : 'inactive';
+    echo "<script>alert('" . addslashes($successMessage) . "'); window.location='registrar_dashboard.php?msg={$redirectParam}';</script>";
     exit();
 } catch (Throwable $exception) {
     if ($transactionStarted && ($conn instanceof mysqli)) {
