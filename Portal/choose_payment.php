@@ -162,7 +162,6 @@ if ($paymentSuccess) {
         }
 
         .method-card .bank-badge::before {
-            content: "\\25A0";
             font-size: 0.7rem;
             color: #facc15;
         }
