@@ -695,7 +695,13 @@ $adviserAssignments = adviser_assignments_fetch($conn);
             </div>
           </form>
 
-          <div class="admin-management-table-wrapper">
+          <div class="admin-management-controls">
+            <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Adviser Assignments" data-toggle-active-label="Hide Adviser Assignments" data-toggle-target="adviserList" onclick="toggleSection(this);" style="margin-bottom:12px;">
+              View Adviser Assignments
+            </button>
+          </div>
+
+          <div class="admin-management-table-wrapper collapsible" id="adviserList" style="display:none;">
             <table class="admin-management-table">
               <thead>
                 <tr>
