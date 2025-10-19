@@ -8,13 +8,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
-    $stmt = $conn->prepare("SELECT * FROM users WHERE username = ? AND role = 'registrar'");
+    $stmt = $conn->prepare("SELECT id, username, password, fullname, role, is_first_login FROM users WHERE username = ? AND role = 'registrar' LIMIT 1");
     $stmt->bind_param("s", $username);
     $stmt->execute();
     $result = $stmt->get_result();
     $registrar = $result->fetch_assoc();
 
     if ($registrar) {
+        $isFirstLogin = (int) ($registrar['is_first_login'] ?? 0) === 1;
+        if ($isFirstLogin) {
+            session_regenerate_id(true);
+            $_SESSION['staff_first_login'] = [
+                'user_id'  => (int) ($registrar['id'] ?? 0),
+                'username' => $registrar['username'],
+                'fullname' => $registrar['fullname'] ?? $registrar['username'],
+                'context'  => 'registrar',
+                'redirect' => 'Registrar/registrar_dashboard.php',
+            ];
+            header("Location: ../set_staff_password.php");
+            exit;
+        }
+
         $storedPassword = $registrar['password'] ?? '';
         $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
         $authenticated = false;

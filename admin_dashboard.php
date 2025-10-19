@@ -522,9 +522,6 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         <label for="username">Username</label>
         <input type="text" name="username" required>
 
-        <label for="password">Password</label>
-        <input type="password" name="password" required>
-
         <label for="role">Role</label>
         <select name="role" required>
           <option value="admin">Administrator</option>
@@ -532,6 +529,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
           <option value="cashier">Cashier</option>
           <option value="adviser">Adviser</option>
         </select>
+
+        <p class="text-muted" style="margin-top:10px;">New staff accounts will be asked to set their own password on first login.</p>
 
         <div class="dashboard-actions">
           <button type="submit" class="dashboard-btn">Add User</button>

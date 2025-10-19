@@ -8,7 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    $stmt = $conn->prepare('SELECT * FROM users WHERE username = ? AND role = \'adviser\'');
+    $stmt = $conn->prepare("SELECT id, username, password, fullname, role, is_first_login FROM users WHERE username = ? AND role = 'adviser' LIMIT 1");
     if ($stmt) {
         $stmt->bind_param('s', $username);
         $stmt->execute();
@@ -17,6 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->close();
 
         if ($adviser) {
+            $isFirstLogin = (int) ($adviser['is_first_login'] ?? 0) === 1;
+            if ($isFirstLogin) {
+                session_regenerate_id(true);
+                $_SESSION['staff_first_login'] = [
+                    'user_id'  => (int) ($adviser['id'] ?? 0),
+                    'username' => $adviser['username'],
+                    'fullname' => $adviser['fullname'] ?? $adviser['username'],
+                    'context'  => 'adviser',
+                    'redirect' => 'Adviser/adviser_dashboard.php',
+                ];
+                header('Location: ../set_staff_password.php');
+                exit;
+            }
+
             $storedPassword = (string) ($adviser['password'] ?? '');
             $isHashed = password_get_info($storedPassword)['algo'] !== 0;
             $authenticated = false;

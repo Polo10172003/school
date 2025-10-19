@@ -8,7 +8,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    $stmt = $conn->prepare('SELECT username, password, fullname FROM users WHERE username = ?');
+    $stmt = $conn->prepare("SELECT id, username, password, fullname, role, is_first_login FROM users WHERE username = ? AND role = 'admin' LIMIT 1");
     if ($stmt) {
         $stmt->bind_param('s', $username);
         $stmt->execute();
@@ -17,6 +17,20 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt->close();
 
         if ($admin) {
+            $isFirstLogin = (int) ($admin['is_first_login'] ?? 0) === 1;
+            if ($isFirstLogin) {
+                session_regenerate_id(true);
+                $_SESSION['staff_first_login'] = [
+                    'user_id'   => (int) ($admin['id'] ?? 0),
+                    'username'  => $admin['username'],
+                    'fullname'  => $admin['fullname'] ?? $admin['username'],
+                    'context'   => 'admin',
+                    'redirect'  => 'admin_dashboard.php',
+                ];
+                header('Location: set_staff_password.php');
+                exit();
+            }
+
             $storedPassword = $admin['password'] ?? '';
             $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
             $authenticated = false;
