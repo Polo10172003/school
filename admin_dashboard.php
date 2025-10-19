@@ -697,7 +697,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
 
           <div class="admin-management-controls">
             <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Adviser Assignments" data-toggle-active-label="Hide Adviser Assignments" data-toggle-target="adviserList" onclick="toggleSection(this);" style="margin-bottom:12px;">
-              View Adviser Assignments
+              View Advisers
             </button>
           </div>
 
@@ -760,9 +760,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         </div>
       </div>
 
-      <hr style="margin:32px 0; border:none; border-top:1px solid #d4dce1;">
-
-      <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin-bottom:16px;">
+      <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin:32px 0 16px;">
         View Schedule List
       </button>
       <div class="admin-management-table-wrapper collapsible" id="scheduleList" style="display:none;">
