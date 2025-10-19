@@ -652,6 +652,50 @@ $adviserAssignments = adviser_assignments_fetch($conn);
               <button type="submit" class="dashboard-btn">Save Schedule</button>
             </div>
           </form>
+
+          <div class="admin-management-controls">
+            <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin:12px 0;">
+              View Schedule List
+            </button>
+          </div>
+          <div class="admin-management-table-wrapper collapsible" id="scheduleList" style="display:none;">
+            <table class="admin-management-table">
+            <thead>
+              <tr>
+                <th>Grade</th>
+                <th>Section</th>
+                <th>School Year</th>
+                <th>Day</th>
+                <th>Time</th>
+                <th>Subject</th>
+                <th>Teacher</th>
+                <th>Room</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($scheduleRows)): ?>
+                <tr><td colspan="8" style="text-align:center;">No schedules configured yet.</td></tr>
+              <?php else: ?>
+                <?php foreach ($scheduleRows as $row):
+                  $start = $row['start_time'] ? date('g:i A', strtotime($row['start_time'])) : '—';
+                  $end   = $row['end_time'] ? date('g:i A', strtotime($row['end_time'])) : '—';
+                  $timeDisplay = ($start === '—' && $end === '—') ? '—' : trim($start . ($end !== '—' ? ' - ' . $end : ''));
+                ?>
+                  <tr>
+                    <td><?= htmlspecialchars($row['grade_level']) ?></td>
+                    <td><?= htmlspecialchars($row['section']) ?></td>
+                    <td><?= htmlspecialchars($row['school_year']) ?></td>
+                    <td><?= htmlspecialchars($row['day_of_week']) ?></td>
+                    <td><?= htmlspecialchars($timeDisplay) ?></td>
+                    <td><?= htmlspecialchars($row['subject']) ?></td>
+                    <td><?= htmlspecialchars($row['teacher'] ?? '—') ?></td>
+                    <td><?= htmlspecialchars($row['room'] ?? '—') ?></td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="admin-management-card" id="adviserAssignments">
@@ -760,47 +804,6 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         </div>
       </div>
 
-      <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin:32px 0 16px;">
-        View Schedule List
-      </button>
-      <div class="admin-management-table-wrapper collapsible" id="scheduleList" style="display:none;">
-        <table class="admin-management-table">
-        <thead>
-          <tr>
-            <th>Grade</th>
-            <th>Section</th>
-            <th>School Year</th>
-            <th>Day</th>
-            <th>Time</th>
-            <th>Subject</th>
-            <th>Teacher</th>
-            <th>Room</th>
-          </tr>
-        </thead>
-        <tbody>
-          <?php if (empty($scheduleRows)): ?>
-            <tr><td colspan="8" style="text-align:center;">No schedules configured yet.</td></tr>
-          <?php else: ?>
-            <?php foreach ($scheduleRows as $row):
-              $start = $row['start_time'] ? date('g:i A', strtotime($row['start_time'])) : '—';
-              $end   = $row['end_time'] ? date('g:i A', strtotime($row['end_time'])) : '—';
-              $timeDisplay = ($start === '—' && $end === '—') ? '—' : trim($start . ($end !== '—' ? ' - ' . $end : ''));
-            ?>
-              <tr>
-                <td><?= htmlspecialchars($row['grade_level']) ?></td>
-                <td><?= htmlspecialchars($row['section']) ?></td>
-                <td><?= htmlspecialchars($row['school_year']) ?></td>
-                <td><?= htmlspecialchars($row['day_of_week']) ?></td>
-                <td><?= htmlspecialchars($timeDisplay) ?></td>
-                <td><?= htmlspecialchars($row['subject']) ?></td>
-                <td><?= htmlspecialchars($row['teacher'] ?? '—') ?></td>
-                <td><?= htmlspecialchars($row['room'] ?? '—') ?></td>
-              </tr>
-            <?php endforeach; ?>
-          <?php endif; ?>
-        </tbody>
-        </table>
-      </div>
     </section>
   <?php
 function normalizeEarlyGrade(string $grade): string {
