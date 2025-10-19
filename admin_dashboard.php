@@ -648,7 +648,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <input type="text" name="schedule_room" id="schedule_room" value="<?= htmlspecialchars($_POST['schedule_room'] ?? '') ?>">
               </div>
             </div>
-            <div class="dashboard-actions">
+            <div class="dashboard-actions" style="margin-bottom: 1rem;">
               <button type="submit" class="dashboard-btn">Save Schedule</button>
             </div>
           </form>
@@ -690,7 +690,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <input type="text" name="adviser_name" id="adviser_name" placeholder="e.g., Mrs. dela Cruz" value="<?= htmlspecialchars($_POST['adviser_name'] ?? '') ?>" required>
               </div>
             </div>
-            <div class="dashboard-actions">
+            <div class="dashboard-actions" style="margin-bottom: 1rem;">
               <button type="submit" class="dashboard-btn">Save Adviser</button>
             </div>
           </form>
