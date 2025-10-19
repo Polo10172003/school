@@ -336,6 +336,10 @@ if ($fromRegistrar) {
         header('Location: ineeditNaregistration.php');
         exit;
     }
+    if (($data['privacy_consent'] ?? '') !== '1') {
+        header('Location: ineeditNaregistration.php');
+        exit;
+    }
 }
 
 function value(array $array, string $key): string
@@ -749,6 +753,16 @@ include '../includes/header.php';
                     <div class="detail-item"><span class="label">Guardian Occupation</span><span class="value"><?= value($data, 'guardian_occupation'); ?></span></div>
                 </div>
             </div>
+
+            <?php if (!$fromRegistrar): ?>
+            <div class="section">
+                <h2>Data Privacy</h2>
+                <p class="text-muted mb-0">
+                    You acknowledged our <a href="privacy.php" target="_blank" rel="noopener">Data Privacy Notice</a> when completing the form.
+                    Submitting confirms your continued consent to the collection and processing of the details listed above.
+                </p>
+            </div>
+            <?php endif; ?>
 
             <div class="actions">
                 <?php if ($fromRegistrar): ?>

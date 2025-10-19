@@ -140,6 +140,62 @@ require_once __DIR__ . '/../config/app.php';
       margin-top: 6px;
       padding-top: 6px;
     }
+
+    .privacy-notice {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 14px 18px;
+      background: #fff9e6;
+      border-bottom: 1px solid rgba(245, 200, 110, 0.6);
+      box-shadow: 0 6px 18px rgba(18, 56, 28, 0.12);
+      color: #3b3b3b;
+      font-size: 0.95rem;
+      flex-wrap: wrap;
+      z-index: 50;
+    }
+
+    .privacy-notice__text {
+      flex: 1 1 280px;
+      margin: 0;
+    }
+
+    .privacy-notice__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .privacy-notice__actions .btn {
+      font-weight: 600;
+      border-radius: 999px;
+      padding: 6px 16px;
+    }
+
+    .privacy-notice__actions .btn-secondary {
+      background: transparent;
+      border: 1px solid #145A32;
+      color: #145A32;
+    }
+
+    .privacy-notice__actions .btn-secondary:hover,
+    .privacy-notice__actions .btn-secondary:focus {
+      background: #145A32;
+      color: #fff;
+    }
+
+    @media (max-width: 576px) {
+      .privacy-notice {
+        text-align: left;
+        padding: 16px;
+      }
+      .privacy-notice__actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
   </style>
 </head>
 
@@ -197,6 +253,27 @@ require_once __DIR__ . '/../config/app.php';
       </div>
     </div>
   </nav>
+
+  <?php
+    $showPrivacyNotice = !isset($disable_privacy_notice) || !$disable_privacy_notice;
+  ?>
+  <?php if ($showPrivacyNotice): ?>
+    <div id="privacyNotice"
+         class="privacy-notice"
+         role="status"
+         data-storage-key="esr_privacy_notice_v1"
+         hidden>
+      <p class="privacy-notice__text mb-0">
+        We use the information you provide to process enrollment requests and improve school services.
+        Continuing to browse means you acknowledge our
+        <a href="privacy.php" class="fw-semibold" target="_blank" rel="noopener">Data Privacy Notice</a>.
+      </p>
+      <div class="privacy-notice__actions">
+        <button type="button" class="btn btn-success" data-privacy-action="accept">I Understand</button>
+        <a class="btn btn-secondary" href="privacy.php" target="_blank" rel="noopener">Read Notice</a>
+      </div>
+    </div>
+  <?php endif; ?>
 
   <div class="modal fade" id="globalLoginModal" tabindex="-1" aria-labelledby="globalLoginModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">

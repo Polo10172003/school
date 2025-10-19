@@ -48,6 +48,7 @@
   <!-- Bootstrap JS -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.js"></script>
+  <script src="assets/js/privacy_notice.js?v=20241021" defer></script>
   <link rel="stylesheet" href="assets/css/global.css">
   <script>
       window.addEventListener("scroll", function() {

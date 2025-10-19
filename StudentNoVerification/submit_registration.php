@@ -12,6 +12,10 @@ if (!$data) {
     die('No registration data found. Please complete the registration form.');
 }
 
+if (($data['privacy_consent'] ?? '') !== '1') {
+    die('Data privacy consent is required before submitting the registration.');
+}
+
 $school_year          = trim($data['school_year'] ?? '');
 $yearlevel            = trim($data['yearlevel'] ?? '');
 $course               = trim($data['course'] ?? '');

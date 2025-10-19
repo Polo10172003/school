@@ -18,11 +18,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fields = [
         'school_year','yearlevel','course','lastname','firstname','middlename','gender','dob',
         'religion','emailaddress','telephone','address','last_school_attended','academic_honors',
-        'father_name','father_occupation','mother_name','mother_occupation','guardian_name','guardian_occupation'
+        'father_name','father_occupation','mother_name','mother_occupation','guardian_name','guardian_occupation',
+        'privacy_consent'
     ];
 
     $payload = [];
     foreach ($fields as $field) {
+        if ($field === 'privacy_consent') {
+            $payload[$field] = isset($_POST['privacy_consent']) ? '1' : '';
+            continue;
+        }
         $payload[$field] = trim($_POST[$field] ?? '');
     }
 
@@ -72,6 +77,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $_SESSION['registration'] = $registration;
 
+    if (($registration['privacy_consent'] ?? '') !== '1') {
+        $errors['privacy_consent'] = 'Please acknowledge the Data Privacy Notice to proceed.';
+    }
+
     if (empty($errors)) {
         header('Location: review_registration.php');
         exit();
@@ -98,6 +107,7 @@ $mother_name          = $registration['mother_name'] ?? '';
 $mother_occupation    = $registration['mother_occupation'] ?? '';
 $guardian_name        = $registration['guardian_name'] ?? '';
 $guardian_occupation  = $registration['guardian_occupation'] ?? '';
+$privacy_consent      = $registration['privacy_consent'] ?? '';
 
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -331,6 +341,29 @@ include __DIR__ . '/../includes/header.php';
                     <input type="text" id="guardian_occupation" name="guardian_occupation" value="<?= htmlspecialchars($guardian_occupation); ?>">
                 </div>
             </fieldset>
+
+            <section class="form-information">
+                <h3 class="section-title">Data Privacy Commitment</h3>
+                <p class="text-muted mb-3">
+                    We collect the information in this form to evaluate your application and keep you updated about enrollment activities.
+                    Details on how we protect and use your data are explained in our
+                    <a href="../privacy.php" target="_blank" rel="noopener">Data Privacy Notice</a>.
+                </p>
+                <div class="form-check">
+                    <input type="checkbox"
+                           class="form-check-input <?= isset($errors['privacy_consent']) ? 'is-invalid' : '' ?>"
+                           id="privacy_consent"
+                           name="privacy_consent"
+                           value="1"
+                           <?= $privacy_consent === '1' ? 'checked' : ''; ?>>
+                    <label class="form-check-label fw-semibold" for="privacy_consent">
+                        I have read the Data Privacy Notice and consent to the collection, processing, and storage of the information I provided.
+                    </label>
+                    <?php if (isset($errors['privacy_consent'])): ?>
+                        <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['privacy_consent']); ?></div>
+                    <?php endif; ?>
+                </div>
+            </section>
 
             <button type="submit" class="btn">Review Information</button>
         </form>
