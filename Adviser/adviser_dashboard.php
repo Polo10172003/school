@@ -27,7 +27,8 @@ if (!function_exists('registrar_format_bytes')) {
     }
 }
 
-$adviserDisplayName = $_SESSION['adviser_fullname'] ?? $_SESSION['adviser_username'];
+$adviserUsername = $_SESSION['adviser_username'] ?? '';
+$adviserDisplayName = $_SESSION['adviser_fullname'] ?? $adviserUsername;
 
 $flashMsg = $_GET['msg'] ?? '';
 $flashReason = $_GET['reason'] ?? '';
@@ -63,6 +64,7 @@ switch ($flashMsg) {
             'database_error'=> 'Unable to update the dropbox. Please retry.',
             'not_found'     => 'That workbook was already removed or cannot be located.',
             'storage_issue' => 'Unable to remove the workbook from storage. Contact the administrator.',
+            'not_allowed'   => 'You can only remove workbooks you uploaded.',
         ];
         $flashText = $deleteReasons[$flashReason] ?? 'Unable to remove the workbook.';
         $flashType = 'danger';
@@ -82,7 +84,7 @@ $guideItems = [];
 
 try {
     registrar_guides_ensure_schema($conn);
-    $guideItems = registrar_guides_fetch_all($conn, $selectedGrade);
+    $guideItems = registrar_guides_fetch_all($conn, $selectedGrade, $adviserUsername);
 } catch (Throwable $e) {
     error_log($e->getMessage());
     $guideItems = [];

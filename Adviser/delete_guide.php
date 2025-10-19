@@ -43,6 +43,12 @@ if (!$guide) {
     adviser_guides_redirect('guide_delete_error', 'not_found');
 }
 
+$currentAdviser = $_SESSION['adviser_username'] ?? '';
+$guideOwner = (string) ($guide['uploaded_by'] ?? '');
+if ($currentAdviser === '' || strcasecmp($guideOwner, $currentAdviser) !== 0) {
+    adviser_guides_redirect('guide_delete_error', 'not_allowed');
+}
+
 try {
     $uploadDir = registrar_guides_upload_dir();
     $diskPath = $uploadDir . '/' . $guide['file_name'];

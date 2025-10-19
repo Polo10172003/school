@@ -81,27 +81,44 @@ function registrar_guides_insert(
 }
 
 /**
- * Fetch guides, optionally filtered by grade level.
+ * Fetch guides, optionally filtered by grade level and/or uploader.
  *
  * @return array<int, array<string, mixed>>
  */
-function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null): array
+function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null, ?string $uploadedBy = null): array
 {
-    if ($gradeLevel) {
-        $stmt = $conn->prepare(
-            'SELECT * FROM registrar_guides WHERE grade_level = ? ORDER BY uploaded_at DESC'
-        );
-        if (!$stmt) {
-            throw new RuntimeException('Prepare failed: ' . $conn->error);
-        }
-        $stmt->bind_param('s', $gradeLevel);
-    } else {
-        $stmt = $conn->prepare(
-            'SELECT * FROM registrar_guides ORDER BY grade_level, uploaded_at DESC'
-        );
-        if (!$stmt) {
-            throw new RuntimeException('Prepare failed: ' . $conn->error);
-        }
+    $conditions = [];
+    $types = '';
+    $params = [];
+
+    if ($gradeLevel !== null && $gradeLevel !== '') {
+        $conditions[] = 'grade_level = ?';
+        $types .= 's';
+        $params[] = $gradeLevel;
+    }
+
+    if ($uploadedBy !== null && $uploadedBy !== '') {
+        $conditions[] = 'uploaded_by = ?';
+        $types .= 's';
+        $params[] = $uploadedBy;
+    }
+
+    $sql = 'SELECT * FROM registrar_guides';
+
+    if (!empty($conditions)) {
+        $sql .= ' WHERE ' . implode(' AND ', $conditions);
+    }
+
+    $orderBy = ($gradeLevel !== null && $gradeLevel !== '') ? 'uploaded_at DESC' : 'grade_level, uploaded_at DESC';
+    $sql .= ' ORDER BY ' . $orderBy;
+
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('Prepare failed: ' . $conn->error);
+    }
+
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
     }
 
     if (!$stmt->execute()) {
