@@ -573,8 +573,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
     <section class="dashboard-card" id="schedules">
       <span class="dashboard-section-title">Schedule Planner</span>
       <h2>Class Schedules &amp; Section Advisers</h2>
-      <div class="dashboard-panels two-columns">
-        <div class="dashboard-panel" id="schedulePanel">
+      <div class="admin-management-wrapper">
+        <div class="admin-management-card" id="schedulePanel">
           <h3>Create Class Schedule</h3>
           <?php if ($scheduleMessage !== ''): ?>
             <div class="dashboard-alert success">
@@ -589,7 +589,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
 
           <form class="dashboard-form" method="POST" action="#schedules">
             <input type="hidden" name="schedule_form" value="1">
-            <div class="dashboard-grid two">
+            <div class="admin-field-grid">
               <div>
                 <label for="schedule_grade">Grade Level</label>
                 <select name="schedule_grade" id="schedule_grade" required>
@@ -606,11 +606,11 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <input type="text" name="schedule_school_year" id="schedule_school_year" placeholder="e.g., 2024-2025" required value="<?= htmlspecialchars($_POST['schedule_school_year'] ?? '') ?>">
               </div>
             </div>
-            <div class="dashboard-grid three" style="margin-top:20px;">
+            <div class="admin-field-grid">
               <div>
                 <label for="schedule_section">Section (optional)</label>
                 <input type="text" name="schedule_section" id="schedule_section" placeholder="e.g., Section A" value="<?= htmlspecialchars($_POST['schedule_section'] ?? '') ?>">
-                <label class="dashboard-checkbox-inline">
+                <label class="admin-inline-checkbox">
                   <input type="checkbox" name="schedule_all_sections" <?= isset($_POST['schedule_all_sections']) ? 'checked' : '' ?>> Apply to all sections
                 </label>
               </div>
@@ -623,7 +623,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
                 <input type="text" name="schedule_teacher" id="schedule_teacher" value="<?= htmlspecialchars($_POST['schedule_teacher'] ?? '') ?>">
               </div>
             </div>
-            <div class="dashboard-grid four" style="margin-top:20px;">
+            <div class="admin-field-grid">
               <div>
                 <label for="schedule_day">Day of Week</label>
                 <select name="schedule_day" id="schedule_day" required>
@@ -654,9 +654,9 @@ $adviserAssignments = adviser_assignments_fetch($conn);
           </form>
         </div>
 
-        <div class="dashboard-panel" id="adviserAssignments">
+        <div class="admin-management-card" id="adviserAssignments">
           <h3>Section Adviser Assignments</h3>
-          <p class="text-muted">Link a section to its adviser so registrar tools stay in sync. Provide the grade, section, and adviser below.</p>
+          <p class="text-muted admin-card-subtitle">Link a section to its adviser so registrar tools stay in sync. Provide the grade, section, and adviser below.</p>
           <?php if ($adviserMessage !== ''): ?>
             <div class="dashboard-alert success">
               <?= htmlspecialchars($adviserMessage) ?>
@@ -671,7 +671,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
           <form class="dashboard-form" method="POST" action="#adviserAssignments">
             <input type="hidden" name="adviser_form" value="1">
             <input type="hidden" name="adviser_action" value="save">
-            <div class="dashboard-grid three">
+            <div class="admin-field-grid">
               <div>
                 <label for="adviser_grade">Grade Level</label>
                 <select name="adviser_grade" id="adviser_grade" required>
@@ -695,8 +695,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
             </div>
           </form>
 
-          <div class="table-responsive">
-            <table>
+          <div class="admin-management-table-wrapper">
+            <table class="admin-management-table">
               <thead>
                 <tr>
                   <th style="width:18%;">Grade</th>
@@ -759,8 +759,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
       <button type="button" class="dashboard-btn secondary dashboard-btn--small" data-toggle-label="View Schedule List" data-toggle-active-label="Hide Schedule List" data-toggle-target="scheduleList" onclick="toggleSection(this);" style="margin-bottom:16px;">
         View Schedule List
       </button>
-      <div class="table-responsive collapsible" id="scheduleList" style="display:none;">
-        <table>
+      <div class="admin-management-table-wrapper collapsible" id="scheduleList" style="display:none;">
+        <table class="admin-management-table">
         <thead>
           <tr>
             <th>Grade</th>

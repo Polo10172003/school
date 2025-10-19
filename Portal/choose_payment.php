@@ -311,7 +311,7 @@ if ($paymentSuccess) {
                         <button type="button" class="method-card" data-method="bank">
                             <div class="icon"><i class="bi bi-bank"></i></div>
                             <div class="bank-badge">BPI</div>
-                            <h3>BPI Bank Transfer</h3>
+                            <h3>Bank Transfer</h3>
                             <p>Pay exclusively via BPI online, mobile, or branch. Upload the validated transaction slip.</p>
                         </button>
                     </div>

@@ -861,6 +861,103 @@ body.dashboard-body {
   text-decoration: underline;
 }
 
+.admin-management-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 12px;
+}
+
+.admin-management-card {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(20, 90, 50, 0.12);
+  border-radius: 20px;
+  padding: 24px clamp(20px, 3vw, 28px);
+  box-shadow: 0 24px 46px rgba(20, 90, 50, 0.08);
+}
+
+.admin-management-card h3 {
+  margin: 0 0 6px;
+  color: var(--dash-green);
+}
+
+.admin-card-subtitle {
+  margin-bottom: 18px;
+  font-size: 0.95rem;
+}
+
+.admin-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.admin-field-grid.full > div {
+  grid-column: 1 / -1;
+}
+
+.admin-field-grid input,
+.admin-field-grid select,
+.admin-field-grid textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-inline-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: var(--dash-muted);
+}
+
+.admin-inline-checkbox input {
+  width: auto;
+}
+
+.admin-management-table-wrapper {
+  margin-top: 24px;
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid rgba(20, 90, 50, 0.12);
+  box-shadow: 0 18px 32px rgba(20, 90, 50, 0.06);
+  background: #ffffff;
+}
+
+.admin-management-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.admin-management-table th,
+.admin-management-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(20, 90, 50, 0.12);
+}
+
+.admin-management-table thead th {
+  background: var(--dash-green);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.admin-management-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-management-table input,
+.admin-management-table select {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 90, 50, 0.18);
+  background: rgba(255, 255, 255, 0.92);
+  box-sizing: border-box;
+}
+
 @media (max-width: 1024px) {
   .dashboard-sidebar {
     position: fixed;
