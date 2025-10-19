@@ -61,6 +61,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if (!isset($errors['telephone'])) {
+        $digitsOnly = preg_replace('/\D+/', '', (string) ($registration['telephone'] ?? ''));
+        if ($digitsOnly === '' || strlen($digitsOnly) !== 11) {
+            $errors['telephone'] = 'Telephone number must be exactly 11 digits.';
+        } else {
+            $registration['telephone'] = $digitsOnly;
+        }
+    }
+
     $_SESSION['registration'] = $registration;
 
     if (empty($errors)) {
@@ -207,7 +216,7 @@ include __DIR__ . '/../includes/header.php';
                 <div class="form-row two-cols">
                     <div class="form-group">
                         <label for="telephone">Telephone <span class="required">*</span></label>
-                        <input type="text" id="telephone" name="telephone" placeholder="e.g. 0917XXXXXXX" required value="<?= htmlspecialchars($telephone); ?>" class="<?= isset($errors['telephone']) ? 'is-invalid' : '' ?>">
+                        <input type="text" id="telephone" name="telephone" placeholder="e.g. 09171234567" required value="<?= htmlspecialchars($telephone); ?>" class="<?= isset($errors['telephone']) ? 'is-invalid' : '' ?>" inputmode="numeric" pattern="\d{11}" minlength="11" maxlength="11">
                         <?php if (isset($errors['telephone'])): ?>
                             <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['telephone']); ?></div>
                         <?php endif; ?>

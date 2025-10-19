@@ -147,6 +147,26 @@ if ($paymentSuccess) {
             margin-bottom: 12px;
         }
 
+        .method-card .bank-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #B91C1C;
+            color: #fff;
+            font-weight: 700;
+            font-size: 0.85rem;
+            padding: 6px 10px;
+            border-radius: 999px;
+            margin-bottom: 10px;
+            letter-spacing: 0.05em;
+        }
+
+        .method-card .bank-badge::before {
+            content: "\\25A0";
+            font-size: 0.7rem;
+            color: #facc15;
+        }
+
         .method-card h3 {
             font-size: 1.1rem;
             margin-bottom: 6px;
@@ -291,8 +311,9 @@ if ($paymentSuccess) {
                         </button>
                         <button type="button" class="method-card" data-method="bank">
                             <div class="icon"><i class="bi bi-bank"></i></div>
-                            <h3>Bank Transfer</h3>
-                            <p>Send through your preferred bank app or over-the-counter branch then upload the deposit slip.</p>
+                            <div class="bank-badge">BPI</div>
+                            <h3>BPI Bank Transfer</h3>
+                            <p>Pay exclusively via BPI online, mobile, or branch. Upload the validated transaction slip.</p>
                         </button>
                     </div>
 
@@ -308,9 +329,11 @@ if ($paymentSuccess) {
                     <div id="bankInfo" class="info-card">
                         <h4><i class="bi bi-building me-2"></i>Bank Transfer Details</h4>
                         <ul>
+                            <li>Bank: <strong>Bank of the Philippine Islands (BPI)</strong></li>
                             <li>Account Name: <strong>Escuela de Sto. Rosario</strong></li>
                             <li>Account Number: <strong>1234-5678-9012</strong></li>
-                            <li>Include the student name in the bank's remarks if allowed.</li>
+                            <li>Branch: <strong>BPI Rosario Pasig</strong></li>
+                            <li>Use BPI online, mobile, or over-the-counter channels only. Include the student name in the remarks when available.</li>
                         </ul>
                     </div>
 

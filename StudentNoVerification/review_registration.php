@@ -168,6 +168,15 @@ if ($fromRegistrar) {
             $errors['emailaddress'] = 'Provide a valid email address.';
         }
 
+        if ($fields['telephone'] !== '') {
+            $digitsOnly = preg_replace('/\D+/', '', $fields['telephone']);
+            if (strlen($digitsOnly) !== 11) {
+                $errors['telephone'] = 'Telephone number must be exactly 11 digits.';
+            } else {
+                $fields['telephone'] = $digitsOnly;
+            }
+        }
+
         $isSeniorHigh = ($fields['year'] === 'Grade 11' || $fields['year'] === 'Grade 12');
         if ($isSeniorHigh && $fields['course'] === '') {
             $errors['course'] = 'Select a strand for senior high students.';
@@ -594,7 +603,7 @@ include '../includes/header.php';
                         </div>
                         <div class="form-field">
                             <label for="telephone">Telephone<span class="text-danger">*</span></label>
-                            <input type="text" id="telephone" name="telephone" value="<?= value($data, 'telephone'); ?>" required>
+                            <input type="text" id="telephone" name="telephone" value="<?= value($data, 'telephone'); ?>" required inputmode="numeric" pattern="\d{11}" minlength="11" maxlength="11">
                         </div>
                         <div class="form-field">
                             <label for="emailaddress">Email Address<span class="text-danger">*</span></label>

@@ -74,6 +74,11 @@ if (!filter_var($emailaddress, FILTER_VALIDATE_EMAIL)) {
     die('Invalid or missing email address.');
 }
 
+if ($telephone === '' || !preg_match('/^\d{11}$/', preg_replace('/\D+/', '', $telephone))) {
+    die('Telephone number must be exactly 11 digits.');
+}
+$telephone = preg_replace('/\D+/', '', $telephone);
+
 if (in_array($yearlevel, ['Grade 11', 'Grade 12'], true) && $course === '') {
     die('Course/strand is required for senior high school applicants.');
 }

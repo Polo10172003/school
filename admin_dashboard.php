@@ -475,10 +475,8 @@ $adviserAssignments = adviser_assignments_fetch($conn);
           <?php
           $audienceOptions = [
               'everyone'  => 'Everyone',
-              'preschool' => 'Pre-School',
               'pp1'       => 'Pre-Prime 1',
               'pp2'       => 'Pre-Prime 2',
-              'pp12'      => 'Pre-Prime 1 & 2',
               'kg'        => 'Kindergarten',
               'g1'        => 'Grade-1',
               'g2'        => 'Grade-2',
