@@ -1,19 +1,18 @@
 /**
- * Lightweight privacy notice banner.
- * Stores acknowledgement in localStorage so it persists across visits.
+ * Display the privacy notice in a modal and persist acknowledgement.
  */
 (function () {
   'use strict';
 
-  const banner = document.getElementById('privacyNotice');
-  if (!banner) {
+  const modalElement = document.getElementById('privacyNoticeModal');
+  if (!modalElement) {
     return;
   }
 
-  const storageKey = banner.getAttribute('data-storage-key') || 'esr_privacy_notice_v1';
+  const storageKey = modalElement.getAttribute('data-storage-key') || 'esr_privacy_notice_v1';
   const acceptedValue = 'acknowledged';
 
-  const getStorage = () => {
+  const resolveStorage = () => {
     try {
       return window.localStorage || null;
     } catch (_) {
@@ -21,28 +20,7 @@
     }
   };
 
-  const storage = getStorage();
-
-  const hide = () => {
-    banner.setAttribute('hidden', 'hidden');
-    banner.classList.remove('animate__fadeInDown');
-  };
-
-  const show = () => {
-    banner.removeAttribute('hidden');
-    banner.classList.add('animate__animated', 'animate__fadeInDown');
-  };
-
-  const markAccepted = () => {
-    if (storage) {
-      try {
-        storage.setItem(storageKey, JSON.stringify({ value: acceptedValue, ts: Date.now() }));
-      } catch (_) {
-        // Ignore storage failures (e.g., Safari private mode).
-      }
-    }
-    hide();
-  };
+  const storage = resolveStorage();
 
   const hasAccepted = () => {
     if (!storage) {
@@ -60,15 +38,60 @@
     }
   };
 
-  if (hasAccepted()) {
-    hide();
-  } else {
-    show();
+  const persistAcceptance = () => {
+    if (!storage) {
+      return;
+    }
+    try {
+      storage.setItem(storageKey, JSON.stringify({ value: acceptedValue, ts: Date.now() }));
+    } catch (_) {
+      // Ignore storage failures (e.g. private browsing)
+    }
+  };
+
+  let modalInstance = null;
+  const ensureModalInstance = () => {
+    if (!modalInstance && window.bootstrap && window.bootstrap.Modal) {
+      modalInstance = new window.bootstrap.Modal(modalElement, {
+        backdrop: 'static',
+        keyboard: false,
+      });
+    }
+    return modalInstance;
+  };
+
+  const showModal = () => {
+    const instance = ensureModalInstance();
+    if (instance) {
+      instance.show();
+    }
+  };
+
+  const hideModal = () => {
+    const instance = ensureModalInstance();
+    if (instance) {
+      instance.hide();
+    }
+  };
+
+  const scheduleDisplay = () => {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', showModal, { once: true });
+    } else {
+      showModal();
+    }
+  };
+
+  if (!hasAccepted()) {
+    scheduleDisplay();
   }
 
-  const acceptBtn = banner.querySelector('[data-privacy-action="accept"]');
+  const acceptBtn = modalElement.querySelector('[data-privacy-action="accept"]');
   if (acceptBtn) {
-    acceptBtn.addEventListener('click', markAccepted);
+    acceptBtn.addEventListener('click', () => {
+      persistAcceptance();
+      hideModal();
+    });
   }
 
   if (storage) {
@@ -77,7 +100,7 @@
         return;
       }
       if (hasAccepted()) {
-        hide();
+        hideModal();
       }
     });
   }
