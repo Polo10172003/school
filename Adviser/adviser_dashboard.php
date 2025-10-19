@@ -143,43 +143,36 @@ try {
       <p class="text-muted">Share Excel workbooks for registrar review. Files stay tied to the selected grade level.</p>
 
       <form class="dashboard-form grade-dropbox-form" action="upload_guide.php" method="POST" enctype="multipart/form-data">
-        <div class="grade-dropbox-grid">
-          <div class="grade-dropbox-fields">
-            <div>
-              <label for="dropbox_grade_level">Grade or Year Level</label>
-              <select id="dropbox_grade_level" name="grade_level" required>
-                <option value="">Select Grade</option>
-                <?php foreach ($gradeLevels as $level): ?>
-                  <option value="<?= htmlspecialchars($level) ?>" <?= ($selectedGrade === $level) ? 'selected' : '' ?>>
-                    <?= htmlspecialchars($level) ?>
-                  </option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <p class="text-muted dropzone-note">Drag &amp; drop a workbook or use the browse button. Only .xls and .xlsx files are accepted.</p>
-            <div class="grade-dropbox-actions">
-              <button type="submit" class="dashboard-btn">Upload Workbook</button>
-            </div>
-          </div>
+        <label for="dropbox_grade_level">Grade or Year Level</label>
+        <select id="dropbox_grade_level" name="grade_level" required>
+          <option value="">Select Grade</option>
+          <?php foreach ($gradeLevels as $level): ?>
+            <option value="<?= htmlspecialchars($level) ?>" <?= ($selectedGrade === $level) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($level) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
 
-          <div class="grade-dropbox-upload">
-            <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
-            <div class="dashboard-dropzone" id="guide-dropzone">
-              <div class="dropzone-inner">
-                <div class="dropzone-icon" aria-hidden="true">
-                  <svg width="46" height="46" viewBox="0 0 24 24" role="presentation">
-                    <path fill="currentColor" d="M12 3a1 1 0 0 1 .8.4l4 5a1 1 0 1 1-1.6 1.2L13 6.75V16a1 1 0 0 1-2 0V6.75L8.8 9.6a1 1 0 1 1-1.6-1.2l4-5A1 1 0 0 1 12 3Zm-7 13a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1a1 1 0 1 1 2 0v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a1 1 0 0 1 1-1Z"/>
-                  </svg>
-                </div>
-                <div class="dropzone-copy">
-                  <span class="dropzone-title">Drop Excel workbook here</span>
-                  <span class="dropzone-subtitle">Drag &amp; drop a file into this area (supports .xls, .xlsx)</span>
-                </div>
-                <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
-              </div>
-              <p class="dropzone-selected" id="guide-selected" aria-live="polite"></p>
+        <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
+        <div class="dashboard-dropzone" id="guide-dropzone" style="margin-top:16px;">
+          <div class="dropzone-inner">
+            <div class="dropzone-icon" aria-hidden="true">
+              <svg width="46" height="46" viewBox="0 0 24 24" role="presentation">
+                <path fill="currentColor" d="M12 3a1 1 0 0 1 .8.4l4 5a1 1 0 1 1-1.6 1.2L13 6.75V16a1 1 0 0 1-2 0V6.75L8.8 9.6a1 1 0 1 1-1.6-1.2l4-5A1 1 0 0 1 12 3Zm-7 13a1 1 0 0 1 1 1v1a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1a1 1 0 1 1 2 0v1a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-1a1 1 0 0 1 1-1Z"/>
+              </svg>
             </div>
+            <div class="dropzone-copy">
+              <span class="dropzone-title">Drop Excel workbook here</span>
+              <span class="dropzone-subtitle">Drag &amp; drop a file into this area (supports .xls, .xlsx)</span>
+            </div>
+            <button type="button" class="dropzone-browse" id="guide-browse-btn">Browse files</button>
           </div>
+          <p class="dropzone-selected" id="guide-selected" aria-live="polite"></p>
+        </div>
+
+        <p class="text-muted dropzone-note" style="margin-top:12px;">Only .xls and .xlsx files are accepted.</p>
+        <div class="grade-dropbox-actions" style="margin-top:12px;">
+          <button type="submit" class="dashboard-btn">Upload Workbook</button>
         </div>
       </form>
 
