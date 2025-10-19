@@ -3,6 +3,7 @@ require_once __DIR__ . '/../includes/session.php';
 include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../admin_functions.php';
 require_once __DIR__ . '/../includes/registrar_guides.php';
+require_once __DIR__ . '/../includes/adviser_assignments.php';
 $pusherConfig = require __DIR__ . '/../config/pusher.php';
 $pusherClientConfig = [
     'key' => $pusherConfig['key'] ?? '',
@@ -153,13 +154,28 @@ $gradeLevels = [
     "Grade 11","Grade 12"
 ];
 
-$grade_filter = isset($_GET['grade_filter']) ? $_GET['grade_filter'] : '';
+$grade_filter = isset($_GET['grade_filter']) ? (string) $_GET['grade_filter'] : '';
+$section_filter = isset($_GET['section_filter']) ? (string) $_GET['section_filter'] : '';
+
+$sectionOptions = [];
+if ($grade_filter !== '') {
+    $sectionOptions = adviser_assignments_sections_for_grade($conn, $grade_filter);
+    if ($section_filter !== '' && !in_array($section_filter, $sectionOptions, true)) {
+        $section_filter = '';
+    }
+} else {
+    $section_filter = '';
+}
 
 $guideError = false;
 $guideItems = [];
 try {
     registrar_guides_ensure_schema($conn);
-    $guideItems = registrar_guides_fetch_all($conn, $grade_filter !== '' ? $grade_filter : null);
+    $guideItems = registrar_guides_fetch_all(
+        $conn,
+        $grade_filter !== '' ? $grade_filter : null,
+        $section_filter !== '' ? $section_filter : null
+    );
 } catch (Throwable $e) {
     error_log($e->getMessage());
     $guideItems = [];
@@ -256,11 +272,20 @@ if ($result instanceof mysqli_result) {
 
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
         <label for="dropbox_grade_filter">Filter by Grade</label>
-        <select id="dropbox_grade_filter" name="grade_filter" style="max-width:280px; margin-top:10px;">
+        <select id="dropbox_grade_filter" name="grade_filter" style="max-width:280px; margin-top:10px;" onchange="this.form.submit()">
           <option value="">All Grades</option>
           <?php foreach ($gradeLevels as $level): ?>
             <option value="<?= htmlspecialchars($level) ?>" <?= ($grade_filter === $level) ? 'selected' : '' ?>>
               <?= htmlspecialchars($level) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+        <label for="dropbox_section_filter" style="margin-top:12px;">Filter by Section</label>
+        <select id="dropbox_section_filter" name="section_filter" style="max-width:280px; margin-top:10px;" onchange="this.form.submit()" <?= ($grade_filter === '' || empty($sectionOptions)) ? 'disabled' : '' ?>>
+          <option value="">All Sections</option>
+          <?php foreach ($sectionOptions as $sectionOption): ?>
+            <option value="<?= htmlspecialchars($sectionOption) ?>" <?= ($section_filter === $sectionOption) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($sectionOption) ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -274,6 +299,7 @@ if ($result instanceof mysqli_result) {
             <thead>
               <tr>
                 <th>Grade</th>
+                <th>Section</th>
                 <th>Workbook</th>
                 <th>Uploaded</th>
                 <th>Contributor</th>
@@ -288,6 +314,7 @@ if ($result instanceof mysqli_result) {
                 ?>
                 <tr>
                   <td><?= htmlspecialchars($guide['grade_level']) ?></td>
+                  <td><?= htmlspecialchars($guide['section'] ?? '—') ?></td>
                   <td>
                     <?= htmlspecialchars($guide['original_name']) ?>
                     <span class="text-muted">· <?= htmlspecialchars(registrar_format_bytes((int) $guide['file_size'])) ?></span>

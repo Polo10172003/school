@@ -26,10 +26,15 @@ function adviser_guides_redirect(string $msg, ?string $reason = null): void
 }
 
 $gradeLevel = trim($_POST['grade_level'] ?? '');
+$section = trim($_POST['section'] ?? '');
 $file = $_FILES['guide_file'] ?? null;
 
 if ($gradeLevel === '') {
     adviser_guides_redirect('guide_upload_error', 'invalid_grade');
+}
+
+if ($section === '') {
+    adviser_guides_redirect('guide_upload_error', 'invalid_section');
 }
 
 if (!$file || !isset($file['error'])) {
@@ -85,6 +90,7 @@ try {
     registrar_guides_insert(
         $conn,
         $gradeLevel,
+        $section,
         $uniqueName,
         $originalName,
         $fileSize,

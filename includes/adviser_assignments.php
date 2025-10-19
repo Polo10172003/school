@@ -293,6 +293,73 @@ function adviser_assignments_sections_for_grade(mysqli $conn, string $gradeLevel
 }
 
 /**
+ * Return grade levels and sections assigned to a specific adviser.
+ *
+ * @return array<string, array<int, string>> grade => sections[]
+ */
+function adviser_assignments_for_adviser(mysqli $conn, string $username, ?string $displayName = null): array
+{
+    adviser_assignments_ensure_table($conn);
+
+    $candidates = [];
+    $username = trim($username);
+    if ($username !== '') {
+        $candidates[] = $username;
+    }
+    $displayName = trim((string) $displayName);
+    if ($displayName !== '' && strcasecmp($displayName, $username) !== 0) {
+        $candidates[] = $displayName;
+    }
+
+    if (empty($candidates)) {
+        return [];
+    }
+
+    $assignments = [];
+    $stmt = $conn->prepare('SELECT grade_level, section FROM section_advisers WHERE LOWER(adviser) = LOWER(?) ORDER BY grade_level, section');
+    if (!$stmt) {
+        return [];
+    }
+
+    foreach ($candidates as $identifier) {
+        $stmt->bind_param('s', $identifier);
+        if (!$stmt->execute()) {
+            continue;
+        }
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $grade = trim((string) ($row['grade_level'] ?? ''));
+                $section = trim((string) ($row['section'] ?? ''));
+                if ($grade === '' || $section === '') {
+                    continue;
+                }
+                if (!isset($assignments[$grade])) {
+                    $assignments[$grade] = [];
+                }
+                if (!in_array($section, $assignments[$grade], true)) {
+                    $assignments[$grade][] = $section;
+                }
+            }
+            $result->close();
+        }
+    }
+
+    $stmt->close();
+
+    foreach ($assignments as &$sectionList) {
+        sort($sectionList, SORT_NATURAL | SORT_FLAG_CASE);
+    }
+    unset($sectionList);
+
+    if (!empty($assignments)) {
+        ksort($assignments, SORT_NATURAL | SORT_FLAG_CASE);
+    }
+
+    return $assignments;
+}
+
+/**
  * Return known variants for a given grade level to keep assignments in sync.
  *
  * @return array<int, string>

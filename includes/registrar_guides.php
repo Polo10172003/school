@@ -33,6 +33,7 @@ function registrar_guides_ensure_schema(mysqli $conn): void
 CREATE TABLE IF NOT EXISTS registrar_guides (
     id INT AUTO_INCREMENT PRIMARY KEY,
     grade_level VARCHAR(64) NOT NULL,
+    section VARCHAR(128) DEFAULT NULL,
     file_name VARCHAR(255) NOT NULL,
     original_name VARCHAR(255) NOT NULL,
     file_size BIGINT UNSIGNED NOT NULL,
@@ -44,6 +45,17 @@ SQL;
     if (!$conn->query($sql)) {
         throw new RuntimeException('Unable to ensure registrar guides table: ' . $conn->error);
     }
+
+    $columnCheck = $conn->query("SHOW COLUMNS FROM registrar_guides LIKE 'section'");
+    if ($columnCheck instanceof mysqli_result) {
+        $hasSection = $columnCheck->num_rows > 0;
+        $columnCheck->close();
+        if (!$hasSection) {
+            if (!$conn->query("ALTER TABLE registrar_guides ADD COLUMN section VARCHAR(128) DEFAULT NULL AFTER grade_level")) {
+                throw new RuntimeException('Unable to add section column to registrar guides: ' . $conn->error);
+            }
+        }
+    }
 }
 
 /**
@@ -52,21 +64,24 @@ SQL;
 function registrar_guides_insert(
     mysqli $conn,
     string $gradeLevel,
+    ?string $section,
     string $fileName,
     string $originalName,
     int $fileSize,
     ?string $uploadedBy = null
 ): int {
     $stmt = $conn->prepare(
-        'INSERT INTO registrar_guides (grade_level, file_name, original_name, file_size, uploaded_by)
-         VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO registrar_guides (grade_level, section, file_name, original_name, file_size, uploaded_by)
+         VALUES (?, ?, ?, ?, ?, ?)'
     );
 
     if (!$stmt) {
         throw new RuntimeException('Prepare failed: ' . $conn->error);
     }
 
-    $stmt->bind_param('sssis', $gradeLevel, $fileName, $originalName, $fileSize, $uploadedBy);
+    $sectionValue = ($section !== null && $section !== '') ? $section : null;
+    $uploadedByValue = ($uploadedBy !== null && $uploadedBy !== '') ? $uploadedBy : null;
+    $stmt->bind_param('ssssis', $gradeLevel, $sectionValue, $fileName, $originalName, $fileSize, $uploadedByValue);
 
     if (!$stmt->execute()) {
         $error = $stmt->error;
@@ -81,11 +96,11 @@ function registrar_guides_insert(
 }
 
 /**
- * Fetch guides, optionally filtered by grade level and/or uploader.
+ * Fetch guides, optionally filtered by grade level, section, and/or uploader.
  *
  * @return array<int, array<string, mixed>>
  */
-function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null, ?string $uploadedBy = null): array
+function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null, ?string $section = null, ?string $uploadedBy = null): array
 {
     $conditions = [];
     $types = '';
@@ -95,6 +110,12 @@ function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null, ?s
         $conditions[] = 'grade_level = ?';
         $types .= 's';
         $params[] = $gradeLevel;
+    }
+
+    if ($section !== null && $section !== '') {
+        $conditions[] = 'section = ?';
+        $types .= 's';
+        $params[] = $section;
     }
 
     if ($uploadedBy !== null && $uploadedBy !== '') {
@@ -109,7 +130,11 @@ function registrar_guides_fetch_all(mysqli $conn, ?string $gradeLevel = null, ?s
         $sql .= ' WHERE ' . implode(' AND ', $conditions);
     }
 
-    $orderBy = ($gradeLevel !== null && $gradeLevel !== '') ? 'uploaded_at DESC' : 'grade_level, uploaded_at DESC';
+    if ($gradeLevel !== null && $gradeLevel !== '') {
+        $orderBy = ($section !== null && $section !== '') ? 'uploaded_at DESC' : 'section, uploaded_at DESC';
+    } else {
+        $orderBy = 'grade_level, section, uploaded_at DESC';
+    }
     $sql .= ' ORDER BY ' . $orderBy;
 
     $stmt = $conn->prepare($sql);

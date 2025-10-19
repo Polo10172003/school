@@ -9,6 +9,7 @@ if (empty($_SESSION['adviser_username'])) {
 require_once __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../admin_functions.php';
 require_once __DIR__ . '/../includes/registrar_guides.php';
+require_once __DIR__ . '/../includes/adviser_assignments.php';
 
 if (!function_exists('registrar_format_bytes')) {
     function registrar_format_bytes(int $bytes): string
@@ -47,6 +48,7 @@ switch ($flashMsg) {
     case 'guide_upload_error':
         $uploadReasons = [
             'invalid_grade'  => 'Select a grade level before uploading a workbook.',
+            'invalid_section'=> 'Select a section before uploading a workbook.',
             'missing_file'   => 'Choose an Excel workbook to upload.',
             'upload_failure' => 'The upload was interrupted. Please try again.',
             'invalid_type'   => 'Only Excel workbooks (.xls, .xlsx) are accepted.',
@@ -79,12 +81,72 @@ $gradeLevels = [
 ];
 
 $selectedGrade = isset($_GET['grade_filter']) && $_GET['grade_filter'] !== '' ? $_GET['grade_filter'] : null;
+$selectedSection = isset($_GET['section_filter']) && $_GET['section_filter'] !== '' ? $_GET['section_filter'] : null;
+
+$adviserAssignments = adviser_assignments_for_adviser($conn, $adviserUsername, $adviserDisplayName);
+$assignedGrades = array_keys($adviserAssignments);
+$gradeOptions = !empty($assignedGrades) ? $assignedGrades : $gradeLevels;
+
+if (!empty($adviserAssignments)) {
+    if ($selectedGrade !== null && !isset($adviserAssignments[$selectedGrade])) {
+        $selectedGrade = null;
+    }
+    if ($selectedGrade !== null) {
+        $validSections = $adviserAssignments[$selectedGrade];
+        if (!empty($validSections) && $selectedSection !== null && !in_array($selectedSection, $validSections, true)) {
+            $selectedSection = null;
+        }
+        if (empty($validSections)) {
+            $selectedSection = null;
+        }
+    } else {
+        $selectedSection = null;
+    }
+} else {
+    if ($selectedGrade !== null && !in_array($selectedGrade, $gradeOptions, true)) {
+        $selectedGrade = null;
+    }
+    if ($selectedGrade === null) {
+        $selectedSection = null;
+    }
+}
+
+$defaultUploadGrade = $selectedGrade ?? ($gradeOptions[0] ?? null);
+if ($defaultUploadGrade !== null && !in_array($defaultUploadGrade, $gradeOptions, true)) {
+    $defaultUploadGrade = $gradeOptions[0] ?? null;
+}
+
+$uploadSectionOptions = [];
+if ($defaultUploadGrade !== null && isset($adviserAssignments[$defaultUploadGrade])) {
+    $uploadSectionOptions = $adviserAssignments[$defaultUploadGrade];
+}
+
+if (!empty($uploadSectionOptions)) {
+    $defaultUploadSection = ($selectedSection !== null && in_array($selectedSection, $uploadSectionOptions, true))
+        ? $selectedSection
+        : $uploadSectionOptions[0];
+} else {
+    $defaultUploadSection = '';
+}
+
+$sectionFilterOptions = [];
+if ($selectedGrade !== null && isset($adviserAssignments[$selectedGrade])) {
+    $sectionFilterOptions = $adviserAssignments[$selectedGrade];
+}
+
+$sectionsAvailableForUpload = !empty($uploadSectionOptions);
+
 $guideError = false;
 $guideItems = [];
 
 try {
     registrar_guides_ensure_schema($conn);
-    $guideItems = registrar_guides_fetch_all($conn, $selectedGrade, $adviserUsername);
+    $guideItems = registrar_guides_fetch_all(
+        $conn,
+        $selectedGrade,
+        $selectedSection,
+        $adviserUsername
+    );
 } catch (Throwable $e) {
     error_log($e->getMessage());
     $guideItems = [];
@@ -146,11 +208,24 @@ try {
         <label for="dropbox_grade_level">Grade or Year Level</label>
         <select id="dropbox_grade_level" name="grade_level" required>
           <option value="">Select Grade</option>
-          <?php foreach ($gradeLevels as $level): ?>
-            <option value="<?= htmlspecialchars($level) ?>" <?= ($selectedGrade === $level) ? 'selected' : '' ?>>
+          <?php foreach ($gradeOptions as $level): ?>
+            <option value="<?= htmlspecialchars($level) ?>" <?= ($defaultUploadGrade === $level) ? 'selected' : '' ?>>
               <?= htmlspecialchars($level) ?>
             </option>
           <?php endforeach; ?>
+        </select>
+
+        <label for="dropbox_section" style="margin-top:12px;">Section</label>
+        <select id="dropbox_section" name="section" required <?= $sectionsAvailableForUpload ? '' : 'disabled' ?> data-initial-section="<?= htmlspecialchars($defaultUploadSection) ?>">
+          <?php if ($sectionsAvailableForUpload): ?>
+            <?php foreach ($uploadSectionOptions as $sectionOption): ?>
+              <option value="<?= htmlspecialchars($sectionOption) ?>" <?= ($defaultUploadSection === $sectionOption) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($sectionOption) ?>
+              </option>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <option value="" selected>Assign this adviser to a section first.</option>
+          <?php endif; ?>
         </select>
 
         <input type="file" name="guide_file" id="guide_file" accept=".xls,.xlsx" hidden required>
@@ -170,9 +245,9 @@ try {
           <p class="dropzone-selected" id="guide-selected" aria-live="polite"></p>
         </div>
 
-        <p class="text-muted dropzone-note" style="margin-top:12px;">Only .xls and .xlsx files are accepted.</p>
+        <p class="text-muted dropzone-note" style="margin-top:12px;">Pick your advisory grade and section, then upload the matching Excel workbook (.xls or .xlsx).</p>
         <div class="grade-dropbox-actions" style="margin-top:12px;">
-          <button type="submit" class="dashboard-btn">Upload Workbook</button>
+          <button type="submit" class="dashboard-btn" <?= $sectionsAvailableForUpload ? '' : 'disabled' ?>>Upload Workbook</button>
         </div>
       </form>
 
@@ -180,9 +255,18 @@ try {
         <label for="grade_filter">Filter uploaded workbooks by grade</label>
         <select id="grade_filter" name="grade_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;">
           <option value="">All Grades</option>
-          <?php foreach ($gradeLevels as $level): ?>
+          <?php foreach ($gradeOptions as $level): ?>
             <option value="<?= htmlspecialchars($level) ?>" <?= ($selectedGrade === $level) ? 'selected' : '' ?>>
               <?= htmlspecialchars($level) ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+        <label for="section_filter" style="margin-top:12px;">Filter by section</label>
+        <select id="section_filter" name="section_filter" onchange="this.form.submit()" style="max-width:280px; margin-top:10px;" <?= ($selectedGrade === null || empty($sectionFilterOptions)) ? 'disabled' : '' ?>>
+          <option value="">All Sections</option>
+          <?php foreach ($sectionFilterOptions as $sectionOption): ?>
+            <option value="<?= htmlspecialchars($sectionOption) ?>" <?= ($selectedSection === $sectionOption) ? 'selected' : '' ?>>
+              <?= htmlspecialchars($sectionOption) ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -196,6 +280,7 @@ try {
             <thead>
               <tr>
                 <th>Grade</th>
+                <th>Section</th>
                 <th>Workbook</th>
                 <th>Uploaded</th>
                 <th>Contributor</th>
@@ -212,6 +297,7 @@ try {
                 ?>
                 <tr>
                   <td><?= htmlspecialchars($guide['grade_level']) ?></td>
+                  <td><?= htmlspecialchars($guide['section'] ?? '—') ?></td>
                   <td>
                     <?= htmlspecialchars($guide['original_name']) ?>
                     <span class="text-muted">· <?= htmlspecialchars(registrar_format_bytes((int) $guide['file_size'])) ?></span>
@@ -239,12 +325,70 @@ try {
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<?php
+$assignmentsJson = json_encode($adviserAssignments, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+$defaultUploadGradeValue = $defaultUploadGrade ?? '';
+?>
 <script>
 (function() {
+  const assignments = <?= $assignmentsJson !== false ? $assignmentsJson : '{}' ?>;
   const dropzone = document.getElementById('guide-dropzone');
   const fileInput = document.getElementById('guide_file');
   const selected = document.getElementById('guide-selected');
   const browseBtn = document.getElementById('guide-browse-btn');
+  const gradeSelect = document.getElementById('dropbox_grade_level');
+  const sectionSelect = document.getElementById('dropbox_section');
+  const uploadButton = document.querySelector('.grade-dropbox-actions .dashboard-btn');
+
+  function refreshSectionOptions(selectedGrade, preferredSection) {
+    if (!sectionSelect) {
+      return;
+    }
+    const sections = Array.isArray(assignments[selectedGrade]) ? assignments[selectedGrade] : [];
+    sectionSelect.innerHTML = '';
+    if (sections.length === 0) {
+      sectionSelect.disabled = true;
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = 'Assign this adviser to a section first.';
+      option.selected = true;
+      sectionSelect.appendChild(option);
+      if (uploadButton) {
+        uploadButton.disabled = true;
+      }
+      return;
+    }
+
+    sectionSelect.disabled = false;
+    if (uploadButton) {
+      uploadButton.disabled = false;
+    }
+
+    const targetSection = preferredSection && sections.includes(preferredSection)
+      ? preferredSection
+      : sections[0];
+
+    sections.forEach(function(section) {
+      const option = document.createElement('option');
+      option.value = section;
+      option.textContent = section;
+      if (section === targetSection) {
+        option.selected = true;
+      }
+      sectionSelect.appendChild(option);
+    });
+  }
+
+  if (gradeSelect && sectionSelect) {
+    const initialSection = sectionSelect.dataset.initialSection || '';
+    const initialGrade = gradeSelect.value || <?= json_encode($defaultUploadGradeValue, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> || '';
+    if (initialGrade !== '') {
+      refreshSectionOptions(initialGrade, initialSection);
+    }
+    gradeSelect.addEventListener('change', function() {
+      refreshSectionOptions(this.value, '');
+    });
+  }
 
   if (!dropzone || !fileInput || !selected) {
     return;
