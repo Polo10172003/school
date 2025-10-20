@@ -272,7 +272,7 @@ if ($result instanceof mysqli_result) {
 
       <form class="dashboard-form" method="GET" style="margin-top:20px;">
         <label for="dropbox_grade_filter">Filter by Grade</label>
-        <select id="dropbox_grade_filter" name="grade_filter" style="max-width:280px; margin-top:10px;" onchange="this.form.submit()">
+        <select id="dropbox_grade_filter" name="grade_filter" style="max-width:280px; margin-top:10px;">
           <option value="">All Grades</option>
           <?php foreach ($gradeLevels as $level): ?>
             <option value="<?= htmlspecialchars($level) ?>" <?= ($grade_filter === $level) ? 'selected' : '' ?>>
@@ -281,7 +281,7 @@ if ($result instanceof mysqli_result) {
           <?php endforeach; ?>
         </select>
         <label for="dropbox_section_filter" style="margin-top:12px;">Filter by Section</label>
-        <select id="dropbox_section_filter" name="section_filter" style="max-width:280px; margin-top:10px;" onchange="this.form.submit()" <?= ($grade_filter === '' || empty($sectionOptions)) ? 'disabled' : '' ?>>
+        <select id="dropbox_section_filter" name="section_filter" style="max-width:280px; margin-top:10px;" <?= ($grade_filter === '' || empty($sectionOptions)) ? 'disabled' : '' ?>>
           <option value="">All Sections</option>
           <?php foreach ($sectionOptions as $sectionOption): ?>
             <option value="<?= htmlspecialchars($sectionOption) ?>" <?= ($section_filter === $sectionOption) ? 'selected' : '' ?>>
