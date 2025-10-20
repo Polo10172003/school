@@ -440,6 +440,13 @@ if ($result instanceof mysqli_result) {
       select.addEventListener('change', function (event) {
         event.preventDefault();
 
+        try {
+          const navigationMarker = new Event('submit', { bubbles: true, cancelable: true });
+          document.dispatchEvent(navigationMarker);
+        } catch (_) {
+          // ignore marker dispatch failures
+        }
+
         const url = new URL(window.location.href);
         const paramName = select.name || 'grade_filter';
         const params = new URLSearchParams(url.search);
