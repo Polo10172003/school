@@ -258,7 +258,7 @@ if ($student_id) {
             }
         }
 
-        $statusValue = 'ready';
+        $statusValue = 'waiting';
         $updateDropped = $conn->prepare('UPDATE students_registration SET enrollment_status = ?, academic_status = ?, student_type = ?, schedule_sent_at = NULL, section = NULL, adviser = NULL WHERE id = ?');
         if ($updateDropped) {
             $academicLabel = 'Ongoing';

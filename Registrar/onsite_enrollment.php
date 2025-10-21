@@ -119,10 +119,14 @@ if ($student_type === 'old') {
         'guardian_occupation'  => $student['guardian_occupation'] ?? '',
     ];
 
-    if ($isInactiveSource && strcasecmp($academicStatus, 'dropped') === 0) {
-        $_SESSION['registration_returning_tag'] = 'Dropped Student';
+    if ($isInactiveSource) {
+        $_SESSION['registration_returning_tag'] = (strcasecmp($academicStatus, 'dropped') === 0)
+            ? 'Dropped Student'
+            : 'Returning Student';
         $_SESSION['registration_previous_school_year'] = $student['school_year'] ?? '';
-        $prefill['school_year'] = '';
+        if (strcasecmp($academicStatus, 'dropped') === 0) {
+            $prefill['school_year'] = '';
+        }
         $_SESSION['returning_inactive_source_id'] = $studentId;
         $_SESSION['returning_source_table'] = 'inactive';
     } else {
