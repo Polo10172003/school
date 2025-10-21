@@ -26,11 +26,11 @@
         <div class="col-md">
           <h6 class="fw-bold" style="color: #fbd80a;">Get Regular Updates</h6>
           <ul class="list-unstyled">
-            <li><a href="#"><i class="bi bi-facebook"></i> Facebook</a></li>
-            <li><a href="#"><i class="bi bi-youtube"></i> YouTube</a></li>
-            <li><a href="#"><i class="bi bi-instagram"></i> Instagram</a></li>
-            <li><a href="#"><i class="bi bi-twitter-x"></i> Twitter/X</a></li>
-            <li><a href="#"><i class="bi bi-tiktok"></i> TikTok</a></li>
+            <li>
+              <a href="https://www.facebook.com/esrpasig" target="_blank" rel="noopener">
+                <i class="bi bi-facebook"></i> Facebook
+              </a>
+            </li>
           </ul>
         </div>
       </div>

@@ -57,44 +57,44 @@ $page_title = 'Escuela de Sto. Rosario - Home';
 
   $carouselCaptions = [
     'events' => [
-      ['title' => 'Annual School Fair', 'text' => 'Join us for our exciting annual school fair with games, food, and entertainment.'],
-      ['title' => 'Graduation Ceremony', 'text' => 'Celebrating the achievements of our graduating students.'],
-      ['title' => 'Sports Festival', 'text' => 'Annual sports competition showcasing student athletic talents.'],
+      ['title' => 'Campus Life Moments', 'text' => 'Glimpses of the vibrant activities that bring our community together.'],
+      ['title' => 'Shared Experiences', 'text' => 'Snapshots from celebrations that highlight student spirit and teamwork.'],
+      ['title' => 'Memories in Motion', 'text' => 'Scenes that capture the heart of being part of the ESR family.'],
     ],
     'achievements' => [
-      ['title' => 'Academic Excellence Award', 'text' => 'Recognized for outstanding academic performance and student achievement.'],
-      ['title' => 'Best Private School', 'text' => 'Awarded as one of the top private educational institutions in the region.'],
-      ['title' => 'Innovation in Education', 'text' => 'Recognized for implementing innovative teaching methods and technology.'],
+      ['title' => 'Proud Milestones', 'text' => 'Recognizing collective achievements made possible by our learners and mentors.'],
+      ['title' => 'Culture of Excellence', 'text' => 'Moments that showcase dedication, growth, and continuous improvement.'],
+      ['title' => 'Inspired Success', 'text' => 'Proof that hard work and guidance open doors to new opportunities.'],
     ],
     'primary_secondary' => [
-      ['title' => 'Primary Education (K-6)', 'text' => 'Building strong foundations in reading, writing, and mathematics for young learners.'],
-      ['title' => 'Secondary Education (7-10)', 'text' => 'Comprehensive curriculum preparing students for higher education and life skills.'],
-      ['title' => 'Modern Learning Environment', 'text' => 'State-of-the-art facilities and technology-enhanced classrooms.'],
+      ['title' => 'Foundations that Inspire', 'text' => 'Learning spaces that nurture curiosity from the earliest grades onward.'],
+      ['title' => 'Growing Together', 'text' => 'Classrooms where students discover their strengths and passions.'],
+      ['title' => 'Everyday Discoveries', 'text' => 'Daily scenes of collaboration, creativity, and character-building.'],
     ],
     'junior_high' => [
-      ['title' => 'Grades 7-8 Program', 'text' => 'Transitioning students with enhanced academic and social development programs.'],
-      ['title' => 'Grades 9-10 Program', 'text' => 'Advanced curriculum preparing students for senior high school specialization.'],
-      ['title' => 'Extracurricular Activities', 'text' => 'Diverse clubs, sports, and leadership opportunities for holistic development.'],
+      ['title' => 'Exploring New Ideas', 'text' => 'Learners are encouraged to think deeper and explore bigger possibilities.'],
+      ['title' => 'Skills in Action', 'text' => 'Hands-on experiences that prepare students for the next stage of study.'],
+      ['title' => 'Guided Journeys', 'text' => 'Mentorship and teamwork that build confidence and resilience.'],
     ],
     'senior_high' => [
-      ['title' => 'STEM Track', 'text' => 'Science, Technology, Engineering, and Mathematics specialization for future innovators.'],
-      ['title' => 'ABM Track', 'text' => 'Accountancy, Business, and Management program for future business leaders.'],
-      ['title' => 'HUMSS Track', 'text' => 'Humanities and Social Sciences for students pursuing liberal arts and social studies.'],
+      ['title' => 'Future-Ready Paths', 'text' => 'Programs that help students shape their academic and career direction.'],
+      ['title' => 'Purposeful Learning', 'text' => 'Opportunities to apply classroom lessons in real-world contexts.'],
+      ['title' => 'Steps Toward Tomorrow', 'text' => 'Supportive communities that help learners prepare for life after high school.'],
     ],
     'paprisa' => [
-      ['title' => 'PAPRISA Membership', 'text' => 'Philippine Association of Private Schools and Administrators recognition and membership programs.'],
-      ['title' => 'PAPRISA Awards', 'text' => 'Recognized for excellence in private education administration and management.'],
-      ['title' => 'PAPRISA Programs', 'text' => 'Active participation in PAPRISA educational programs and professional development initiatives.'],
+      ['title' => 'Recognized Community', 'text' => 'Moments with partners and organizations who share our vision for education.'],
+      ['title' => 'Shared Advocacy', 'text' => 'Collaborations that celebrate the work of educators and school leaders.'],
+      ['title' => 'Continuous Growth', 'text' => 'Stories that highlight our commitment to professional and institutional development.'],
     ],
     'board' => [
-      ['title' => 'Professional Licensure', 'text' => 'Celebrating our alumni who have successfully passed various professional board examinations.'],
-      ['title' => 'Top Performers', 'text' => 'Alumni who achieved top rankings in their respective professional licensure examinations.'],
-      ['title' => 'Career Success', 'text' => 'Our graduates excelling in their chosen professions and contributing to society.'],
+      ['title' => 'Journeys Beyond Campus', 'text' => 'Highlights of alumni who continue to make their mark in various fields.'],
+      ['title' => 'Proud Alumni', 'text' => 'Proof that the lessons learned here travel with graduates wherever they go.'],
+      ['title' => 'Stories of Perseverance', 'text' => 'Moments that reflect determination, discipline, and service.'],
     ],
     'laudes' => [
-      ['title' => 'Academic Honors', 'text' => 'Students who have achieved academic excellence and graduated with honors.'],
-      ['title' => 'Summa Cum Laude', 'text' => 'Highest academic distinction awarded to students with exceptional academic performance.'],
-      ['title' => 'Magna Cum Laude', 'text' => 'High academic distinction for students with outstanding scholastic achievements.'],
+      ['title' => 'Honors and Distinctions', 'text' => 'Celebrating students who exemplify academic dedication and character.'],
+      ['title' => 'Faces of Achievement', 'text' => 'Smiles that speak of late nights, perseverance, and supportive families.'],
+      ['title' => 'Continuing the Legacy', 'text' => 'Generations of learners pushing further and inspiring the next batch.'],
     ],
   ];
 ?> 
@@ -208,26 +208,26 @@ $page_title = 'Escuela de Sto. Rosario - Home';
   }
 
   .carousel-caption.caption-overlay {
-    background: linear-gradient(135deg, rgba(20, 90, 50, 0.85), rgba(0, 0, 0, 0.75));
-    border-radius: 1.25rem;
-    padding: 1.75rem;
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(6px);
+    background: linear-gradient(135deg, rgba(20, 90, 50, 0.6), rgba(0, 0, 0, 0.55));
+    border-radius: 1rem;
+    padding: 1.1rem 1.4rem;
+    box-shadow: 0 16px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(4px);
   }
 
   .carousel-caption.caption-overlay h5,
   .carousel-caption.caption-overlay p {
-    color: #fff;
-    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.65);
+    color: #fdfdfd;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
   }
 
   .carousel-caption.caption-overlay h5 {
-    font-size: 1.55rem;
-    font-weight: 700;
+    font-size: 1.2rem;
+    font-weight: 600;
   }
 
   .carousel-caption.caption-overlay p {
-    font-size: 1.05rem;
+    font-size: 0.9rem;
     margin-bottom: 0;
   }
 
