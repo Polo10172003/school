@@ -1199,5 +1199,39 @@ $sessionMonitorJson = json_encode($sessionMonitorConfig, JSON_HEX_TAG | JSON_HEX
   window.AUTO_LOGOUT_CONFIG = { logoutUrl: 'admin_logout.php' };
 </script>
 <script src="assets/js/tab_auto_logout.js?v=20241019"></script>
+<script>
+  (function () {
+    const storageKey = 'esr_admin_return_section';
+    const sectionId = 'homepage-images';
+
+    const rememberSection = () => {
+      try {
+        sessionStorage.setItem(storageKey, sectionId);
+      } catch (e) {
+        // ignore browsers that block storage
+      }
+    };
+
+    document.querySelectorAll('#' + sectionId + ' form').forEach((form) => {
+      form.addEventListener('submit', rememberSection);
+    });
+
+    try {
+      const pending = sessionStorage.getItem(storageKey);
+      if (pending === sectionId) {
+        sessionStorage.removeItem(storageKey);
+        const target = document.getElementById(sectionId);
+        if (target && typeof target.scrollIntoView === 'function') {
+          requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: 'auto', block: 'start' });
+            window.scrollBy(0, -20);
+          });
+        }
+      }
+    } catch (e) {
+      // ignore storage read errors
+    }
+  })();
+</script>
 </body>
 </html>
