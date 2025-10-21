@@ -110,6 +110,8 @@ $guardian_occupation  = $registration['guardian_occupation'] ?? '';
 $privacy_consent      = $registration['privacy_consent'] ?? '';
 
 include __DIR__ . '/../includes/header.php';
+
+$isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);
 ?>
 
 <link href="../assets/css/registration.css" rel="stylesheet">
@@ -390,5 +392,51 @@ include __DIR__ . '/../includes/header.php';
         toggleCourseField();
     });
 </script>
+
+<?php if (!$isReturningFlow): ?>
+<script>
+  (function () {
+    'use strict';
+    const clearEndpoint = 'clear_registration_session.php';
+    let submissionInProgress = false;
+    const form = document.querySelector('form');
+
+    if (form) {
+      form.addEventListener('submit', function () {
+        submissionInProgress = true;
+      });
+    }
+
+    const dispatchClear = function () {
+      if (submissionInProgress) {
+        return;
+      }
+      if (navigator.sendBeacon) {
+        try {
+          navigator.sendBeacon(clearEndpoint, '');
+          return;
+        } catch (_) {
+          // fall through to fetch
+        }
+      }
+      try {
+        fetch(clearEndpoint, {
+          method: 'POST',
+          credentials: 'include',
+          cache: 'no-store',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: ''
+        });
+      } catch (_) {
+        // ignore
+      }
+    };
+
+    window.addEventListener('pagehide', dispatchClear);
+    window.addEventListener('beforeunload', dispatchClear);
+  })();
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

@@ -137,7 +137,7 @@ $homepageImages = homepage_images_load();
         <div class="text-center mb-5">
           <span class="section-label text-uppercase fw-bold" style="letter-spacing: 0.3em; color: var(--brand-green);">Start Confidently</span>
           <h2 class="fw-bold text-success mt-3">Step-by-step guidance for every enrollment path</h2>
-          <p class="lead text-muted mb-0">Review the checklists below then follow the portal links to upload documents, monitor approval, and confirm payment.</p>
+          <p class="lead text-muted mb-0">Review the checklists below then follow the portal links for enrollment.</p>
         </div>
 
         <div class="row g-4">
