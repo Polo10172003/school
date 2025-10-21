@@ -181,7 +181,9 @@ if (!$isReturningFlow) {
         $nameCheck->store_result();
         if ($nameCheck->num_rows > 0) {
             $nameCheck->close();
-            die('A student with the same name is already registered. Please contact the registrar to continue the enrollment process.');
+            $_SESSION['registration_error'] = 'A student with the same name already exists in our records. Please contact the registrar for assistance.';
+            header('Location: review_registration.php');
+            exit();
         }
         $nameCheck->close();
     }
@@ -195,7 +197,9 @@ if (!$isReturningFlow) {
         $emailCheck->store_result();
         if ($emailCheck->num_rows > 0) {
             $emailCheck->close();
-            die('This email address is already associated with an existing student record. Please use the original email or contact the registrar.');
+            $_SESSION['registration_error'] = 'This email address is already associated with an existing student record. Please use the original email or contact the registrar.';
+            header('Location: review_registration.php');
+            exit();
         }
         $emailCheck->close();
     }
@@ -209,7 +213,9 @@ if (!$isReturningFlow) {
         $inactiveEmailCheck->store_result();
         if ($inactiveEmailCheck->num_rows > 0) {
             $inactiveEmailCheck->close();
-            die('This email address is already associated with an existing student record. Please use the original email or contact the registrar.');
+            $_SESSION['registration_error'] = 'This email address is already associated with an existing student record. Please use the original email or contact the registrar.';
+            header('Location: review_registration.php');
+            exit();
         }
         $inactiveEmailCheck->close();
     }

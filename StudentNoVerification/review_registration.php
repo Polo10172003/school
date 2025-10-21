@@ -347,6 +347,11 @@ function value(array $array, string $key): string
     return htmlspecialchars($array[$key] ?? '', ENT_QUOTES, 'UTF-8');
 }
 
+$registrationError = $_SESSION['registration_error'] ?? '';
+if (isset($_SESSION['registration_error'])) {
+    unset($_SESSION['registration_error']);
+}
+
 $page_title = $fromRegistrar ? 'Student Record Overview' : 'Review Registration';
 include '../includes/header.php';
 ?>
@@ -504,6 +509,35 @@ include '../includes/header.php';
 </style>
 
 <main>
+    <?php if ($registrationError !== ''): ?>
+        <div class="modal fade" id="registrationErrorModal" tabindex="-1" aria-labelledby="registrationErrorLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header border-0">
+                        <h5 class="modal-title fw-bold text-danger" id="registrationErrorLabel">Unable to Submit Registration</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-danger mb-0" role="alert">
+                            <?= htmlspecialchars($registrationError); ?>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const modalEl = document.getElementById('registrationErrorModal');
+                if (modalEl && window.bootstrap && window.bootstrap.Modal) {
+                    const modal = new window.bootstrap.Modal(modalEl);
+                    modal.show();
+                }
+            });
+        </script>
+    <?php endif; ?>
     <div class="review-wrapper">
         <?php if ($fromRegistrar && $returningTag !== ''): ?>
             <div class="alert alert-warning" role="alert" style="margin-top: -10px;">
