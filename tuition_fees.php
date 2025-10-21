@@ -29,7 +29,20 @@ $pricingOptions = [
     'esc' => 'ESC / Government Subsidy',
 ];
 
-$escOnlyGrades = ['grade7', 'grade8', 'grade9', 'grade10', 'grade11', 'grade12'];
+$gradePricingAvailability = [];
+foreach (['preprime1', 'preprime2', 'kindergarten'] as $gradeKey) {
+    $gradePricingAvailability[$gradeKey] = ['regular', 'fwc'];
+}
+foreach (['grade1', 'grade2', 'grade3', 'grade4', 'grade5', 'grade6'] as $gradeKey) {
+    $gradePricingAvailability[$gradeKey] = ['regular'];
+}
+foreach (['grade7', 'grade8', 'grade9', 'grade10'] as $gradeKey) {
+    $gradePricingAvailability[$gradeKey] = ['regular', 'esc'];
+}
+foreach (['grade11', 'grade12'] as $gradeKey) {
+    $gradePricingAvailability[$gradeKey] = ['esc'];
+}
+
 $pricingOptionsList = [];
 foreach ($pricingOptions as $value => $label) {
     $pricingOptionsList[] = ['value' => $value, 'label' => $label];
@@ -70,14 +83,21 @@ $selectedPricingInput = $_GET['pricing_category'] ?? 'regular';
 if (!array_key_exists($selectedGrade, $gradeOptions)) {
     $selectedGrade = 'preprime1';
 }
-$restrictPricingToEsc = in_array($selectedGrade, $escOnlyGrades, true);
-
 if (!array_key_exists($selectedPricingInput, $pricingOptions)) {
     $selectedPricingInput = 'regular';
 }
 
-$selectedPricing = $restrictPricingToEsc ? 'esc' : $selectedPricingInput;
-$pricingOptionsForDisplay = $restrictPricingToEsc ? ['esc' => $pricingOptions['esc']] : $pricingOptions;
+$allowedPricing = $gradePricingAvailability[$selectedGrade] ?? array_keys($pricingOptions);
+$allowedPricing = array_values(array_filter($allowedPricing, static fn($option) => array_key_exists($option, $pricingOptions)));
+if (empty($allowedPricing)) {
+    $allowedPricing = array_keys($pricingOptions);
+}
+
+$selectedPricing = in_array($selectedPricingInput, $allowedPricing, true)
+    ? $selectedPricingInput
+    : $allowedPricing[0];
+
+$pricingOptionsForDisplay = array_intersect_key($pricingOptions, array_flip($allowedPricing));
 
 $studentTypeOptions = [
     'all' => 'All Students',
@@ -722,56 +742,60 @@ include 'includes/header.php';
         document.addEventListener('DOMContentLoaded', function () {
             const gradeSelect = document.getElementById('year');
             const pricingSelect = document.getElementById('pricing_category');
-            const escOnlyGrades = new Set(<?= json_encode($escOnlyGrades) ?>);
+            const gradePricingMap = <?= json_encode($gradePricingAvailability) ?>;
             const pricingVariants = <?= json_encode($pricingOptionsList) ?>;
-            let lastFreeSelection = 'regular';
+            const variantLabels = new Map(pricingVariants.map(({ value, label }) => [value, label]));
+            const allVariantValues = pricingVariants.map(({ value }) => value);
+            let lastPreferredVariant = pricingSelect ? (pricingSelect.value || 'regular') : 'regular';
 
             const renderPricingOptions = () => {
                 if (!gradeSelect || !pricingSelect) {
                     return;
                 }
 
-                const requiresEsc = escOnlyGrades.has(gradeSelect.value);
-                let currentSelection = pricingSelect.value || 'regular';
+                const gradeKey = gradeSelect.value;
+                let allowedVariants = Array.isArray(gradePricingMap[gradeKey])
+                    ? gradePricingMap[gradeKey].filter((value) => variantLabels.has(value))
+                    : [];
 
-                if (!requiresEsc && currentSelection !== 'esc') {
-                    lastFreeSelection = currentSelection;
+                if (allowedVariants.length === 0) {
+                    allowedVariants = allVariantValues.slice();
                 }
 
-                if (requiresEsc) {
-                    currentSelection = 'esc';
-                } else if (currentSelection === 'esc') {
-                    currentSelection = lastFreeSelection || 'regular';
+                const currentSelection = pricingSelect.value;
+                let selectionToApply = allowedVariants.includes(currentSelection) ? currentSelection : '';
+
+                if (!selectionToApply && lastPreferredVariant && allowedVariants.includes(lastPreferredVariant)) {
+                    selectionToApply = lastPreferredVariant;
+                }
+
+                if (!selectionToApply) {
+                    selectionToApply = allowedVariants[0] || '';
                 }
 
                 pricingSelect.innerHTML = '';
-                const variantsToRender = requiresEsc
-                    ? pricingVariants.filter((option) => option.value === 'esc')
-                    : pricingVariants;
-
-                variantsToRender.forEach(({ value, label }) => {
+                allowedVariants.forEach((value) => {
                     const option = document.createElement('option');
                     option.value = value;
-                    option.textContent = label;
-                    option.selected = value === currentSelection;
+                    option.textContent = variantLabels.get(value) || value;
+                    option.selected = value === selectionToApply;
                     pricingSelect.appendChild(option);
                 });
 
-                if (!requiresEsc && pricingSelect.value !== 'esc') {
-                    lastFreeSelection = pricingSelect.value;
+                if (selectionToApply) {
+                    pricingSelect.value = selectionToApply;
+                    lastPreferredVariant = selectionToApply;
                 }
             };
 
             if (gradeSelect && pricingSelect) {
-                if (pricingSelect.value && pricingSelect.value !== 'esc') {
-                    lastFreeSelection = pricingSelect.value;
+                if (pricingSelect.value) {
+                    lastPreferredVariant = pricingSelect.value;
                 }
 
                 gradeSelect.addEventListener('change', renderPricingOptions);
                 pricingSelect.addEventListener('change', () => {
-                    if (!escOnlyGrades.has(gradeSelect.value) && pricingSelect.value !== 'esc') {
-                        lastFreeSelection = pricingSelect.value;
-                    }
+                    lastPreferredVariant = pricingSelect.value;
                 });
 
                 renderPricingOptions();
