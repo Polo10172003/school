@@ -495,7 +495,22 @@ if (masterCheckbox) {
 }
 </script>
 <script>
-  document.getElementById('bulkActivateBtn').addEventListener('click', async () => {
+  const bulkActivateBtn = document.getElementById('bulkActivateBtn');
+  if (bulkActivateBtn) {
+    const originalText = bulkActivateBtn.innerText;
+    const setBusyState = (isBusy) => {
+      if (isBusy) {
+        bulkActivateBtn.disabled = true;
+        bulkActivateBtn.classList.add('is-loading');
+        bulkActivateBtn.innerText = 'Activating...';
+      } else {
+        bulkActivateBtn.disabled = false;
+        bulkActivateBtn.classList.remove('is-loading');
+        bulkActivateBtn.innerText = originalText;
+      }
+    };
+
+    bulkActivateBtn.addEventListener('click', async () => {
     const checkedBoxes = [...studentCheckboxes()].filter(cb => cb.checked);
     const checked = checkedBoxes.map(cb => cb.value);
     if (checked.length === 0) {
@@ -503,32 +518,41 @@ if (masterCheckbox) {
         return;
     }
 
-    const res = await fetch("bulk_activate.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ student_ids: checked })
-    });
-
-    const data = await res.json();
-    if (data.success) {
-        checked.forEach(id => {
-            const span = document.getElementById("portal-status-" + id);
-            if (span) {
-              span.innerText = "Activated";
-              span.classList.remove('pending');
-              span.classList.add('success');
-            }
+      setBusyState(true);
+      try {
+        const res = await fetch("bulk_activate.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ student_ids: checked })
         });
-        clearSelections();
-        let msg = `✅ ${data.activated} accounts activated.`;
-      if (data.errors && data.errors.length > 0) {
-          msg += `\n⚠ Some issues:\n- ${data.errors.join("\n- ")}`;
+
+        const data = await res.json();
+        if (data.success) {
+            checked.forEach(id => {
+                const span = document.getElementById("portal-status-" + id);
+                if (span) {
+                  span.innerText = "Activated";
+                  span.classList.remove('pending');
+                  span.classList.add('success');
+                }
+            });
+            clearSelections();
+            let msg = `✅ ${data.activated} accounts activated.`;
+          if (data.errors && data.errors.length > 0) {
+              msg += `\n⚠ Some issues:\n- ${data.errors.join("\n- ")}`;
+          }
+            alert(msg);
+        } else {
+            alert("❌ Error activating accounts." + (data.error || ' Unknown error.'));
+        }
+      } catch (error) {
+        console.error('[registrar] bulk activation failed', error);
+        alert("❌ Error activating accounts. Please try again.");
+      } finally {
+        setBusyState(false);
       }
-        alert(msg);
-    } else {
-        alert("❌ Error activating accounts." + (data.error || ' Unknown error.'));
-    }
-});
+  });
+  }
 
 </script>
 <?php
