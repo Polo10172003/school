@@ -271,7 +271,7 @@ $page_title = 'Escuela de Sto. Rosario - Home';
         </div>
         <div class="col-lg-5 mt-5 mt-lg-0">
           <div class="hero-card card border-0 shadow-lg">
-            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['events']['slide1'] ?? '')); ?>" alt="Students on campus" class="card-img-top">
+            <img src="<?= htmlspecialchars(homepage_image_url($homepageImages['cards']['admissions'] ?? '')); ?>" alt="Enrollment steps" class="card-img-top">
             <div class="card-body">
               <h5 class="fw-bold text-success">Welcome, parents and guardians!</h5>
               <p class="text-muted mb-0">Check schedules, tuition details, and announcements anytime through our online portal to stay in step with your child’s journey.</p>
