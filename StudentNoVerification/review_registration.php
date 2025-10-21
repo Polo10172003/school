@@ -90,7 +90,6 @@ if ($fromRegistrar) {
     $courses = ['ABM', 'GAS', 'HUMSS', 'ICT', 'TVL', 'STEM'];
     $genders = ['Female', 'Male'];
     $religions = ['Roman Catholic', 'Christian', 'Iglesia Ni Cristo', 'Islam', 'Others'];
-    $academicStatuses = ['Pending', 'Ongoing', 'Ready', 'Waiting', 'Enrolled', 'Graduated', 'Failed'];
 
     $errors = [];
     $isEditMode = isset($_GET['edit']) && $_GET['edit'] === '1';
@@ -120,7 +119,6 @@ if ($fromRegistrar) {
             'mother_occupation'    => trim($_POST['mother_occupation'] ?? ''),
             'guardian_name'        => trim($_POST['guardian_name'] ?? ''),
             'guardian_occupation'  => trim($_POST['guardian_occupation'] ?? ''),
-            'academic_status'      => trim($_POST['academic_status'] ?? ''),
         ];
 
         $required = [
@@ -135,7 +133,6 @@ if ($fromRegistrar) {
             'emailaddress'    => 'Email Address',
             'telephone'       => 'Telephone',
             'address'         => 'Address',
-            'academic_status' => 'Academic Status',
         ];
 
         foreach ($required as $key => $label) {
@@ -160,10 +157,6 @@ if ($fromRegistrar) {
             $errors['religion'] = 'Select a valid religion option.';
         }
 
-        if ($fields['academic_status'] !== '' && !in_array($fields['academic_status'], $academicStatuses, true)) {
-            $errors['academic_status'] = 'Select a valid academic status option.';
-        }
-
         if ($fields['emailaddress'] !== '' && !filter_var($fields['emailaddress'], FILTER_VALIDATE_EMAIL)) {
             $errors['emailaddress'] = 'Provide a valid email address.';
         }
@@ -183,14 +176,14 @@ if ($fromRegistrar) {
         }
 
         if (empty($errors)) {
-            $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, academic_status = ? WHERE id = ?';
+            $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ? WHERE id = ?';
             $stmt = $conn->prepare($updateSql);
 
             if (!$stmt) {
                 $errors['general'] = 'Unable to prepare the update statement. ' . $conn->error;
             } else {
                 $stmt->bind_param(
-                    str_repeat('s', 22) . 'i',
+                    str_repeat('s', 21) . 'i',
                     $fields['school_year'],
                     $fields['year'],
                     $fields['course'],
@@ -212,7 +205,6 @@ if ($fromRegistrar) {
                     $fields['mother_occupation'],
                     $fields['guardian_name'],
                     $fields['guardian_occupation'],
-                    $fields['academic_status'],
                     $studentId
                 );
 
@@ -287,13 +279,12 @@ if ($fromRegistrar) {
                         'academic_honors'      => $fields['academic_honors'],
                         'father_name'          => $fields['father_name'],
                         'father_occupation'    => $fields['father_occupation'],
-                        'mother_name'          => $fields['mother_name'],
-                        'mother_occupation'    => $fields['mother_occupation'],
-                        'guardian_name'        => $fields['guardian_name'],
-                        'guardian_occupation'  => $fields['guardian_occupation'],
-                        'student_type'         => $fields['student_type'],
-                        'academic_status'      => $fields['academic_status'],
-                    ]);
+                    'mother_name'          => $fields['mother_name'],
+                    'mother_occupation'    => $fields['mother_occupation'],
+                    'guardian_name'        => $fields['guardian_name'],
+                    'guardian_occupation'  => $fields['guardian_occupation'],
+                    'student_type'         => $fields['student_type'],
+                ]);
                     $_SESSION['registrar_edit_original'] = array_merge($_SESSION['registrar_edit_original'] ?? [], $fields, ['year' => $fields['year']]);
 
                     header('Location: ../Registrar/registrar_dashboard.php?msg=student_updated');
@@ -326,7 +317,6 @@ if ($fromRegistrar) {
                 'guardian_name'        => $fields['guardian_name'],
                 'guardian_occupation'  => $fields['guardian_occupation'],
                 'student_type'         => $fields['student_type'],
-                'academic_status'      => $fields['academic_status'],
             ]);
         }
     }
@@ -668,15 +658,6 @@ include '../includes/header.php';
                         <div class="form-field">
                             <label for="academic_honors">Academic Honors / Awards</label>
                             <input type="text" id="academic_honors" name="academic_honors" value="<?= value($data, 'academic_honors'); ?>">
-                        </div>
-                        <div class="form-field">
-                            <label for="academic_status">Academic Status<span class="text-danger">*</span></label>
-                            <select id="academic_status" name="academic_status" required>
-                                <option value="">Select Status</option>
-                                <?php foreach ($academicStatuses as $status): ?>
-                                    <option value="<?= $status; ?>" <?= ($data['academic_status'] ?? '') === $status ? 'selected' : ''; ?>><?= $status; ?></option>
-                                <?php endforeach; ?>
-                            </select>
                         </div>
                     </div>
                 </div>
