@@ -165,6 +165,56 @@ if (!in_array($yearlevel, ['Grade 11', 'Grade 12'], true)) {
 
 $student_id = null;
 
+// Prevent duplicate submissions for new students based on name or email.
+$isReturningFlow = !empty($returningSourceId) || $reactivatedFromInactive;
+if (!$isReturningFlow) {
+    $nameCheck = $conn->prepare(
+        "SELECT id FROM students_registration 
+         WHERE LOWER(firstname) = LOWER(?) 
+           AND LOWER(lastname) = LOWER(?) 
+           AND enrollment_status IN ('waiting', 'enrolled')
+         LIMIT 1"
+    );
+    if ($nameCheck) {
+        $nameCheck->bind_param('ss', $firstname, $lastname);
+        $nameCheck->execute();
+        $nameCheck->store_result();
+        if ($nameCheck->num_rows > 0) {
+            $nameCheck->close();
+            die('A student with the same name is already registered. Please contact the registrar to continue the enrollment process.');
+        }
+        $nameCheck->close();
+    }
+
+    $emailCheck = $conn->prepare(
+        "SELECT id FROM students_registration WHERE LOWER(emailaddress) = LOWER(?) LIMIT 1"
+    );
+    if ($emailCheck) {
+        $emailCheck->bind_param('s', $emailaddress);
+        $emailCheck->execute();
+        $emailCheck->store_result();
+        if ($emailCheck->num_rows > 0) {
+            $emailCheck->close();
+            die('This email address is already associated with an existing student record. Please use the original email or contact the registrar.');
+        }
+        $emailCheck->close();
+    }
+
+    $inactiveEmailCheck = $conn->prepare(
+        "SELECT id FROM inactive_students WHERE LOWER(emailaddress) = LOWER(?) LIMIT 1"
+    );
+    if ($inactiveEmailCheck) {
+        $inactiveEmailCheck->bind_param('s', $emailaddress);
+        $inactiveEmailCheck->execute();
+        $inactiveEmailCheck->store_result();
+        if ($inactiveEmailCheck->num_rows > 0) {
+            $inactiveEmailCheck->close();
+            die('This email address is already associated with an existing student record. Please use the original email or contact the registrar.');
+        }
+        $inactiveEmailCheck->close();
+    }
+}
+
 if ($returningSourceId) {
     $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, academic_status = ?, section = NULL, adviser = NULL, schedule_sent_at = NULL WHERE id = ?';
     $stmt = $conn->prepare($updateSql);
