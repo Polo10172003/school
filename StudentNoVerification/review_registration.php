@@ -352,6 +352,8 @@ if (isset($_SESSION['registration_error'])) {
     unset($_SESSION['registration_error']);
 }
 
+$isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);
+
 $page_title = $fromRegistrar ? 'Student Record Overview' : 'Review Registration';
 include '../includes/header.php';
 ?>
@@ -803,7 +805,7 @@ include '../includes/header.php';
                     <a class="btn btn-primary" href="StudentNoVerification/review_registration.php?mode=registrar&edit=1">Edit Student Information</a>
                     <a class="btn btn-secondary" href="Registrar/registrar_dashboard.php">Back to Dashboard</a>
                 <?php else: ?>
-                    <a href="StudentNoVerification/ineeditNaregistration.php" class="btn btn-secondary">Edit Information</a>
+                    <a href="StudentNoVerification/ineeditNaregistration.php?resume=1" class="btn btn-secondary">Edit Information</a>
                     <form method="POST" action="StudentNoVerification/submit_registration.php" style="margin:0;">
                         <button type="submit" class="btn btn-primary">Submit Registration</button>
                     </form>

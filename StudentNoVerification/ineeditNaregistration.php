@@ -9,6 +9,17 @@ require_once __DIR__ . '/cleanup_expired_registrations.php';
 cleanupExpiredRegistrations($conn);
 $conn->close();
 
+$isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);
+$resumeForm = isset($_GET['resume']) && $_GET['resume'] === '1';
+
+if (!$resumeForm && !$isReturningFlow) {
+    unset(
+        $_SESSION['registration'],
+        $_SESSION['registration_returning_tag'],
+        $_SESSION['registration_previous_school_year']
+    );
+}
+
 $registration = $_SESSION['registration'] ?? [];
 $returningTag = $_SESSION['registration_returning_tag'] ?? '';
 $previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
