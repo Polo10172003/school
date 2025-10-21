@@ -27,7 +27,6 @@ $pricingOptions = [
     'regular' => 'Regular Students',
     'fwc' => 'FWC Member',
     'esc' => 'ESC / Government Subsidy',
-    'other' => 'Other / Custom',
 ];
 
 $escOnlyGrades = ['grade7', 'grade8', 'grade9', 'grade10', 'grade11', 'grade12'];
@@ -82,8 +81,7 @@ $pricingOptionsForDisplay = $restrictPricingToEsc ? ['esc' => $pricingOptions['e
 
 $studentTypeOptions = [
     'all' => 'All Students',
-    'new' => 'New Students',
-    'old' => 'Old Students',
+    
 ];
 
 if (!array_key_exists($selectedType, $studentTypeOptions)) {

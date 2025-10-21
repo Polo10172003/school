@@ -1,6 +1,7 @@
 <?php
 // Set page title
 $page_title = 'Escuela de Sto. Rosario - Home';
+$privacy_notice_always_show = true;
 
   include 'includes/header.php';
   require_once __DIR__ . '/includes/homepage_images.php';

@@ -10,6 +10,7 @@
   }
 
   const storageKey = modalElement.getAttribute('data-storage-key') || 'esr_privacy_notice_v1';
+  const forceShow = modalElement.getAttribute('data-force-show') === '1';
   const acceptedValue = 'acknowledged';
 
   const resolveStorage = () => {
@@ -82,7 +83,9 @@
     }
   };
 
-  if (!hasAccepted()) {
+  if (forceShow) {
+    scheduleDisplay();
+  } else if (!hasAccepted()) {
     scheduleDisplay();
   }
 
@@ -94,7 +97,7 @@
     });
   }
 
-  if (storage) {
+  if (storage && !forceShow) {
     window.addEventListener('storage', (event) => {
       if (event.key !== storageKey) {
         return;

@@ -207,7 +207,8 @@ require_once __DIR__ . '/../config/app.php';
          tabindex="-1"
          aria-labelledby="privacyNoticeTitle"
          aria-hidden="true"
-         data-storage-key="esr_privacy_notice_v1">
+         data-storage-key="esr_privacy_notice_v1"
+         data-force-show="<?= !empty($privacy_notice_always_show) ? '1' : '0'; ?>">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content shadow-lg border-0">
           <div class="modal-header border-0 pb-0">
