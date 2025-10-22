@@ -1577,6 +1577,11 @@ unset($finance_view_ref);
             }
         }
 
+        const studentNumberForAnnouncements = <?php echo json_encode($student_number); ?>;
+        const lastSeenAnnouncementStorageKey = studentNumberForAnnouncements
+            ? 'portal_last_seen_announcement_' + studentNumberForAnnouncements
+            : 'portal_last_seen_announcement';
+
         let inboxLoaded = false;
         let markingInboxRead = false;
         let inboxState = { items: [], unreadCount: 0 };
@@ -1935,6 +1940,26 @@ unset($finance_view_ref);
             }
         }
 
+        function getLastSeenAnnouncementId() {
+            try {
+                const raw = localStorage.getItem(lastSeenAnnouncementStorageKey);
+                const parsed = parseInt(raw, 10);
+                return Number.isFinite(parsed) ? parsed : 0;
+            } catch (error) {
+                return 0;
+            }
+        }
+
+        function setLastSeenAnnouncementId(id) {
+            try {
+                if (Number.isFinite(id) && id > 0) {
+                    localStorage.setItem(lastSeenAnnouncementStorageKey, String(id));
+                }
+            } catch (error) {
+                // ignore storage failures
+            }
+        }
+
         function openAnnouncementModal(item) {
             if (!item) {
                 return;
@@ -1943,6 +1968,8 @@ unset($finance_view_ref);
             if (!item.is_read) {
                 markInboxItemsRead([item.id]);
             }
+
+            setLastSeenAnnouncementId(item.id);
 
             if (inboxToggle && typeof bootstrap !== 'undefined') {
                 const dropdownInstance = bootstrap.Dropdown.getInstance(inboxToggle);
@@ -1995,6 +2022,20 @@ unset($finance_view_ref);
                 updateInboxBadge();
                 renderInbox();
                 inboxLoaded = true;
+
+                const shouldAutoOpen = options.autoOpen !== false;
+                if (shouldAutoOpen) {
+                    const lastSeenId = getLastSeenAnnouncementId();
+                    const latestUnread = inboxState.items.find(function (item) {
+                        return !item.is_read && Number(item.id) > 0 && Number(item.id) !== lastSeenId;
+                    });
+                    if (latestUnread) {
+                        openAnnouncementModal(latestUnread);
+                    } else if (inboxState.items.length > 0 && lastSeenId === 0) {
+                        // ensure we don't repeatedly prompt when everything is read
+                        setLastSeenAnnouncementId(inboxState.items[0].id);
+                    }
+                }
             } catch (error) {
                 console.error(error);
                 if (!options.silent) {
@@ -2021,18 +2062,18 @@ unset($finance_view_ref);
 
         if (inboxToggle) {
             inboxToggle.addEventListener('show.bs.dropdown', async function () {
-                await loadInbox({ silent: true });
+                await loadInbox({ silent: true, autoOpen: false });
                 await markAllInboxAsRead();
             });
 
             inboxToggle.addEventListener('click', function () {
                 if (!inboxLoaded) {
-                    loadInbox();
+                    loadInbox({ autoOpen: false });
                 }
             });
         }
 
-        loadInbox();
+        loadInbox({ autoOpen: true });
     });
 </script>
 
