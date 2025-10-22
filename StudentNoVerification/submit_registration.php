@@ -8,6 +8,15 @@ require_once __DIR__ . '/email_worker.php';
 cleanupExpiredRegistrations($conn);
 ensureLrnColumns($conn);
 
+if (!function_exists('registration_default_school_year')) {
+    function registration_default_school_year(): string
+    {
+        $currentYear = (int) date('Y');
+        $nextYear = $currentYear + 1;
+        return sprintf('%d-%d', $currentYear, $nextYear);
+    }
+}
+
 function ensureLrnColumns(mysqli $conn): void
 {
     $tables = ['students_registration', 'inactive_students'];
@@ -104,6 +113,14 @@ $guardian_name        = trim($data['guardian_name'] ?? '');
 $guardian_occupation  = trim($data['guardian_occupation'] ?? '');
 $lrn_raw              = trim($data['lrn'] ?? '');
 $lrn_auto_flag       = ($data['lrn_auto'] ?? '') === '1';
+
+$expectedSchoolYear = registration_default_school_year();
+if ($school_year !== $expectedSchoolYear) {
+    $_SESSION['registration_error'] = 'The school year must be set to ' . $expectedSchoolYear . '.';
+    $_SESSION['registration']['school_year'] = $expectedSchoolYear;
+    header('Location: review_registration.php');
+    exit();
+}
 
 $normalizeName = static function (string $value): string {
     $value = preg_replace('/\s+/', ' ', trim($value));

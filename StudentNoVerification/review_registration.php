@@ -13,6 +13,15 @@ $returningTag = $_SESSION['registration_returning_tag'] ?? '';
 $previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
 $returningInactiveId = $_SESSION['returning_inactive_source_id'] ?? null;
 
+if (!function_exists('registration_default_school_year')) {
+    function registration_default_school_year(): string
+    {
+        $currentYear = (int) date('Y');
+        $nextYear = $currentYear + 1;
+        return sprintf('%d-%d', $currentYear, $nextYear);
+    }
+}
+
 if ($fromRegistrar) {
     include __DIR__ . '/../db_connection.php';
 
@@ -379,6 +388,12 @@ function value(array $array, string $key): string
 $registrationError = $_SESSION['registration_error'] ?? '';
 if (isset($_SESSION['registration_error'])) {
     unset($_SESSION['registration_error']);
+}
+
+$expectedSchoolYear = registration_default_school_year();
+if (!isset($data['school_year']) || trim((string) $data['school_year']) !== $expectedSchoolYear) {
+    $data['school_year'] = $expectedSchoolYear;
+    $_SESSION['registration']['school_year'] = $expectedSchoolYear;
 }
 
 $lrnValue = trim((string) ($data['lrn'] ?? ''));

@@ -1,6 +1,15 @@
 <?php
 $page_title = 'Escuela de Sto. Rosario - Early Registration';
 
+if (!function_exists('registration_default_school_year')) {
+    function registration_default_school_year(): string
+    {
+        $currentYear = (int) date('Y');
+        $nextYear = $currentYear + 1;
+        return sprintf('%d-%d', $currentYear, $nextYear);
+    }
+}
+
 require_once __DIR__ . '/../includes/session.php';
 define('SESSION_GUARD_SKIP', true);
 
@@ -23,6 +32,12 @@ if (!$resumeForm && !$isReturningFlow) {
 }
 
 $registration = $_SESSION['registration'] ?? [];
+$expectedSchoolYear = registration_default_school_year();
+
+if (!isset($registration['school_year']) || trim((string) $registration['school_year']) !== $expectedSchoolYear) {
+    $registration['school_year'] = $expectedSchoolYear;
+    $_SESSION['registration'] = $registration;
+}
 $returningTag = $_SESSION['registration_returning_tag'] ?? '';
 $previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
 $errors = [];
@@ -150,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$school_year          = $registration['school_year'] ?? '';
+$school_year          = $registration['school_year'] ?? $expectedSchoolYear;
 $yearlevel            = $registration['yearlevel'] ?? '';
 $course               = $registration['course'] ?? '';
 $lastname             = $registration['lastname'] ?? '';
@@ -210,7 +225,8 @@ $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['r
                 <div class="form-row two-cols">
                     <div class="form-group">
                         <label for="school_year">S.Y. <span class="required">*</span></label>
-                        <input type="text" id="school_year" name="school_year" placeholder="e.g. 2024-2025" required value="<?= htmlspecialchars($school_year); ?>" class="<?= isset($errors['school_year']) ? 'is-invalid' : '' ?>">
+                        <input type="text" id="school_year" name="school_year" placeholder="e.g. 2024-2025" required value="<?= htmlspecialchars($school_year); ?>" class="<?= isset($errors['school_year']) ? 'is-invalid' : '' ?>" readonly>
+                        <small class="form-text text-muted">The school year is automatically set based on the current date.</small>
                         <?php if (isset($errors['school_year'])): ?>
                             <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['school_year']); ?></div>
                         <?php endif; ?>
