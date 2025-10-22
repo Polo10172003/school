@@ -72,13 +72,13 @@ if (!isset($_SESSION['student_number'])) {
 
 $student_number = $_SESSION['student_number'];
 
-$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender, emailaddress, schedule_sent_at, academic_status, enrollment_status, school_year
+$sql = "SELECT id, firstname, lastname, year, section, adviser, student_type, gender, emailaddress, schedule_sent_at, academic_status, enrollment_status, school_year, lrn
         FROM students_registration 
         WHERE student_number = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("s", $student_number);
 $stmt->execute();
-$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender, $student_email_portal, $schedule_sent_at, $academic_status, $enrollment_status, $student_school_year);
+$stmt->bind_result($student_id, $firstname, $lastname, $year, $section, $adviser, $student_type, $gender, $student_email_portal, $schedule_sent_at, $academic_status, $enrollment_status, $student_school_year, $student_lrn);
 $stmt->fetch();
 $stmt->close();
 
@@ -581,6 +581,9 @@ if ($gender_normalized === 'male') {
     $avatar_variant = 'female';
 }
 
+$display_student_number = $student_number !== '' ? $student_number : 'Pending';
+$display_lrn = $student_lrn !== null && $student_lrn !== '' ? $student_lrn : 'Pending';
+
 
 
 $pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
@@ -685,6 +688,16 @@ unset($finance_view_ref);
 
 $has_multiple_views = count($finance_views) > 1;
 $student_type_lower = strtolower($student_type);
+
+$activeScheduleRows = [];
+$activeScheduleMessage = '';
+foreach ($finance_views as $candidateScheduleView) {
+    if (!empty($candidateScheduleView['is_default'])) {
+        $activeScheduleRows = $candidateScheduleView['schedule_rows'] ?? [];
+        $activeScheduleMessage = $candidateScheduleView['schedule_message'] ?? '';
+        break;
+    }
+}
 
 foreach ($finance_views as &$finance_view_ref) {
     if (($finance_view_ref['key'] ?? '') !== 'previous') {
@@ -960,6 +973,8 @@ unset($finance_view_ref);
                         </div>
                         <hr class="my-4">
                         <ul class="list-unstyled profile-meta flex-grow-1">
+                            <li><i class="bi bi-hash"></i> <span>Student Number: <strong><?php echo htmlspecialchars($display_student_number); ?></strong></span></li>
+                            <li><i class="bi bi-card-text"></i> <span>LRN: <strong><?php echo htmlspecialchars($display_lrn); ?></strong></span></li>
                             <li><i class="bi bi-mortarboard"></i> <span>Grade Level: <strong><?php echo htmlspecialchars($year); ?></strong></span></li>
                             <li><i class="bi bi-people"></i> <span>Section: <strong><?php echo htmlspecialchars($display_section); ?></strong></span></li>
                             <li><i class="bi bi-person-badge"></i> <span>Adviser: <strong><?php echo htmlspecialchars($display_adviser); ?></strong></span></li>
@@ -973,9 +988,69 @@ unset($finance_view_ref);
                                 <i class="bi bi-box-arrow-right me-2"></i>Logout
                             </a>
                         </div>
-                    </div>
                 </div>
             </div>
+
+            <?php
+                $activeSchedulePreview = array_slice($activeScheduleRows, 0, 5);
+                $scheduleMessageTrimmed = trim((string) $activeScheduleMessage);
+                $hasSchedulePreview = !empty($activeSchedulePreview);
+            ?>
+            <?php if ($hasSchedulePreview || $scheduleMessageTrimmed !== ''): ?>
+                <div class="card portal-card mt-4">
+                    <div class="card-body">
+                        <h3 class="h6 fw-bold mb-3">Upcoming Payment Schedule</h3>
+                        <?php if ($hasSchedulePreview): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Due On</th>
+                                            <th scope="col" class="text-end">Amount</th>
+                                            <th scope="col">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($activeSchedulePreview as $scheduleRow): ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($scheduleRow['label'] ?? $scheduleRow['due_date'] ?? ''); ?></td>
+                                                <td class="text-end">
+                                                    <?php
+                                                        $amountDisplay = '';
+                                                        if (array_key_exists('amount_outstanding', $scheduleRow)) {
+                                                            $originalAmount = (float) ($scheduleRow['amount_original'] ?? 0);
+                                                            $outstandingAmount = (float) ($scheduleRow['amount_outstanding'] ?? 0);
+                                                            if ($outstandingAmount <= 0.009) {
+                                                                $amountDisplay = '<span class="text-success fw-semibold">Paid</span> (₱' . number_format($originalAmount, 2) . ')';
+                                                            } elseif ($originalAmount > $outstandingAmount + 0.009) {
+                                                                $amountDisplay = '₱' . number_format($outstandingAmount, 2) . ' of ₱' . number_format($originalAmount, 2) . ' remaining';
+                                                            } else {
+                                                                $amountDisplay = '₱' . number_format($outstandingAmount, 2);
+                                                            }
+                                                        } else {
+                                                            $amountDisplay = '₱' . number_format((float) ($scheduleRow['amount'] ?? 0), 2);
+                                                        }
+                                                        echo $amountDisplay;
+                                                    ?>
+                                                </td>
+                                                <td><?php echo htmlspecialchars($scheduleRow['notes'] ?? ''); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                                <?php if (count($activeScheduleRows) > count($activeSchedulePreview)): ?>
+                                    <p class="small text-muted mt-3 mb-0">View the full schedule in the finance section.</p>
+                                <?php endif; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="empty-state">
+                                <i class="bi bi-info-circle me-2"></i><?php echo htmlspecialchars($scheduleMessageTrimmed); ?>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+        </div>
 
             <div class="col-lg-8 d-flex flex-column gap-4 finance-column">
                     <?php if ($canStartPortalEnrollment): ?>

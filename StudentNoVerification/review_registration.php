@@ -11,6 +11,7 @@ $registrarId = $_SESSION['registrar_edit_student_id'] ?? null;
 $fromRegistrar = $mode === 'registrar' || ($registrarId !== null);
 $returningTag = $_SESSION['registration_returning_tag'] ?? '';
 $previousSchoolYear = $_SESSION['registration_previous_school_year'] ?? '';
+$returningInactiveId = $_SESSION['returning_inactive_source_id'] ?? null;
 
 if ($fromRegistrar) {
     include __DIR__ . '/../db_connection.php';
@@ -24,7 +25,7 @@ if ($fromRegistrar) {
     $data = $_SESSION['registration'] ?? null;
 
     if (!$data) {
-        $stmt = $conn->prepare('SELECT id, school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status FROM students_registration WHERE id = ? LIMIT 1');
+        $stmt = $conn->prepare('SELECT id, school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status, lrn FROM students_registration WHERE id = ? LIMIT 1');
         if ($stmt) {
             $stmt->bind_param('i', $studentId);
             $stmt->execute();
@@ -56,6 +57,8 @@ if ($fromRegistrar) {
                     'guardian_occupation'  => $studentRow['guardian_occupation'] ?? '',
                     'student_type'         => $studentRow['student_type'] ?? '',
                     'academic_status'      => $studentRow['academic_status'] ?? '',
+                    'lrn'                  => $studentRow['lrn'] ?? '',
+                    'lrn_auto'             => '0',
                 ];
                 $_SESSION['registration'] = $data;
                 $_SESSION['registrar_edit_original'] = $studentRow;
@@ -119,6 +122,7 @@ if ($fromRegistrar) {
             'mother_occupation'    => trim($_POST['mother_occupation'] ?? ''),
             'guardian_name'        => trim($_POST['guardian_name'] ?? ''),
             'guardian_occupation'  => trim($_POST['guardian_occupation'] ?? ''),
+            'lrn'                  => trim($_POST['lrn'] ?? ''),
         ];
 
         $required = [
@@ -133,6 +137,7 @@ if ($fromRegistrar) {
             'emailaddress'    => 'Email Address',
             'telephone'       => 'Telephone',
             'address'         => 'Address',
+            'lrn'             => 'LRN',
         ];
 
         foreach ($required as $key => $label) {
@@ -170,20 +175,53 @@ if ($fromRegistrar) {
             }
         }
 
+        if ($fields['lrn'] === '') {
+            $errors['lrn'] = 'Please provide the learner reference number.';
+        } else {
+            $lrnDigits = preg_replace('/\D+/', '', $fields['lrn']);
+            if (strlen($lrnDigits) !== 12) {
+                $errors['lrn'] = 'LRN must be exactly 12 digits.';
+            } else {
+                $fields['lrn'] = $lrnDigits;
+                $duplicateLrn = false;
+                if ($stmt = $conn->prepare('SELECT id FROM students_registration WHERE lrn = ? AND id <> ? LIMIT 1')) {
+                    $stmt->bind_param('si', $lrnDigits, $studentId);
+                    $stmt->execute();
+                    $stmt->store_result();
+                    if ($stmt->num_rows > 0) {
+                        $duplicateLrn = true;
+                    }
+                    $stmt->close();
+                }
+                if (!$duplicateLrn && ($stmt = $conn->prepare('SELECT id FROM inactive_students WHERE lrn = ? LIMIT 1'))) {
+                    $stmt->bind_param('s', $lrnDigits);
+                    $stmt->execute();
+                    $stmt->store_result();
+                    if ($stmt->num_rows > 0 && (int) $studentId !== (int) $returningInactiveId) {
+                        $duplicateLrn = true;
+                    }
+                    $stmt->close();
+                }
+                if ($duplicateLrn) {
+                    $errors['lrn'] = 'This LRN is already registered in the system.';
+                }
+            }
+        }
+
         $isSeniorHigh = ($fields['year'] === 'Grade 11' || $fields['year'] === 'Grade 12');
         if ($isSeniorHigh && $fields['course'] === '') {
             $errors['course'] = 'Select a strand for senior high students.';
         }
 
         if (empty($errors)) {
-            $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ? WHERE id = ?';
+            $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, lrn = ? WHERE id = ?';
             $stmt = $conn->prepare($updateSql);
 
             if (!$stmt) {
                 $errors['general'] = 'Unable to prepare the update statement. ' . $conn->error;
             } else {
                 $stmt->bind_param(
-                    str_repeat('s', 21) . 'i',
+                    str_repeat('s', 22) . 'i',
                     $fields['school_year'],
                     $fields['year'],
                     $fields['course'],
@@ -205,6 +243,7 @@ if ($fromRegistrar) {
                     $fields['mother_occupation'],
                     $fields['guardian_name'],
                     $fields['guardian_occupation'],
+                    $fields['lrn'],
                     $studentId
                 );
 
@@ -341,6 +380,12 @@ $registrationError = $_SESSION['registration_error'] ?? '';
 if (isset($_SESSION['registration_error'])) {
     unset($_SESSION['registration_error']);
 }
+
+$lrnValue = trim((string) ($data['lrn'] ?? ''));
+$lrnAutoFlag = (($data['lrn_auto'] ?? '') === '1');
+$lrnDisplay = $lrnAutoFlag
+    ? 'Will be generated automatically upon submission.'
+    : ($lrnValue !== '' ? $lrnValue : 'Not provided');
 
 $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);
 
@@ -636,6 +681,10 @@ include '../includes/header.php';
                             <input type="text" id="telephone" name="telephone" value="<?= value($data, 'telephone'); ?>" required inputmode="numeric" pattern="\d{11}" minlength="11" maxlength="11">
                         </div>
                         <div class="form-field">
+                            <label for="lrn">Learner Reference Number (LRN)<span class="text-danger">*</span></label>
+                            <input type="text" id="lrn" name="lrn" value="<?= value($data, 'lrn'); ?>" required inputmode="numeric" pattern="\d{12}" maxlength="12">
+                        </div>
+                        <div class="form-field">
                             <label for="emailaddress">Email Address<span class="text-danger">*</span></label>
                             <input type="email" id="emailaddress" name="emailaddress" value="<?= value($data, 'emailaddress'); ?>" required>
                         </div>
@@ -728,6 +777,7 @@ include '../includes/header.php';
                 <div class="details-grid">
                     <div class="detail-item"><span class="label">School Year</span><span class="value"><?= value($data, 'school_year'); ?></span></div>
                     <div class="detail-item"><span class="label">Grade Level</span><span class="value"><?= value($data, 'yearlevel'); ?></span></div>
+                    <div class="detail-item"><span class="label">Learner Reference Number (LRN)</span><span class="value"><?= htmlspecialchars($lrnDisplay, ENT_QUOTES, 'UTF-8'); ?></span></div>
                 <div class="detail-item"><span class="label">Strand</span><span class="value"><?= value($data, 'course'); ?></span></div>
                 <?php if ($fromRegistrar): ?>
                     <div class="detail-item"><span class="label">Student Type</span><span class="value"><?= value($data, 'student_type'); ?></span></div>

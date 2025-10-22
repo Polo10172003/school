@@ -10,6 +10,8 @@ cleanupExpiredRegistrations($conn);
 $conn->close();
 
 $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);
+$returningSourceId = $_SESSION['returning_source_id'] ?? null;
+$returningInactiveId = $_SESSION['returning_inactive_source_id'] ?? null;
 $resumeForm = isset($_GET['resume']) && $_GET['resume'] === '1';
 
 if (!$resumeForm && !$isReturningFlow) {
@@ -30,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'school_year','yearlevel','course','lastname','firstname','middlename','gender','dob',
         'religion','emailaddress','telephone','address','last_school_attended','academic_honors',
         'father_name','father_occupation','mother_name','mother_occupation','guardian_name','guardian_occupation',
-        'privacy_consent'
+        'lrn','privacy_consent'
     ];
 
     $payload = [];
@@ -43,6 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $registration = array_merge($registration, $payload);
+    if (!isset($registration['lrn_auto'])) {
+        $registration['lrn_auto'] = '0';
+    }
 
     $requiredFields = [
         'school_year'   => 'Please enter the school year.',
@@ -86,6 +91,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    $selectedYearLevel = $registration['yearlevel'] ?? '';
+    $lrnRawInput = trim((string) ($registration['lrn'] ?? ''));
+    if (strcasecmp($selectedYearLevel, 'Pre-Prime 1') === 0) {
+        $registration['lrn_auto'] = '1';
+        $registration['lrn'] = '';
+    } else {
+        $registration['lrn_auto'] = '0';
+        $lrnDigits = preg_replace('/\D+/', '', $lrnRawInput);
+        if ($lrnDigits === '') {
+            $errors['lrn'] = 'Please enter the learner reference number (12 digits).';
+        } elseif (strlen($lrnDigits) !== 12) {
+            $errors['lrn'] = 'LRN must be exactly 12 digits.';
+        } else {
+            $registration['lrn'] = $lrnDigits;
+            $duplicateLrn = false;
+            include __DIR__ . '/../db_connection.php';
+            if ($conn instanceof mysqli) {
+                if ($stmt = $conn->prepare('SELECT id FROM students_registration WHERE lrn = ? LIMIT 1')) {
+                    $stmt->bind_param('s', $lrnDigits);
+                    $stmt->execute();
+                    $stmt->bind_result($existingId);
+                    if ($stmt->fetch()) {
+                        if (!$isReturningFlow || ((int) $existingId !== (int) $returningSourceId)) {
+                            $duplicateLrn = true;
+                        }
+                    }
+                    $stmt->close();
+                }
+                if (!$duplicateLrn && ($stmt = $conn->prepare('SELECT id FROM inactive_students WHERE lrn = ? LIMIT 1'))) {
+                    $stmt->bind_param('s', $lrnDigits);
+                    $stmt->execute();
+                    $stmt->bind_result($existingInactiveId);
+                    if ($stmt->fetch()) {
+                        if (!$isReturningFlow || ((int) $existingInactiveId !== (int) $returningInactiveId)) {
+                            $duplicateLrn = true;
+                        }
+                    }
+                    $stmt->close();
+                }
+                $conn->close();
+            }
+            if ($duplicateLrn) {
+                $errors['lrn'] = 'This LRN is already registered in our system. Please double-check the number.';
+            }
+        }
+    }
+
     $_SESSION['registration'] = $registration;
 
     if (($registration['privacy_consent'] ?? '') !== '1') {
@@ -119,6 +171,8 @@ $mother_occupation    = $registration['mother_occupation'] ?? '';
 $guardian_name        = $registration['guardian_name'] ?? '';
 $guardian_occupation  = $registration['guardian_occupation'] ?? '';
 $privacy_consent      = $registration['privacy_consent'] ?? '';
+$lrn                  = $registration['lrn'] ?? '';
+$lrn_auto             = $registration['lrn_auto'] ?? '0';
 
 include __DIR__ . '/../includes/header.php';
 
@@ -181,6 +235,28 @@ $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['r
                         <?php endif; ?>
                     </div>
                 </div>
+
+                <div class="form-row">
+                    <div class="form-group" id="lrnGroup" style="<?= $lrn_auto === '1' ? 'display:none;' : ''; ?>">
+                        <label for="lrn">Learner Reference Number (LRN) <span class="required">*</span></label>
+                        <input type="text"
+                               id="lrn"
+                               name="lrn"
+                               inputmode="numeric"
+                               pattern="\d{12}"
+                               maxlength="12"
+                               autocomplete="off"
+                               value="<?= htmlspecialchars($lrn); ?>"
+                               class="<?= isset($errors['lrn']) ? 'is-invalid' : ''; ?>">
+                        <small class="form-text text-muted">Enter the 12-digit LRN assigned by DepEd.</small>
+                        <?php if (isset($errors['lrn'])): ?>
+                            <div class="invalid-feedback d-block"><?= htmlspecialchars($errors['lrn']); ?></div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <p class="form-text text-muted" id="lrnAutoMessage" style="<?= $lrn_auto === '1' ? '' : 'display:none;'; ?>">
+                    For Pre-Prime 1 learners, the system will generate an LRN automatically.
+                </p>
 
                 <div class="form-row" id="courseGroup" style="display: none;">
                     <div class="form-group">
@@ -388,19 +464,50 @@ $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['r
         const yearLevel = document.getElementById('yearlevel');
         const courseGroup = document.getElementById('courseGroup');
         const courseSelect = document.getElementById('course');
+        const lrnGroup = document.getElementById('lrnGroup');
+        const lrnInput = document.getElementById('lrn');
+        const lrnAutoMessage = document.getElementById('lrnAutoMessage');
 
         function toggleCourseField() {
             const level = yearLevel.value;
             const needsCourse = level === 'Grade 11' || level === 'Grade 12';
-            courseGroup.style.display = needsCourse ? 'block' : 'none';
-            courseSelect.required = needsCourse;
-            if (!needsCourse) {
-                courseSelect.value = '';
+            if (courseGroup) {
+                courseGroup.style.display = needsCourse ? 'block' : 'none';
+            }
+            if (courseSelect) {
+                courseSelect.required = needsCourse;
+                if (!needsCourse) {
+                    courseSelect.value = '';
+                }
             }
         }
 
-        yearLevel.addEventListener('change', toggleCourseField);
+        function toggleLrnField() {
+            const level = yearLevel.value;
+            const autoGenerate = level === 'Pre-Prime 1';
+            if (lrnGroup) {
+                lrnGroup.style.display = autoGenerate ? 'none' : '';
+            }
+            if (lrnInput) {
+                lrnInput.required = !autoGenerate;
+                if (autoGenerate) {
+                    lrnInput.value = '';
+                }
+            }
+            if (lrnAutoMessage) {
+                lrnAutoMessage.style.display = autoGenerate ? 'block' : 'none';
+            }
+        }
+
+        if (yearLevel) {
+            yearLevel.addEventListener('change', function () {
+                toggleCourseField();
+                toggleLrnField();
+            });
+        }
+
         toggleCourseField();
+        toggleLrnField();
     });
 </script>
 

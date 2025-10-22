@@ -617,7 +617,7 @@ if ($transactionLogTableExists) {
     <section class="dashboard-card" id="announcements">
       <span class="dashboard-section-title">Communication</span>
       <h2>Post Announcement</h2>
-      <form class="dashboard-form" action="submit_announcement.php" method="POST" enctype="multipart/form-data">
+      <form id="announcementForm" class="dashboard-form" action="submit_announcement.php" method="POST" enctype="multipart/form-data">
         <label for="subject">Subject</label>
         <input type="text" name="subject" required>
 
@@ -1470,6 +1470,20 @@ unset($sections);
     printWindow.print();
     printWindow.close();
   }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var announcementForm = document.getElementById('announcementForm');
+    if (!announcementForm) {
+      return;
+    }
+
+    announcementForm.addEventListener('submit', function (event) {
+      var confirmed = confirm('Send this announcement now? Emails will be dispatched to the selected recipients.');
+      if (!confirmed) {
+        event.preventDefault();
+      }
+    });
+  });
 </script>
 <script>
   (function () {

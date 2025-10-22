@@ -6,6 +6,72 @@ require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/cleanup_expired_registrations.php';
 require_once __DIR__ . '/email_worker.php';
 cleanupExpiredRegistrations($conn);
+ensureLrnColumns($conn);
+
+function ensureLrnColumns(mysqli $conn): void
+{
+    $tables = ['students_registration', 'inactive_students'];
+    foreach ($tables as $table) {
+        $result = $conn->query("SHOW COLUMNS FROM {$table} LIKE 'lrn'");
+        if ($result && $result->num_rows === 0) {
+            $conn->query("ALTER TABLE {$table} ADD COLUMN lrn VARCHAR(12) DEFAULT NULL AFTER student_number");
+        }
+        if ($result instanceof mysqli_result) {
+            $result->close();
+        }
+    }
+}
+
+function lrnExists(mysqli $conn, string $lrn, ?int $excludeActiveId = null, ?int $excludeInactiveId = null): bool
+{
+    if ($lrn === '') {
+        return false;
+    }
+
+    $duplicate = false;
+    if ($stmt = $conn->prepare('SELECT id FROM students_registration WHERE lrn = ? LIMIT 1')) {
+        $stmt->bind_param('s', $lrn);
+        $stmt->execute();
+        $stmt->bind_result($existingId);
+        if ($stmt->fetch()) {
+            if ($excludeActiveId === null || (int) $existingId !== (int) $excludeActiveId) {
+                $duplicate = true;
+            }
+        }
+        $stmt->close();
+    }
+
+    if (!$duplicate && ($stmt = $conn->prepare('SELECT id FROM inactive_students WHERE lrn = ? LIMIT 1'))) {
+        $stmt->bind_param('s', $lrn);
+        $stmt->execute();
+        $stmt->bind_result($existingInactiveId);
+        if ($stmt->fetch()) {
+            if ($excludeInactiveId === null || (int) $existingInactiveId !== (int) $excludeInactiveId) {
+                $duplicate = true;
+            }
+        }
+        $stmt->close();
+    }
+
+    return $duplicate;
+}
+
+function generateUniqueLrn(mysqli $conn, int $maxAttempts = 50): string
+{
+    for ($attempt = 0; $attempt < $maxAttempts; $attempt++) {
+        try {
+            $candidate = (string) random_int(100000000000, 999999999999);
+        } catch (Throwable $e) {
+            $candidate = (string) mt_rand(100000000000, 999999999999);
+        }
+
+        if (!lrnExists($conn, $candidate, null, null)) {
+            return $candidate;
+        }
+    }
+
+    throw new RuntimeException('Unable to generate a unique LRN after multiple attempts.');
+}
 
 $data = $_SESSION['registration'] ?? null;
 if (!$data) {
@@ -36,6 +102,8 @@ $mother_name          = trim($data['mother_name'] ?? '');
 $mother_occupation    = trim($data['mother_occupation'] ?? '');
 $guardian_name        = trim($data['guardian_name'] ?? '');
 $guardian_occupation  = trim($data['guardian_occupation'] ?? '');
+$lrn_raw              = trim($data['lrn'] ?? '');
+$lrn_auto_flag       = ($data['lrn_auto'] ?? '') === '1';
 
 $normalizeName = static function (string $value): string {
     $value = preg_replace('/\s+/', ' ', trim($value));
@@ -221,13 +289,39 @@ if (!$isReturningFlow) {
     }
 }
 
+try {
+    if ($lrn_auto_flag) {
+        $lrn_final = generateUniqueLrn($conn);
+    } else {
+        $lrn_digits = preg_replace('/\D+/', '', $lrn_raw);
+        if ($lrn_digits === '' || strlen($lrn_digits) !== 12) {
+            $_SESSION['registration_error'] = 'LRN must be exactly 12 digits.';
+            header('Location: review_registration.php');
+            exit();
+        }
+        if (lrnExists($conn, $lrn_digits, $returningSourceId, $returningInactiveId)) {
+            $_SESSION['registration_error'] = 'This LRN is already registered in our system. Please double-check the number.';
+            header('Location: review_registration.php');
+            exit();
+        }
+        $lrn_final = $lrn_digits;
+    }
+} catch (Throwable $lrnException) {
+    $_SESSION['registration_error'] = 'We were unable to assign an LRN automatically. Please try submitting again or contact the registrar.';
+    header('Location: review_registration.php');
+    exit();
+}
+
+$_SESSION['registration']['lrn'] = $lrn_final;
+$_SESSION['registration']['lrn_auto'] = '0';
+
 if ($returningSourceId) {
-    $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, academic_status = ?, section = NULL, adviser = NULL, schedule_sent_at = NULL WHERE id = ?';
+    $updateSql = 'UPDATE students_registration SET school_year = ?, year = ?, course = ?, student_type = ?, lastname = ?, firstname = ?, middlename = ?, gender = ?, dob = ?, religion = ?, emailaddress = ?, telephone = ?, address = ?, last_school_attended = ?, academic_honors = ?, father_name = ?, father_occupation = ?, mother_name = ?, mother_occupation = ?, guardian_name = ?, guardian_occupation = ?, academic_status = ?, lrn = ?, section = NULL, adviser = NULL, schedule_sent_at = NULL WHERE id = ?';
     $stmt = $conn->prepare($updateSql);
     if (!$stmt) {
         die('Prepare failed: ' . $conn->error);
     }
-    $typeString = str_repeat('s', 22) . 'i';
+    $typeString = str_repeat('s', 23) . 'i';
     $stmt->bind_param(
         $typeString,
         $school_year,
@@ -252,6 +346,7 @@ if ($returningSourceId) {
         $guardian_name,
         $guardian_occupation,
         $academic_status,
+        $lrn_final,
         $returningSourceId
     );
     if (!$stmt->execute()) {
@@ -261,8 +356,8 @@ if ($returningSourceId) {
     $student_id = $returningSourceId;
 } else {
     $sql = 'INSERT INTO students_registration 
-        (school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        (school_year, year, course, student_type, lastname, firstname, middlename, gender, dob, religion, emailaddress, telephone, address, last_school_attended, academic_honors, father_name, father_occupation, mother_name, mother_occupation, guardian_name, guardian_occupation, academic_status, lrn)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
 
     $stmt = $conn->prepare($sql);
     if (!$stmt) {
@@ -270,7 +365,7 @@ if ($returningSourceId) {
     }
 
     $stmt->bind_param(
-        'ssssssssssssssssssssss',
+        'sssssssssssssssssssssss',
         $school_year,
         $yearlevel,
         $course,
@@ -292,7 +387,8 @@ if ($returningSourceId) {
         $mother_occupation,
         $guardian_name,
         $guardian_occupation,
-        $academic_status
+        $academic_status,
+        $lrn_final
     );
 
     if (!$stmt->execute()) {
