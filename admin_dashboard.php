@@ -410,6 +410,47 @@ if ($resultSchedules = $conn->query($scheduleSql)) {
 }
 
 $adviserAssignments = adviser_assignments_fetch($conn);
+
+$transactionLogs = [];
+$transactionLogError = '';
+$transactionLogTableExists = false;
+
+$logTableCheck = $conn->query("SHOW TABLES LIKE 'transaction_logs'");
+if ($logTableCheck instanceof mysqli_result) {
+  $transactionLogTableExists = $logTableCheck->num_rows > 0;
+  $logTableCheck->close();
+} elseif ($logTableCheck === true) {
+  $transactionLogTableExists = true;
+}
+
+if ($transactionLogTableExists) {
+  $logResult = $conn->query('SELECT id, occurred_at, actor_username, actor_fullname, actor_role, category, action, target_type, target_id, description, metadata FROM transaction_logs ORDER BY occurred_at DESC LIMIT 200');
+  if ($logResult instanceof mysqli_result) {
+    while ($logRow = $logResult->fetch_assoc()) {
+      $metadataRaw = $logRow['metadata'] ?? '';
+      $metadataPreview = '';
+      if ($metadataRaw !== '' && $metadataRaw !== null) {
+        $decodedMeta = json_decode($metadataRaw, true);
+        if (is_array($decodedMeta)) {
+          $previewSlice = array_slice($decodedMeta, 0, 5, true);
+          $metadataPreview = json_encode($previewSlice, JSON_UNESCAPED_SLASHES);
+        } else {
+          $metadataPreview = (string) $metadataRaw;
+        }
+        if ($metadataPreview !== null && strlen($metadataPreview) > 140) {
+          $metadataPreview = substr($metadataPreview, 0, 137) . '...';
+        }
+      }
+      $logRow['metadata_preview'] = $metadataPreview;
+      $transactionLogs[] = $logRow;
+    }
+    $logResult->close();
+  } else {
+    $transactionLogError = 'Unable to load transaction logs at this time.';
+  }
+} else {
+  $transactionLogError = 'Transaction log table not found. Run the provided SQL migration to enable logging.';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -430,6 +471,7 @@ $adviserAssignments = adviser_assignments_fetch($conn);
       <a href="#stats">Statistics</a>
       <a href="#announcements">Announcements</a>
       <a href="#users">User Management</a>
+      <a href="#transactions">Transactions</a>
       <a href="#schedules">Class Schedules</a>
       <a href="#homepage-images">Homepage Images</a>
       <a href="#students">Student Tools</a>
@@ -570,6 +612,90 @@ $adviserAssignments = adviser_assignments_fetch($conn);
         <p class="text-muted" style="margin-top:16px;">No users have been added yet.</p>
       <?php endif; ?>
     </section>
+
+    <section class="dashboard-card" id="transactions">
+      <span class="dashboard-section-title">Audit Trail</span>
+      <h2>Transaction Log</h2>
+      <p class="text-muted" style="margin-bottom:1rem;">Review the most recent cashier and registrar actions. Entries include up to the last 200 events.</p>
+      <?php if ($transactionLogError !== ''): ?>
+        <div class="dashboard-alert error"><?= htmlspecialchars($transactionLogError) ?></div>
+      <?php elseif (empty($transactionLogs)): ?>
+        <div class="dashboard-alert info">No staff transactions have been logged yet.</div>
+      <?php else: ?>
+        <div class="admin-management-table-wrapper">
+          <table class="admin-management-table">
+            <thead>
+              <tr>
+                <th style="width:17%;">When</th>
+                <th style="width:22%;">Actor</th>
+                <th style="width:18%;">Action</th>
+                <th style="width:18%;">Entity</th>
+                <th style="width:25%;">Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php foreach ($transactionLogs as $log):
+                $occurredAt = $log['occurred_at'] ?? '';
+                $whenLabel = $occurredAt !== '' ? date('M d, Y g:i A', strtotime($occurredAt)) : '—';
+                $actorName = trim((string) ($log['actor_fullname'] ?? ''));
+                if ($actorName === '') {
+                  $actorName = trim((string) ($log['actor_username'] ?? ''));
+                }
+                if ($actorName === '') {
+                  $actorName = 'Unknown';
+                }
+                $actorRole = trim((string) ($log['actor_role'] ?? ''));
+                $actorUsername = trim((string) ($log['actor_username'] ?? ''));
+                $actionLabel = trim((string) ($log['action'] ?? ''));
+                if ($actionLabel !== '') {
+                  $actionLabel = ucwords(str_replace(['_', '-'], ' ', $actionLabel));
+                } else {
+                  $actionLabel = 'Action';
+                }
+                $targetType = trim((string) ($log['target_type'] ?? ''));
+                $targetId = trim((string) ($log['target_id'] ?? ''));
+                $entityParts = [];
+                if ($targetType !== '') {
+                  $entityParts[] = $targetType;
+                }
+                if ($targetId !== '') {
+                  $entityParts[] = '#' . $targetId;
+                }
+                $entityLabel = implode(' ', $entityParts);
+                $description = trim((string) ($log['description'] ?? ''));
+                $metadataPreview = trim((string) ($log['metadata_preview'] ?? ''));
+              ?>
+                <tr>
+                  <td><?= htmlspecialchars($whenLabel) ?></td>
+                  <td>
+                    <div style="display:flex;flex-direction:column;">
+                      <strong><?= htmlspecialchars($actorName) ?></strong>
+                      <?php if ($actorRole !== ''): ?>
+                        <span class="text-muted" style="font-size:12px;"><?= htmlspecialchars($actorRole) ?></span>
+                      <?php endif; ?>
+                      <?php if ($actorUsername !== '' && strcasecmp($actorUsername, $actorName) !== 0): ?>
+                        <span class="text-muted" style="font-size:12px;">@<?= htmlspecialchars($actorUsername) ?></span>
+                      <?php endif; ?>
+                    </div>
+                  </td>
+                  <td><?= htmlspecialchars($actionLabel) ?></td>
+                  <td><?= htmlspecialchars($entityLabel !== '' ? $entityLabel : '—') ?></td>
+                  <td>
+                    <?php if ($description !== ''): ?>
+                      <div><?= htmlspecialchars($description) ?></div>
+                    <?php endif; ?>
+                    <?php if ($metadataPreview !== ''): ?>
+                      <code style="display:block;margin-top:4px;font-size:11px;white-space:pre-wrap;"><?= htmlspecialchars($metadataPreview) ?></code>
+                    <?php endif; ?>
+                  </td>
+                </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endif; ?>
+    </section>
+
     <section class="dashboard-card" id="schedules">
       <span class="dashboard-section-title">Schedule Planner</span>
       <h2>Class Schedules &amp; Section Advisers</h2>

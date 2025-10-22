@@ -578,7 +578,7 @@ if (!function_exists('cashier_email_worker_process')) {
                             <td style='padding:8px; border:1px solid #e6b0aa;'>" . htmlspecialchars($dateProcessed, ENT_QUOTES) . "</td>
                         </tr>
                         <tr>
-                            <td style='padding:8px; border:1px solid #e6b0aa; background:#f9e5e3;'><strong>Submitted OR / Reference</strong></td>
+                            <td style='padding:8px; border:1px solid #e6b0aa; background:#f9e5e3;'><strong>Submitted Transaction / Reference</strong></td>
                             <td style='padding:8px; border:1px solid #e6b0aa;'>" . htmlspecialchars($submittedReference, ENT_QUOTES) . "</td>
                         </tr>
                     </table>
@@ -623,7 +623,7 @@ if (!function_exists('cashier_email_worker_process')) {
                             <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($dateProcessed, ENT_QUOTES) . "</td>
                         </tr>
                         <tr>
-                            <td style='padding:6px; border:1px solid #ccc;'><strong>OR Number</strong></td>
+                            <td style='padding:6px; border:1px solid #ccc;'><strong>Transaction No.</strong></td>
                             <td style='padding:6px; border:1px solid #ccc;'>" . htmlspecialchars($or_number ?? 'N/A', ENT_QUOTES) . "</td>
                         </tr>
                     </table>

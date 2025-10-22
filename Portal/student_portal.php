@@ -1445,7 +1445,7 @@ unset($finance_view_ref);
                                                                 <div>Ref: <?php echo htmlspecialchars($reference_number); ?></div>
                                                             <?php endif; ?>
                                                             <?php if ($or_number): ?>
-                                                                <div>OR: <?php echo htmlspecialchars($or_number); ?></div>
+                                                                <div>Transaction #: <?php echo htmlspecialchars($or_number); ?></div>
                                                             <?php endif; ?>
                                                             <?php if (!$reference_number && !$or_number): ?>
                                                                 <span class="text-muted">N/A</span>
@@ -1498,7 +1498,7 @@ unset($finance_view_ref);
                                                                 <div>Ref: <?php echo htmlspecialchars($reference_number); ?></div>
                                                             <?php endif; ?>
                                                             <?php if ($or_number): ?>
-                                                                <div>OR: <?php echo htmlspecialchars($or_number); ?></div>
+                                                                <div>Transaction #: <?php echo htmlspecialchars($or_number); ?></div>
                                                             <?php endif; ?>
                                                             <?php if (!$reference_number && !$or_number): ?>
                                                                 <span class="text-muted">N/A</span>

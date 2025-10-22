@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/section_assignment.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
@@ -121,11 +122,11 @@ function cashier_dashboard_plan_order(string $plan): int
 }
 
 /**
- * Generate a unique official receipt number for onsite cash payments.
+ * Generate a unique transaction number for onsite cash payments.
  */
-function cashier_generate_or_number(mysqli $conn): string
+function cashier_generate_transaction_number(mysqli $conn): string
 {
-    $prefix = 'OR-' . date('Ymd') . '-';
+    $prefix = 'TXN-' . date('Ymd') . '-';
     $attempts = 0;
     $maxAttempts = 10;
 
@@ -1022,7 +1023,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     $autoGenerateOr = ($onsitePaymentFlag && strcasecmp($payment_type, 'Cash') === 0) || $isSubsidyPayment;
     $generatedOrNumber = null;
     if ($autoGenerateOr) {
-        $generatedOrNumber = cashier_generate_or_number($conn);
+        $generatedOrNumber = cashier_generate_transaction_number($conn);
         $or_number = $generatedOrNumber;
     }
 
@@ -1186,8 +1187,8 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             $message = 'Payment applied fully to past due balance. Remaining enrollment dues are unchanged.';
             $flashTypeOverride = 'info';
         } elseif (!$autoGenerateOr && strcasecmp($payment_type, 'Cash') === 0 && ($or_number === null)) {
-            error_log('[cashier] validation failed: missing OR number');
-            $message = 'Official receipt number is required for cash payments.';
+            error_log('[cashier] validation failed: missing transaction number');
+            $message = 'Transaction number is required for cash payments.';
         } elseif (strcasecmp($payment_type, 'Cash') !== 0 && ($reference_number === null)) {
             error_log('[cashier] validation failed: missing reference number');
             $message = 'Reference number is required for non-cash payments.';
@@ -1492,6 +1493,70 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
 
             cashier_assign_section_if_needed($conn, (int) $student_id);
 
+            $logPaymentIds = [];
+            if ($recordedPaymentId) {
+                $logPaymentIds[] = (int) $recordedPaymentId;
+            }
+            if (!empty($receiptCandidateIds)) {
+                foreach ($receiptCandidateIds as $candidateId) {
+                    $candidateInt = (int) $candidateId;
+                    if ($candidateInt > 0) {
+                        $logPaymentIds[] = $candidateInt;
+                    }
+                }
+            }
+
+            if (!empty($logPaymentIds)) {
+                $logPaymentIds = array_values(array_unique($logPaymentIds));
+            }
+
+            $logAction = $isSubsidyPayment ? 'subsidy_recorded' : 'payment_recorded';
+            $logDescription = $isSubsidyPayment
+                ? sprintf(
+                    'Recorded subsidy for %s %s (student #%d).',
+                    $firstname ?? '',
+                    $lastname ?? '',
+                    $student_id
+                )
+                : sprintf(
+                    'Recorded %s payment of ₱%s for %s %s (student #%d).',
+                    strtolower($payment_type ?: 'payment'),
+                    number_format((float) $original_amount, 2),
+                    $firstname ?? '',
+                    $lastname ?? '',
+                    $student_id
+                );
+
+            $logMetadata = [
+                'student_id'              => $student_id,
+                'student_number'          => $student_number,
+                'payment_type'            => $payment_type,
+                'pricing_category'        => $plan_context['pricing_category'] ?? null,
+                'tuition_fee_id'          => $plan_context['tuition_fee_id'] ?? null,
+                'submitted_amount'        => (float) $original_amount,
+                'applied_amount'          => (float) max(0.0, $original_amount - $amount),
+                'carry_applied'           => (float) $carry_applied,
+                'past_due_applied'        => (float) $pastDueApplied,
+                'remaining_amount'        => (float) $amount,
+                'auto_generated_receipt'  => $autoGenerateOr,
+                'transaction_number'      => $or_number,
+                'reference_number'        => $reference_number,
+                'plan_key'                => $posted_plan,
+                'subsidy_payment'         => $isSubsidyPayment,
+                'onsite_payment'          => $onsitePaymentFlag,
+                'payment_ids'             => $logPaymentIds,
+            ];
+
+            transaction_log_record($conn, [
+                'category'    => 'payment',
+                'action'      => $logAction,
+                'target_type' => 'student',
+                'target_id'   => (string) $student_id,
+                'description' => trim(preg_replace('/\s+/', ' ', $logDescription)),
+                'metadata'    => $logMetadata,
+                'context'     => 'cashier',
+            ]);
+
             if (isset($recordedPaymentId)) {
                 if (!function_exists('cashier_email_worker_process')) {
                     require_once __DIR__ . '/email_worker.php';
@@ -1566,8 +1631,8 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
     if ($saveSuccess && $autoGenerateOr && $recordedPaymentId) {
         $_SESSION['cashier_receipt_payment_id'] = $recordedPaymentId;
     }
-    if ($saveSuccess && $autoGenerateOr && $or_number !== null && strpos($message, 'OR#') === false) {
-        $message .= ' OR# ' . $or_number . ' generated.';
+    if ($saveSuccess && $autoGenerateOr && $or_number !== null && stripos($message, 'Transaction #') === false) {
+        $message .= ' Transaction # ' . $or_number . ' generated.';
     }
 
     if ($message !== '') {

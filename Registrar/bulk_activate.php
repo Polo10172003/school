@@ -1,5 +1,6 @@
 <?php
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 
 // Decode JSON request (from fetch)
 $input = json_decode(file_get_contents("php://input"), true);
@@ -8,6 +9,8 @@ $student_ids = $input['student_ids'] ?? ($_POST['student_ids'] ?? []);
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
     $successCount = 0;
     $errors = [];
+    $activatedStudents = [];
+    $failedStudents = [];
 
     foreach ($student_ids as $student_id) {
         $student_id = intval($student_id);
@@ -20,6 +23,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
 
         if ($result->num_rows === 0) {
             $errors[] = "Invalid or not enrolled (ID: $student_id)";
+            $failedStudents[] = [
+                'id'     => $student_id,
+                'reason' => 'not_enrolled',
+            ];
             continue;
         }
 
@@ -29,12 +36,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
         $email = $student['emailaddress'];
         $year  = $student['year'];
         $strand = $student['course'];
+        $studentNumber = $student['student_number'] ?? null;
 
         // ✅ Ensure student_accounts exists
         $check = $conn->prepare("SELECT id FROM student_accounts WHERE email = ?");
         $check->bind_param("s", $email);
         $check->execute();
         $checkResult = $check->get_result();
+        $accountExisted = $checkResult->num_rows > 0;
 
         if ($checkResult->num_rows === 0) {
             // Get student info from students_registration
@@ -103,14 +112,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($student_ids)) {
             }
         }
 
+        $activatedStudents[] = [
+            'id'              => $student_id,
+            'email'           => $email,
+            'student_number'  => $studentNumber,
+            'year_level'      => $year,
+            'strand'          => $strand,
+            'account_existed' => $accountExisted,
+            'email_dispatched'=> $emailDispatched,
+        ];
+
 
         $successCount++;
     }
 
+    transaction_log_record($conn, [
+        'category'    => 'portal',
+        'action'      => 'bulk_portal_activation',
+        'target_type' => 'student_batch',
+        'description' => sprintf('Activated portal access for %d students via bulk action.', $successCount),
+        'metadata'    => [
+            'requested_ids' => array_map('intval', $student_ids),
+            'activated'     => $activatedStudents,
+            'errors'        => $errors,
+            'failed'        => $failedStudents,
+        ],
+        'context'     => 'registrar',
+    ]);
+
     echo json_encode([
         "success" => true,
         "activated" => count($student_ids),
-        "errors" => []
+        "errors" => $errors
     ]);
     exit();
 }

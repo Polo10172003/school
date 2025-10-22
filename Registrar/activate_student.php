@@ -5,6 +5,7 @@ use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 
 if (isset($_GET['id'])) {
     $student_id = $_GET['id'];
@@ -37,6 +38,27 @@ if (isset($_GET['id'])) {
                  $upd->bind_param("i", $student_id);
                  $upd->execute();
                  $upd->close();
+
+                $studentFullName = trim(($student['firstname'] ?? '') . ' ' . ($student['lastname'] ?? ''));
+                if ($studentFullName === '') {
+                    $studentFullName = 'Student #' . $student_id;
+                }
+                transaction_log_record($conn, [
+                    'category'    => 'portal',
+                    'action'      => 'student_portal_activated',
+                    'target_type' => 'student',
+                    'target_id'   => (string) $student_id,
+                    'description' => sprintf('Activated portal access for %s.', $studentFullName),
+                    'metadata'    => [
+                        'student_id'            => $student_id,
+                        'student_number'        => $student['student_number'] ?? null,
+                        'email'                 => $email,
+                        'previous_portal_status'=> $student['portal_status'] ?? null,
+                        'enrollment_status'     => $student['enrollment_status'] ?? null,
+                        'account_created'       => true,
+                    ],
+                    'context'     => 'registrar',
+                ]);
 
 
                 // Send email notification
@@ -78,6 +100,19 @@ if (isset($_GET['id'])) {
                     echo "<script>alert('Student account activated and email sent!'); window.location.href = 'registrar_dashboard.php';</script>";
                 } catch (Exception $e) {
                     $message = addslashes($e->getMessage());
+                    transaction_log_record($conn, [
+                        'category'    => 'portal',
+                        'action'      => 'portal_activation_email_failed',
+                        'target_type' => 'student',
+                        'target_id'   => (string) $student_id,
+                        'description' => sprintf('Email notification failed after activating %s.', $studentFullName),
+                        'metadata'    => [
+                            'student_id'      => $student_id,
+                            'email'           => $email,
+                            'error'           => $e->getMessage(),
+                        ],
+                        'context'     => 'registrar',
+                    ]);
                     echo "<script>alert('Account activated, but email could not be sent. Mailer Error: {$message}'); window.location.href = 'registrar_dashboard.php';</script>";
                 }
             } else {

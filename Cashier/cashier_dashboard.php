@@ -273,11 +273,11 @@ if ($receiptPaymentId) {
       <div class="receipt-card">
         <div class="receipt-header">
           <div>
-            <h1>Official Receipt</h1>
+            <h1>Transaction Receipt</h1>
             <div>Onsite Payment Processing</div>
           </div>
           <div class="receipt-meta">
-            <div><strong>OR #:</strong> {{or_number}}</div>
+            <div><strong>Transaction No.:</strong> {{or_number}}</div>
             <div><strong>Date:</strong> {{payment_date}}</div>
             <div><strong>Generated:</strong> {{generated_at}}</div>
           </div>
@@ -668,7 +668,7 @@ if ($receiptPaymentId) {
                                     <div>Ref: <?= htmlspecialchars($pendingRow['reference_number']) ?></div>
                                   <?php endif; ?>
                                   <?php if (!empty($pendingRow['or_number'])): ?>
-                                    <div>OR#: <?= htmlspecialchars($pendingRow['or_number']) ?></div>
+                                    <div>Transaction #: <?= htmlspecialchars($pendingRow['or_number']) ?></div>
                                   <?php endif; ?>
                                   <?php if (!empty($pendingRow['notes'])): ?>
                                     <div><?= nl2br(htmlspecialchars($pendingRow['notes'])) ?></div>
@@ -752,8 +752,8 @@ if ($receiptPaymentId) {
                   <?php if (!$isEscSubsidyPlan): ?>
                     <div id="payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
                       <div class="cash-field auto-or-field">
-                        <label>Official Receipt #</label>
-                        <div class="auto-or-placeholder">Will be generated after submission.</div>
+                        <label>Transaction No.</label>
+                        <div class="auto-or-placeholder">Transaction number will be generated after submission.</div>
                       </div>
                       <div class="gcash-field" style="display:none;">
                         <label>Reference #</label>

@@ -2,6 +2,7 @@
 define('SESSION_GUARD_JSON', true);
 require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 include __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -38,17 +39,28 @@ if (!in_array($status, ['paid', 'declined'], true)) {
     exit();
 }
 
-$type_stmt = $conn->prepare('SELECT payment_type FROM student_payments WHERE id = ?');
-$type_stmt->bind_param('i', $id);
-$type_stmt->execute();
-$type_stmt->bind_result($payment_type);
-$type_stmt->fetch();
-$type_stmt->close();
+$payment_stmt = $conn->prepare('SELECT payment_status, payment_type, student_id, grade_level, school_year, firstname, lastname, amount, or_number, reference_number FROM student_payments WHERE id = ? LIMIT 1');
+if (!$payment_stmt) {
+    echo json_encode(['success' => false, 'error' => 'Unable to lookup payment.']);
+    exit();
+}
+$payment_stmt->bind_param('i', $id);
+$payment_stmt->execute();
+$paymentResult = $payment_stmt->get_result();
+$existingPayment = $paymentResult ? $paymentResult->fetch_assoc() : null;
+$payment_stmt->close();
 
-if (!$payment_type) {
+if (!$existingPayment) {
     echo json_encode(['success' => false, 'error' => 'Payment not found.']);
     exit();
 }
+
+$payment_type = $existingPayment['payment_type'] ?? '';
+$previousStatus = $existingPayment['payment_status'] ?? null;
+$previousOrNumber = $existingPayment['or_number'] ?? null;
+$previousReference = $existingPayment['reference_number'] ?? null;
+$existingStudentId = isset($existingPayment['student_id']) ? (int) $existingPayment['student_id'] : 0;
+$existingAmount = isset($existingPayment['amount']) ? (float) $existingPayment['amount'] : 0.0;
 
 if ($status === 'paid') {
     $payment_date = date('Y-m-d');
@@ -78,7 +90,10 @@ $student_stmt = $conn->prepare('
         sp.grade_level AS payment_grade_level,
         sp.school_year AS payment_school_year,
         sp.payment_type,
+        sp.payment_status,
         sp.amount,
+        sp.or_number,
+        sp.reference_number,
         sr.id AS matched_student_id,
         sr.emailaddress,
         sr.firstname,
@@ -149,6 +164,7 @@ if ($matched_student_id !== $target_student_id) {
 $student_id = $target_student_id;
 $resolved_grade_level = $current_grade_level !== '' ? $current_grade_level : $existing_grade_level;
 $resolved_school_year = $current_school_year !== '' ? $current_school_year : $existing_school_year;
+$finalPaymentStatus = $studentRow['payment_status'] ?? $status;
 
 if (
     $status === 'paid'
@@ -319,6 +335,43 @@ if ($registrarPushPayload) {
         error_log('[registrar-notify] Failed to broadcast enrollment: ' . $registrarPushError->getMessage());
     }
 }
+
+$studentDisplayFirstname = $firstname !== '' ? $firstname : ($existingPayment['firstname'] ?? '');
+$studentDisplayLastname = $lastname !== '' ? $lastname : ($existingPayment['lastname'] ?? '');
+$studentDisplayName = trim($studentDisplayFirstname . ' ' . $studentDisplayLastname);
+if ($studentDisplayName === '') {
+    $studentDisplayName = 'Student';
+}
+
+$finalReceiptNumber = $studentRow['or_number'] ?? ($previousOrNumber ?? $or_number ?? null);
+$finalReferenceNumber = $studentRow['reference_number'] ?? ($previousReference ?? null);
+$logMetadata = [
+    'previous_status'           => $previousStatus,
+    'final_status'              => $finalPaymentStatus,
+    'requested_status'          => $status,
+    'payment_type'              => $studentRow['payment_type'] ?? $payment_type,
+    'student_id'                => $student_id,
+    'requested_student_id'      => $requested_student_id,
+    'matched_student_id'        => $matched_student_id,
+    'initial_student_id'        => $existingStudentId,
+    'grade_level'               => $resolved_grade_level,
+    'school_year'               => $resolved_school_year,
+    'amount'                    => isset($studentRow['amount']) ? (float) $studentRow['amount'] : $existingAmount,
+    'receipt_number'            => $finalReceiptNumber,
+    'reference_number'          => $finalReferenceNumber,
+    'previous_receipt_number'   => $previousOrNumber,
+    'previous_reference_number' => $previousReference,
+];
+
+transaction_log_record($conn, [
+    'category'    => 'payment',
+    'action'      => $status === 'paid' ? 'payment_marked_paid' : 'payment_declined',
+    'target_type' => 'student_payment',
+    'target_id'   => (string) $id,
+    'description' => sprintf('Marked payment #%d for %s as %s.', $id, $studentDisplayName, strtoupper($status)),
+    'metadata'    => $logMetadata,
+    'context'     => 'cashier',
+]);
 
 $conn->close();
 echo json_encode(['success' => true, 'status' => $status]);

@@ -1,5 +1,6 @@
 <?php
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 
 /**
  * Move a student record into the archived_students table and remove related portal access.
@@ -259,6 +260,26 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
 
     if ($stmt->execute()) {
         $stmt->close();
+        $studentLabel = trim(($current_firstname ?? '') . ' ' . ($current_lastname ?? ''));
+        if ($studentLabel === '') {
+            $studentLabel = 'Student #' . $id;
+        }
+
+        $baseMetadata = [
+            'student_id'               => $id,
+            'academic_status_before'   => $current_status,
+            'academic_status_after'    => $academic_status,
+            'status_requested'         => $status,
+            'grade_level_before'       => $current_year,
+            'grade_level_after'        => $next_year,
+            'student_type_before'      => $current_type,
+            'student_type_after'       => $new_student_type,
+            'school_year'              => $current_school_year,
+            'enrollment_status_after'  => $enrollment_status,
+            'reset_schedule'           => $resetSchedule,
+            'grade12_graduate'         => $isGrade12Graduate,
+            'moved_to_inactive'        => $moveToInactive,
+        ];
         $shouldClearPlanSelections = $moveToInactive || ($status === 'Passed' && $resetSchedule);
 
         if ($shouldClearPlanSelections) {
@@ -289,12 +310,33 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
         if ($isGrade12Graduate) {
             try {
                 registrar_auto_archive_student($conn, $id);
+                transaction_log_record($conn, [
+                    'category'    => 'student_status',
+                    'action'      => 'student_graduated_archived',
+                    'target_type' => 'student',
+                    'target_id'   => (string) $id,
+                    'description' => sprintf('Marked %s as graduated and archived the record.', $studentLabel),
+                    'metadata'    => array_merge($baseMetadata, ['archive_action' => 'success']),
+                    'context'     => 'registrar',
+                ]);
                 echo "<script>
                         alert('Student marked as graduated and archived automatically.');
                         window.location.href='registrar_dashboard.php?msg=archived';
                       </script>";
             } catch (Throwable $archiveFailure) {
                 error_log('[registrar] auto archive failed: ' . $archiveFailure->getMessage());
+                transaction_log_record($conn, [
+                    'category'    => 'student_status',
+                    'action'      => 'student_graduate_archive_failed',
+                    'target_type' => 'student',
+                    'target_id'   => (string) $id,
+                    'description' => sprintf('Marked %s as graduated but archiving failed.', $studentLabel),
+                    'metadata'    => array_merge($baseMetadata, [
+                        'archive_action' => 'failed',
+                        'error'          => $archiveFailure->getMessage(),
+                    ]),
+                    'context'     => 'registrar',
+                ]);
                 echo "<script>
                         alert('Student status updated, but automatic archiving failed. Please archive manually.');
                         window.location.href='registrar_dashboard.php';
@@ -328,6 +370,15 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                 $deleteStmt->close();
 
                 $conn->commit();
+                transaction_log_record($conn, [
+                    'category'    => 'student_status',
+                    'action'      => 'student_marked_inactive',
+                    'target_type' => 'student',
+                    'target_id'   => (string) $id,
+                    'description' => sprintf('Marked %s as dropped and moved the record to inactive students.', $studentLabel),
+                    'metadata'    => array_merge($baseMetadata, ['inactive_action' => 'moved', 'inactive_student_id' => $id]),
+                    'context'     => 'registrar',
+                ]);
                 echo "<script>
                         alert('Student marked as dropped and moved to inactive records.');
                         window.location.href='registrar_dashboard.php';
@@ -335,6 +386,18 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                 exit();
             } catch (Exception $e) {
                 $conn->rollback();
+                transaction_log_record($conn, [
+                    'category'    => 'student_status',
+                    'action'      => 'student_marked_inactive_failed',
+                    'target_type' => 'student',
+                    'target_id'   => (string) $id,
+                    'description' => sprintf('Failed to move %s to inactive records.', $studentLabel),
+                    'metadata'    => array_merge($baseMetadata, [
+                        'inactive_action' => 'failed',
+                        'error'           => $e->getMessage(),
+                    ]),
+                    'context'     => 'registrar',
+                ]);
                 echo "<script>
                         alert('" . addslashes($e->getMessage()) . "');
                         window.location.href='registrar_dashboard.php';
@@ -342,6 +405,16 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                 exit();
             }
         }
+
+        transaction_log_record($conn, [
+            'category'    => 'student_status',
+            'action'      => 'student_status_updated',
+            'target_type' => 'student',
+            'target_id'   => (string) $id,
+            'description' => sprintf('Updated %s status to %s.', $studentLabel, $status),
+            'metadata'    => $baseMetadata,
+            'context'     => 'registrar',
+        ]);
 
         echo "<script>
                 alert('Student status updated successfully!');

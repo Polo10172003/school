@@ -1,5 +1,6 @@
 <?php
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/transaction_logger.php';
 
 // Promotion map
 function nextYear($year) {
@@ -27,6 +28,8 @@ function nextYear($year) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
+    $promotedStudents = [];
+    $skippedStudents = [];
     foreach ($_POST['student_ids'] as $id) {
         $id = intval($id);
 
@@ -37,14 +40,26 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
         $student = $stmt->get_result()->fetch_assoc();
         $stmt->close();
 
-        if (!$student) continue;
+        if (!$student) {
+            $skippedStudents[] = [
+                'id'     => $id,
+                'reason' => 'not_found',
+            ];
+            continue;
+        }
 
         $current_year = $student['year'];
         $status       = $student['academic_status'];
         $current_type = $student['student_type'] ?? 'new';
 
         // Logic: if already Failed, skip bulk promotion
-        if ($status === "Failed") continue;
+        if ($status === "Failed") {
+            $skippedStudents[] = [
+                'id'     => $id,
+                'reason' => 'failed_status',
+            ];
+            continue;
+        }
 
         if ($current_year === "Grade 12") {
             $next_year = "Graduated";
@@ -90,7 +105,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && !empty($_POST['student_ids'])) {
         }
         $stmt->execute();
         $stmt->close();
+
+        $promotedStudents[] = [
+            'id'                    => $id,
+            'from_year'             => $current_year,
+            'to_year'               => $next_year,
+            'new_academic_status'   => $academic_status,
+            'new_enrollment_status' => $new_enrollment_status,
+            'reset_schedule'        => $resetSchedule,
+        ];
     }
+
+    transaction_log_record($conn, [
+        'category'    => 'student_status',
+        'action'      => 'bulk_promotion',
+        'target_type' => 'student_batch',
+        'description' => sprintf('Bulk promoted %d students.', count($promotedStudents)),
+        'metadata'    => [
+            'requested_ids' => array_map('intval', $_POST['student_ids']),
+            'promoted'      => $promotedStudents,
+            'skipped'       => $skippedStudents,
+        ],
+        'context'     => 'registrar',
+    ]);
 
     echo "<script>
             alert('Selected students promoted successfully!');
