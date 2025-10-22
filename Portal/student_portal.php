@@ -64,6 +64,64 @@ if (!function_exists('portal_next_school_year')) {
     }
 }
 
+if (!function_exists('portal_stmt_fetch_all')) {
+    /**
+     * Fetch all rows from a prepared statement as associative arrays without relying on mysqlnd.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    function portal_stmt_fetch_all(mysqli_stmt $stmt): array
+    {
+        $rows = [];
+        $meta = $stmt->result_metadata();
+        if (!$meta) {
+            return $rows;
+        }
+
+        $fields = [];
+        while ($field = $meta->fetch_field()) {
+            $fields[] = $field->name;
+        }
+        $meta->free();
+
+        if (empty($fields)) {
+            return $rows;
+        }
+
+        $data = [];
+        $binds = [];
+        foreach ($fields as $name) {
+            $data[$name] = null;
+            $binds[] =& $data[$name];
+        }
+
+        call_user_func_array([$stmt, 'bind_result'], $binds);
+
+        while ($stmt->fetch()) {
+            $row = [];
+            foreach ($fields as $name) {
+                $row[$name] = $data[$name];
+            }
+            $rows[] = $row;
+        }
+
+        return $rows;
+    }
+}
+
+if (!function_exists('portal_stmt_fetch_assoc')) {
+    /**
+     * Fetch the first row from a prepared statement as an associative array.
+     *
+     * @return array<string,mixed>|null
+     */
+    function portal_stmt_fetch_assoc(mysqli_stmt $stmt): ?array
+    {
+        $rows = portal_stmt_fetch_all($stmt);
+        return $rows[0] ?? null;
+    }
+}
+
 // Make sure student is logged in
 if (!isset($_SESSION['student_number'])) {
     header("Location: student_login.php");
@@ -274,13 +332,19 @@ function portal_payment_status_is_paid(?string $status): bool
 foreach (gradeSynonyms($normalized_year) as $gradeKey) {
     foreach ($typeCandidates as $candidateType) {
         $stmt = $conn->prepare($sql);
-        $stmt->bind_param("ss", $gradeKey, $candidateType);
-        $stmt->execute();
-        $fee = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($fee) {
-            break 2;
+        if (!$stmt) {
+            continue;
         }
+        $stmt->bind_param("ss", $gradeKey, $candidateType);
+        if ($stmt->execute()) {
+            $row = portal_stmt_fetch_assoc($stmt);
+            if ($row) {
+                $fee = $row;
+                $stmt->close();
+                break 2;
+            }
+        }
+        $stmt->close();
     }
 }
 
@@ -294,13 +358,19 @@ if (!$no_previous && $previous_grade_label) {
     foreach (gradeSynonyms($normalized_prev) as $gradeKeyPrev) {
         foreach ($typeCandidates as $candidateType) {
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("ss", $gradeKeyPrev, $candidateType);
-            $stmt->execute();
-            $previous_fee = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
-            if ($previous_fee) {
-                break 2;
+            if (!$stmt) {
+                continue;
             }
+            $stmt->bind_param("ss", $gradeKeyPrev, $candidateType);
+            if ($stmt->execute()) {
+                $row = portal_stmt_fetch_assoc($stmt);
+                if ($row) {
+                    $previous_fee = $row;
+                    $stmt->close();
+                    break 2;
+                }
+            }
+            $stmt->close();
         }
     }
 } else {
@@ -313,9 +383,14 @@ $sql = "SELECT id, payment_type, amount, payment_status, payment_date, reference
         WHERE student_id = ?
         ORDER BY created_at DESC";
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $student_id);
-$stmt->execute();
-$result = $stmt->get_result();
+$paymentRows = [];
+if ($stmt) {
+    $stmt->bind_param("i", $student_id);
+    if ($stmt->execute()) {
+        $paymentRows = portal_stmt_fetch_all($stmt);
+    }
+    $stmt->close();
+}
 
 $paid = [];
 $pending = [];
@@ -324,7 +399,7 @@ $pendingByGrade = [];
 $unassignedPaid = [];
 $unassignedPending = [];
 
-while ($row = $result->fetch_assoc()) {
+foreach ($paymentRows as $row) {
     $row['amount'] = (float) ($row['amount'] ?? 0);
     if (empty($row['payment_date']) && !empty($row['created_at'])) {
         $row['payment_date'] = substr($row['created_at'], 0, 10);
@@ -351,7 +426,6 @@ while ($row = $result->fetch_assoc()) {
         }
     }
 }
-$stmt->close();
 
 $pending_total = 0;
 foreach ($pending as $entry) {
