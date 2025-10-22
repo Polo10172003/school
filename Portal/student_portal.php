@@ -700,7 +700,12 @@ if ($year !== '') {
             $scheduleResult = $scheduleStmt->get_result();
             $rows = [];
             if ($scheduleResult instanceof mysqli_result) {
-                $rows = $scheduleResult->fetch_all(MYSQLI_ASSOC);
+                while ($row = $scheduleResult->fetch_assoc()) {
+                    if (!$row) {
+                        break;
+                    }
+                    $rows[] = $row;
+                }
                 $scheduleResult->close();
             }
             $scheduleStmt->close();
@@ -731,8 +736,8 @@ if ($year !== '') {
     }
 }
 
-$classScheduleRows = [];
-if ($year !== '') {
+if (empty($classScheduleRows) && $year !== '') {
+    $fallbackRows = [];
     $scheduleSql = "SELECT subject, teacher, day_of_week, start_time, end_time, room, section, school_year FROM class_schedules WHERE grade_level = ?";
     $scheduleParams = [$year];
     $scheduleTypes = 's';
@@ -758,12 +763,31 @@ if ($year !== '') {
             $scheduleResult = $scheduleStmt->get_result();
             if ($scheduleResult instanceof mysqli_result) {
                 while ($row = $scheduleResult->fetch_assoc()) {
-                    $classScheduleRows[] = $row;
+                    if (!$row) {
+                        break;
+                    }
+                    $fallbackRows[] = $row;
                 }
                 $scheduleResult->close();
             }
         }
         $scheduleStmt->close();
+    }
+
+    if (!empty($fallbackRows)) {
+        $classScheduleRows = $fallbackRows;
+        if ($classScheduleYear === null) {
+            foreach ($classScheduleRows as $candidateRow) {
+                $rowYear = trim((string) ($candidateRow['school_year'] ?? ''));
+                if ($rowYear !== '') {
+                    $classScheduleYear = $rowYear;
+                    break;
+                }
+            }
+            if ($classScheduleYear === null && $student_school_year !== '') {
+                $classScheduleYear = $student_school_year;
+            }
+        }
     }
 }
 
