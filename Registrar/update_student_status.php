@@ -132,11 +132,13 @@ function nextYear($year) {
     return $map[$year] ?? $year;
 }
 
+$current_student_number = '';
+
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
     // Fetch current student info
-    $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `school_year` FROM students_registration WHERE id = ?");
+$stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `school_year`, `student_number` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $student = $stmt->get_result()->fetch_assoc();
@@ -147,6 +149,7 @@ if (isset($_GET['id'])) {
     $current_year = $student['year'];
     $current_status = $student['academic_status'];
     $current_type = $student['student_type'];
+    $current_student_number = $student['student_number'] ?? '';
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -154,7 +157,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $status = $_POST['status'];
 
     // Fetch current year again (safety)
-$stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname`, `lastname` FROM students_registration WHERE id = ?");
+$stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname`, `lastname`, `student_number`, `academic_status` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -164,6 +167,8 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
     $current_school_year = $row['school_year'] ?? '';
     $current_firstname = $row['firstname'] ?? '';
     $current_lastname = $row['lastname'] ?? '';
+    $current_status = $row['academic_status'] ?? $current_status ?? 'Ongoing';
+    $current_student_number = $row['student_number'] ?? $current_student_number;
 
     // --- PROMOTION / FAIL LOGIC ---
     $enrollment_status = null;
@@ -262,11 +267,17 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
         $stmt->close();
         $studentLabel = trim(($current_firstname ?? '') . ' ' . ($current_lastname ?? ''));
         if ($studentLabel === '') {
-            $studentLabel = 'Student #' . $id;
+            $studentLabel = 'Student';
+        }
+        if (!empty($current_student_number)) {
+            $studentLabel .= ' (' . $current_student_number . ')';
+        } else {
+            $studentLabel .= ' #' . $id;
         }
 
         $baseMetadata = [
             'student_id'               => $id,
+            'student_number'           => $current_student_number,
             'academic_status_before'   => $current_status,
             'academic_status_after'    => $academic_status,
             'status_requested'         => $status,
@@ -314,7 +325,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     'category'    => 'student_status',
                     'action'      => 'student_graduated_archived',
                     'target_type' => 'student',
-                    'target_id'   => (string) $id,
+                    'target_id'   => $current_student_number !== '' ? $current_student_number : (string) $id,
                     'description' => sprintf('Marked %s as graduated and archived the record.', $studentLabel),
                     'metadata'    => array_merge($baseMetadata, ['archive_action' => 'success']),
                     'context'     => 'registrar',
@@ -329,7 +340,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     'category'    => 'student_status',
                     'action'      => 'student_graduate_archive_failed',
                     'target_type' => 'student',
-                    'target_id'   => (string) $id,
+                    'target_id'   => $current_student_number !== '' ? $current_student_number : (string) $id,
                     'description' => sprintf('Marked %s as graduated but archiving failed.', $studentLabel),
                     'metadata'    => array_merge($baseMetadata, [
                         'archive_action' => 'failed',
@@ -374,7 +385,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     'category'    => 'student_status',
                     'action'      => 'student_marked_inactive',
                     'target_type' => 'student',
-                    'target_id'   => (string) $id,
+                    'target_id'   => $current_student_number !== '' ? $current_student_number : (string) $id,
                     'description' => sprintf('Marked %s as dropped and moved the record to inactive students.', $studentLabel),
                     'metadata'    => array_merge($baseMetadata, ['inactive_action' => 'moved', 'inactive_student_id' => $id]),
                     'context'     => 'registrar',
@@ -390,7 +401,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     'category'    => 'student_status',
                     'action'      => 'student_marked_inactive_failed',
                     'target_type' => 'student',
-                    'target_id'   => (string) $id,
+                    'target_id'   => $current_student_number !== '' ? $current_student_number : (string) $id,
                     'description' => sprintf('Failed to move %s to inactive records.', $studentLabel),
                     'metadata'    => array_merge($baseMetadata, [
                         'inactive_action' => 'failed',
@@ -410,7 +421,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
             'category'    => 'student_status',
             'action'      => 'student_status_updated',
             'target_type' => 'student',
-            'target_id'   => (string) $id,
+            'target_id'   => $current_student_number !== '' ? $current_student_number : (string) $id,
             'description' => sprintf('Updated %s status to %s.', $studentLabel, $status),
             'metadata'    => $baseMetadata,
             'context'     => 'registrar',

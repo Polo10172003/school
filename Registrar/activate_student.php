@@ -20,6 +20,7 @@ if (isset($_GET['id'])) {
         $student = $result->fetch_assoc();
         $email = $student['emailaddress'];
         $name = $student['firstname']; 
+        $studentNumber = $student['student_number'] ?? '';
 
         // Check if already has account
         $check = $conn->prepare("SELECT * FROM student_accounts WHERE email = ?");
@@ -47,11 +48,11 @@ if (isset($_GET['id'])) {
                     'category'    => 'portal',
                     'action'      => 'student_portal_activated',
                     'target_type' => 'student',
-                    'target_id'   => (string) $student_id,
+                    'target_id'   => $studentNumber !== '' ? $studentNumber : (string) $student_id,
                     'description' => sprintf('Activated portal access for %s.', $studentFullName),
                     'metadata'    => [
                         'student_id'            => $student_id,
-                        'student_number'        => $student['student_number'] ?? null,
+                        'student_number'        => $studentNumber,
                         'email'                 => $email,
                         'previous_portal_status'=> $student['portal_status'] ?? null,
                         'enrollment_status'     => $student['enrollment_status'] ?? null,
@@ -104,7 +105,7 @@ if (isset($_GET['id'])) {
                         'category'    => 'portal',
                         'action'      => 'portal_activation_email_failed',
                         'target_type' => 'student',
-                        'target_id'   => (string) $student_id,
+                        'target_id'   => $studentNumber !== '' ? $studentNumber : (string) $student_id,
                         'description' => sprintf('Email notification failed after activating %s.', $studentFullName),
                         'metadata'    => [
                             'student_id'      => $student_id,

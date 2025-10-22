@@ -1551,7 +1551,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 'category'    => 'payment',
                 'action'      => $logAction,
                 'target_type' => 'student',
-                'target_id'   => (string) $student_id,
+                'target_id'   => $student_number !== null && $student_number !== '' ? (string) $student_number : (string) $student_id,
                 'description' => trim(preg_replace('/\s+/', ' ', $logDescription)),
                 'metadata'    => $logMetadata,
                 'context'     => 'cashier',

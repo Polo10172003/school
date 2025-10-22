@@ -99,7 +99,8 @@ $student_stmt = $conn->prepare('
         sr.firstname,
         sr.lastname,
         sr.year AS student_grade_level,
-        sr.school_year AS student_school_year
+        sr.school_year AS student_school_year,
+        sr.student_number
     FROM student_payments sp
     LEFT JOIN students_registration sr ON sr.id = sp.student_id
     WHERE sp.id = ?
@@ -165,6 +166,7 @@ $student_id = $target_student_id;
 $resolved_grade_level = $current_grade_level !== '' ? $current_grade_level : $existing_grade_level;
 $resolved_school_year = $current_school_year !== '' ? $current_school_year : $existing_school_year;
 $finalPaymentStatus = $studentRow['payment_status'] ?? $status;
+$student_number_value = trim((string) ($studentRow['student_number'] ?? ''));
 
 if (
     $status === 'paid'
@@ -351,6 +353,7 @@ $logMetadata = [
     'requested_status'          => $status,
     'payment_type'              => $studentRow['payment_type'] ?? $payment_type,
     'student_id'                => $student_id,
+    'student_number'            => $student_number_value,
     'requested_student_id'      => $requested_student_id,
     'matched_student_id'        => $matched_student_id,
     'initial_student_id'        => $existingStudentId,
@@ -366,8 +369,8 @@ $logMetadata = [
 transaction_log_record($conn, [
     'category'    => 'payment',
     'action'      => $status === 'paid' ? 'payment_marked_paid' : 'payment_declined',
-    'target_type' => 'student_payment',
-    'target_id'   => (string) $id,
+    'target_type' => 'student',
+    'target_id'   => $student_number_value !== '' ? $student_number_value : (string) $student_id,
     'description' => sprintf('Marked payment #%d for %s as %s.', $id, $studentDisplayName, strtoupper($status)),
     'metadata'    => $logMetadata,
     'context'     => 'cashier',

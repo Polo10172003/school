@@ -46,14 +46,13 @@ function transaction_log_resolve_actor(mysqli $conn, ?array $overrides = null): 
         $userData = transaction_log_lookup_user($conn, $username);
         $userId   = $userData['id'] ?? null;
         $fullname = $candidate['fullname'] ?? ($userData['fullname'] ?? $username);
-        $role     = $candidate['role'] ?? ($userData['role'] ?? $context);
 
         return [
             'context'  => $context,
             'user_id'  => $userId !== null ? (int) $userId : null,
             'username' => $username,
             'fullname' => $fullname,
-            'role'     => $role,
+            'role'     => $context,
         ];
     }
 
@@ -200,12 +199,13 @@ function transaction_log_record(mysqli $conn, array $entry): void
     if (empty($actorData['username'])) {
         $actor = transaction_log_resolve_actor($conn, ['context' => $contextOverride]);
     } else {
+        $resolvedContext = strtolower((string) ($contextOverride ?? $actorData['role'] ?? 'staff'));
         $actor = [
-            'context'  => $contextOverride ?? ($actorData['role'] ?? 'staff'),
+            'context'  => $resolvedContext,
             'user_id'  => $actorData['user_id'] ?? null,
             'username' => (string) $actorData['username'],
             'fullname' => $actorData['fullname'] ?? (string) $actorData['username'],
-            'role'     => $actorData['role'] ?? ($contextOverride ?? 'staff'),
+            'role'     => $resolvedContext,
         ];
 
         if ($actor['user_id'] === null && $actor['username'] !== '') {
@@ -241,7 +241,11 @@ function transaction_log_record(mysqli $conn, array $entry): void
 
     $actorUsername = substr($actor['username'] ?? 'unknown', 0, 100);
     $actorFullname = substr($actor['fullname'] ?? $actorUsername, 0, 150);
-    $actorRole     = substr($actor['role'] ?? ($actor['context'] ?? 'staff'), 0, 50);
+    $actorRoleCanonical = strtolower(trim((string) ($actor['context'] ?? $actor['role'] ?? 'staff')));
+    if ($actorRoleCanonical === '') {
+        $actorRoleCanonical = 'staff';
+    }
+    $actorRole     = substr($actorRoleCanonical, 0, 50);
     $category      = $category !== null && $category !== '' ? substr($category, 0, 50) : null;
     $targetType    = $targetType !== null && $targetType !== '' ? substr($targetType, 0, 50) : null;
     $description   = $description !== '' ? substr($description, 0, 1000) : null;

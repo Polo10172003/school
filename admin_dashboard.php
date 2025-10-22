@@ -3,6 +3,7 @@ require_once __DIR__ . '/includes/session.php';
 include 'db_connection.php';
 require_once __DIR__ . '/admin_functions.php';
 require_once __DIR__ . '/includes/adviser_assignments.php';
+require_once __DIR__ . '/includes/transaction_logger.php';
 
 $userManagementMessage = $_SESSION['admin_users_success'] ?? '';
 $userManagementError   = $_SESSION['admin_users_error'] ?? '';
@@ -214,6 +215,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['schedule_form'])) {
         );
         if ($insert->execute()) {
           $scheduleMessage = 'Schedule entry saved successfully.';
+          transaction_log_record($conn, [
+            'category'    => 'schedule',
+            'action'      => 'schedule_created',
+            'target_type' => 'class_schedule',
+            'target_id'   => (string) $insert->insert_id,
+            'description' => sprintf('Created schedule for %s %s (%s).', $gradeLevel, $section === 'ALL' ? 'all sections' : $section, $dayOfWeek),
+            'metadata'    => [
+              'grade_level'  => $gradeLevel,
+              'section'      => $section,
+              'school_year'  => $schoolYear,
+              'subject'      => $subject,
+              'teacher'      => $teacherValue,
+              'day'          => $dayOfWeek,
+              'start_time'   => $startSql,
+              'end_time'     => $endSql,
+              'room'         => $roomValue,
+            ],
+            'context'     => 'admin',
+          ]);
         } else {
           $scheduleError = 'Failed to save schedule: ' . $conn->error;
         }
@@ -238,6 +258,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adviser_form'])) {
       if ($current && adviser_assignments_delete($conn, $assignmentId)) {
         adviser_assignments_update_students($conn, $current['grade_level'], $current['section'], 'To be assigned');
         $adviserMessage = 'Adviser assignment removed.';
+        transaction_log_record($conn, [
+          'category'    => 'adviser_assignment',
+          'action'      => 'adviser_deleted',
+          'target_type' => 'adviser_assignment',
+          'target_id'   => (string) $assignmentId,
+          'description' => sprintf('Removed adviser for %s - %s.', $current['grade_level'], $current['section']),
+          'metadata'    => [
+            'grade_level' => $current['grade_level'],
+            'section'     => $current['section'],
+            'adviser'     => $current['adviser'],
+          ],
+          'context'     => 'admin',
+        ]);
       } else {
         $adviserError = 'Unable to remove adviser assignment.';
       }
@@ -251,6 +284,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adviser_form'])) {
       $error = null;
       if (adviser_assignments_update($conn, $assignmentId, $gradeLevel, $section, $adviser, $error)) {
         $adviserMessage = 'Adviser assignment updated.';
+        transaction_log_record($conn, [
+          'category'    => 'adviser_assignment',
+          'action'      => 'adviser_updated',
+          'target_type' => 'adviser_assignment',
+          'target_id'   => (string) $assignmentId,
+          'description' => sprintf('Updated adviser for %s - %s.', $gradeLevel, $section),
+          'metadata'    => [
+            'grade_level' => $gradeLevel,
+            'section'     => $section,
+            'adviser'     => $adviser,
+          ],
+          'context'     => 'admin',
+        ]);
       } else {
         $adviserError = $error ?? 'Unable to update adviser assignment.';
       }
@@ -258,6 +304,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['adviser_form'])) {
   } else {
     if (adviser_assignments_upsert($conn, $gradeLevel, $section, $adviser)) {
       $adviserMessage = 'Adviser assignment saved.';
+      transaction_log_record($conn, [
+        'category'    => 'adviser_assignment',
+        'action'      => 'adviser_saved',
+        'target_type' => 'adviser_assignment',
+        'target_id'   => $assignmentId > 0 ? (string) $assignmentId : null,
+        'description' => sprintf('Assigned %s to %s - %s.', $adviser, $gradeLevel, $section),
+        'metadata'    => [
+          'grade_level' => $gradeLevel,
+          'section'     => $section,
+          'adviser'     => $adviser,
+        ],
+        'context'     => 'admin',
+      ]);
     } else {
       $adviserError = 'Please provide a grade level, section, and adviser name.';
     }
@@ -271,6 +330,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_homepage_images
   if (homepage_images_save($defaults)) {
     $homepageImages = $defaults;
     $homeImageMessage = 'Homepage images reset to defaults.';
+    transaction_log_record($conn, [
+      'category'    => 'homepage',
+      'action'      => 'homepage_images_reset',
+      'target_type' => 'homepage_section',
+      'description' => 'Reset homepage images to default set.',
+      'metadata'    => ['action' => 'reset'],
+      'context'     => 'admin',
+    ]);
   } else {
     $homeImageError = 'Unable to reset homepage images. Check file permissions.';
   }
@@ -391,6 +458,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['homepage_images_form'
       if (homepage_images_save($images)) {
         $homeImageMessage = 'Homepage images updated successfully.';
         $homepageImages = $images;
+        transaction_log_record($conn, [
+          'category'    => 'homepage',
+          'action'      => 'homepage_images_updated',
+          'target_type' => 'homepage_section',
+          'description' => 'Updated homepage image configuration.',
+          'metadata'    => [
+            'updated_sections' => array_keys($images),
+          ],
+          'context'     => 'admin',
+        ]);
       } else {
         $homeImageError = 'Unable to save homepage image settings.';
       }
@@ -414,6 +491,20 @@ $adviserAssignments = adviser_assignments_fetch($conn);
 $transactionLogs = [];
 $transactionLogError = '';
 $transactionLogTableExists = false;
+$transactionRoleFilter = '';
+$transactionRoleOptions = [
+  ''          => 'All Staff',
+  'admin'     => 'Administrators',
+  'cashier'   => 'Cashiers',
+  'registrar' => 'Registrars',
+];
+
+if (isset($_GET['transaction_role'])) {
+  $candidateRole = strtolower(trim((string) $_GET['transaction_role']));
+  if (in_array($candidateRole, ['admin', 'cashier', 'registrar'], true)) {
+    $transactionRoleFilter = $candidateRole;
+  }
+}
 
 $logTableCheck = $conn->query("SHOW TABLES LIKE 'transaction_logs'");
 if ($logTableCheck instanceof mysqli_result) {
@@ -424,27 +515,51 @@ if ($logTableCheck instanceof mysqli_result) {
 }
 
 if ($transactionLogTableExists) {
-  $logResult = $conn->query('SELECT id, occurred_at, actor_username, actor_fullname, actor_role, category, action, target_type, target_id, description, metadata FROM transaction_logs ORDER BY occurred_at DESC LIMIT 200');
-  if ($logResult instanceof mysqli_result) {
-    while ($logRow = $logResult->fetch_assoc()) {
-      $metadataRaw = $logRow['metadata'] ?? '';
-      $metadataPreview = '';
-      if ($metadataRaw !== '' && $metadataRaw !== null) {
-        $decodedMeta = json_decode($metadataRaw, true);
-        if (is_array($decodedMeta)) {
-          $previewSlice = array_slice($decodedMeta, 0, 5, true);
-          $metadataPreview = json_encode($previewSlice, JSON_UNESCAPED_SLASHES);
-        } else {
-          $metadataPreview = (string) $metadataRaw;
-        }
-        if ($metadataPreview !== null && strlen($metadataPreview) > 140) {
-          $metadataPreview = substr($metadataPreview, 0, 137) . '...';
-        }
+  $logSql = 'SELECT id, occurred_at, actor_username, actor_fullname, actor_role, category, action, target_type, target_id, description, metadata FROM transaction_logs';
+  $whereClauses = [];
+  $logParams = [];
+  $logTypes = '';
+
+  if ($transactionRoleFilter !== '') {
+    if ($transactionRoleFilter === 'cashier') {
+      $whereClauses[] = '(actor_role = ? OR (actor_role = \'admin\' AND category = \'payment\') OR ((actor_role IS NULL OR actor_role = \'\') AND category = \'payment\'))';
+    } elseif ($transactionRoleFilter === 'registrar') {
+      $whereClauses[] = '(actor_role = ? OR (actor_role = \'admin\' AND category IN (\'student_status\', \'portal\')) OR ((actor_role IS NULL OR actor_role = \'\') AND category IN (\'student_status\', \'portal\')))';
+    } else { // admin filter
+      $whereClauses[] = '((actor_role = ? AND (category IS NULL OR category NOT IN (\'payment\', \'student_status\', \'portal\'))) OR ((actor_role IS NULL OR actor_role = \'\') AND (category IS NULL OR category NOT IN (\'payment\', \'student_status\', \'portal\'))))';
+    }
+    $logParams[] = $transactionRoleFilter;
+    $logTypes .= 's';
+  }
+
+  if (!empty($whereClauses)) {
+    $logSql .= ' WHERE ' . implode(' AND ', $whereClauses);
+  }
+
+  $logSql .= ' ORDER BY occurred_at DESC LIMIT 200';
+
+  if (!empty($logParams)) {
+    $logStmt = $conn->prepare($logSql);
+    if ($logStmt) {
+      $logStmt->bind_param($logTypes, ...$logParams);
+      if ($logStmt->execute()) {
+        $result = $logStmt->get_result();
+      } else {
+        $result = false;
       }
-      $logRow['metadata_preview'] = $metadataPreview;
+      $logStmt->close();
+    } else {
+      $result = false;
+    }
+  } else {
+    $result = $conn->query($logSql);
+  }
+
+  if ($result instanceof mysqli_result) {
+    while ($logRow = $result->fetch_assoc()) {
       $transactionLogs[] = $logRow;
     }
-    $logResult->close();
+    $result->close();
   } else {
     $transactionLogError = 'Unable to load transaction logs at this time.';
   }
@@ -620,9 +735,39 @@ if ($transactionLogTableExists) {
       <?php if ($transactionLogError !== ''): ?>
         <div class="dashboard-alert error"><?= htmlspecialchars($transactionLogError) ?></div>
       <?php elseif (empty($transactionLogs)): ?>
-        <div class="dashboard-alert info">No staff transactions have been logged yet.</div>
+        <div class="dashboard-alert info">
+          <?= $transactionRoleFilter === '' ? 'No staff transactions have been logged yet.' : 'No transactions found for the selected role.' ?>
+        </div>
       <?php else: ?>
-        <div class="admin-management-table-wrapper">
+        <div class="admin-management-controls" style="margin-bottom:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
+          <form method="get" action="admin_dashboard.php#transactions" style="display:flex; align-items:center; gap:8px;">
+            <label for="transaction_role_filter" class="text-muted" style="font-size:13px;">Filter by role:</label>
+            <select id="transaction_role_filter" name="transaction_role" onchange="this.form.submit();" class="dashboard-select" style="min-width:160px;">
+              <?php foreach ($transactionRoleOptions as $roleValue => $roleLabel): ?>
+                <option value="<?= htmlspecialchars($roleValue) ?>" <?= $transactionRoleFilter === $roleValue ? 'selected' : '' ?>><?= htmlspecialchars($roleLabel) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <?php foreach ($_GET as $queryKey => $queryValue):
+              if ($queryKey === 'transaction_role') {
+                continue;
+              }
+              if (is_array($queryValue)) {
+                continue;
+              }
+            ?>
+              <input type="hidden" name="<?= htmlspecialchars($queryKey) ?>" value="<?= htmlspecialchars($queryValue) ?>">
+            <?php endforeach; ?>
+          </form>
+          <button type="button"
+                  class="dashboard-btn secondary dashboard-btn--small"
+                  data-toggle-label="View Transaction Log"
+                  data-toggle-active-label="Hide Transaction Log"
+                  data-toggle-target="transactionLogList"
+                  onclick="toggleSection(this);">
+            View Transaction Log
+          </button>
+        </div>
+        <div class="admin-management-table-wrapper collapsible" id="transactionLogList" style="display:none;">
           <table class="admin-management-table">
             <thead>
               <tr>
@@ -644,7 +789,25 @@ if ($transactionLogTableExists) {
                 if ($actorName === '') {
                   $actorName = 'Unknown';
                 }
-                $actorRole = trim((string) ($log['actor_role'] ?? ''));
+                $actorRole = strtolower(trim((string) ($log['actor_role'] ?? '')));
+                $derivedRole = $actorRole;
+                $category = strtolower(trim((string) ($log['category'] ?? '')));
+                if ($derivedRole === '' || $derivedRole === 'staff') {
+                  if ($category === 'payment') {
+                    $derivedRole = 'cashier';
+                  } elseif (in_array($category, ['student_status', 'portal'], true)) {
+                    $derivedRole = 'registrar';
+                  } elseif ($category !== '') {
+                    $derivedRole = 'admin';
+                  }
+                } elseif ($derivedRole === 'admin') {
+                  if ($category === 'payment') {
+                    $derivedRole = 'cashier';
+                  } elseif (in_array($category, ['student_status', 'portal'], true)) {
+                    $derivedRole = 'registrar';
+                  }
+                }
+                $actorRoleLabel = $derivedRole !== '' ? ucwords($derivedRole) : '';
                 $actorUsername = trim((string) ($log['actor_username'] ?? ''));
                 $actionLabel = trim((string) ($log['action'] ?? ''));
                 if ($actionLabel !== '') {
@@ -653,6 +816,9 @@ if ($transactionLogTableExists) {
                   $actionLabel = 'Action';
                 }
                 $targetType = trim((string) ($log['target_type'] ?? ''));
+                if ($targetType === 'student_payment') {
+                  $targetType = 'student';
+                }
                 $targetId = trim((string) ($log['target_id'] ?? ''));
                 $entityParts = [];
                 if ($targetType !== '') {
@@ -663,15 +829,14 @@ if ($transactionLogTableExists) {
                 }
                 $entityLabel = implode(' ', $entityParts);
                 $description = trim((string) ($log['description'] ?? ''));
-                $metadataPreview = trim((string) ($log['metadata_preview'] ?? ''));
               ?>
                 <tr>
                   <td><?= htmlspecialchars($whenLabel) ?></td>
                   <td>
                     <div style="display:flex;flex-direction:column;">
                       <strong><?= htmlspecialchars($actorName) ?></strong>
-                      <?php if ($actorRole !== ''): ?>
-                        <span class="text-muted" style="font-size:12px;"><?= htmlspecialchars($actorRole) ?></span>
+                      <?php if ($actorRoleLabel !== ''): ?>
+                        <span class="text-muted" style="font-size:12px;"><?= htmlspecialchars($actorRoleLabel) ?></span>
                       <?php endif; ?>
                       <?php if ($actorUsername !== '' && strcasecmp($actorUsername, $actorName) !== 0): ?>
                         <span class="text-muted" style="font-size:12px;">@<?= htmlspecialchars($actorUsername) ?></span>
@@ -683,9 +848,6 @@ if ($transactionLogTableExists) {
                   <td>
                     <?php if ($description !== ''): ?>
                       <div><?= htmlspecialchars($description) ?></div>
-                    <?php endif; ?>
-                    <?php if ($metadataPreview !== ''): ?>
-                      <code style="display:block;margin-top:4px;font-size:11px;white-space:pre-wrap;"><?= htmlspecialchars($metadataPreview) ?></code>
                     <?php endif; ?>
                   </td>
                 </tr>

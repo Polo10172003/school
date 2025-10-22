@@ -1,1 +1,3 @@
 config/google_drive.php
+/assets/homepage/*
+!/assets/homepage/.gitkeep

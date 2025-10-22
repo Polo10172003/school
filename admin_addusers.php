@@ -1,5 +1,6 @@
 <?php
 include('db_connection.php');
+require_once __DIR__ . '/includes/transaction_logger.php';
 
 function admin_ensure_user_schema(mysqli $conn): void
 {
@@ -44,7 +45,20 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmt->bind_param("ssssi", $username, $initialPassword, $fullname, $role, $isFirstLogin);
 
     if ($stmt->execute()) {
-        echo "<script>alert('User added successfully! The user will be asked to set a password on first login.'); window.location.href='admin_dashboard.php';</script>";
+        transaction_log_record($conn, [
+            'category'    => 'user_management',
+            'action'      => 'user_created',
+            'target_type' => 'user',
+            'target_id'   => (string) $stmt->insert_id,
+            'description' => sprintf('Created user account for %s (%s).', $fullname, $role),
+            'metadata'    => [
+                'username'      => $username,
+                'role'          => $role,
+                'is_first_login'=> true,
+            ],
+            'context'     => 'admin',
+        ]);
+        echo "<script>alert('User added successfully! The user will be asked to set a password on first login.'); window.location.href='admin_dashboard.php#users';</script>";
     } else {
         die("Execute failed: " . $stmt->error);
     }

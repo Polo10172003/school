@@ -1,5 +1,6 @@
 <?php
 include('db_connection.php');
+require_once __DIR__ . '/includes/transaction_logger.php';
 
 $subject = trim($_POST['subject'] ?? '');
 $message = trim($_POST['message'] ?? '');
@@ -127,6 +128,21 @@ if (!$dispatched) {
 $statusMessage = $dispatched
     ? 'Announcement dispatched to the selected recipients.'
     : 'Announcement saved, but email delivery could not be confirmed. Please check the logs.';
+
+transaction_log_record($conn, [
+    'category'    => 'announcement',
+    'action'      => $dispatched ? 'announcement_dispatched' : 'announcement_saved',
+    'target_type' => 'announcement',
+    'target_id'   => (string) $announcementId,
+    'description' => sprintf('Posted announcement "%s".', $subject),
+    'metadata'    => [
+        'audience'       => $grades,
+        'normalized_scope'=> $normalizedScope,
+        'email_dispatched'=> $dispatched,
+        'has_image'      => $imagePath !== null,
+    ],
+    'context'     => 'admin',
+]);
 
 echo "<script>alert(" . json_encode($statusMessage) . "); window.location.href = 'admin_dashboard.php#announcements';</script>";
 
