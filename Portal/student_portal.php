@@ -585,6 +585,153 @@ $display_student_number = $student_number !== '' ? $student_number : 'Pending';
 $display_lrn = $student_lrn !== null && $student_lrn !== '' ? $student_lrn : 'Pending';
 
 $classScheduleRows = [];
+$classScheduleYear = null;
+if ($year !== '') {
+    $normalizedGradeKey = cashier_normalize_grade_key((string) $year);
+    $gradeCandidates = cashier_grade_synonyms($normalizedGradeKey);
+    if (!in_array($normalizedGradeKey, $gradeCandidates, true) && $normalizedGradeKey !== '') {
+        $gradeCandidates[] = $normalizedGradeKey;
+    }
+    if (!in_array($year, $gradeCandidates, true)) {
+        $gradeCandidates[] = $year;
+    }
+
+    $gradeTokens = [];
+    foreach ($gradeCandidates as $candidate) {
+        $token = strtolower((string) $candidate);
+        $token = str_replace([' ', '-', '_'], '', $token);
+        $token = preg_replace('/[^a-z0-9]/', '', $token);
+        if ($token !== '') {
+            $gradeTokens[] = $token;
+        }
+    }
+    $gradeTokens = array_values(array_unique($gradeTokens));
+
+    $sectionCandidates = [];
+    $applySectionFilter = false;
+    if (!$sectionEmpty) {
+        $sectionLower = strtolower(trim($sectionTrimmed));
+        if ($sectionLower !== '') {
+            $applySectionFilter = true;
+            $sectionCandidates[] = $sectionLower;
+            $mutations = [];
+            $mutations[] = preg_replace('/\bsection\b/i', '', $sectionLower);
+            $mutations[] = preg_replace('/\bsec\b/i', '', $sectionLower);
+            $mutations[] = preg_replace('/(section|sec|sect|section-)/i', '', $sectionLower);
+            $mutations[] = str_replace(['section', 'sec', '-'], ' ', $sectionLower);
+            foreach ($mutations as $mut) {
+                $mut = strtolower(trim((string) $mut));
+                if ($mut !== '' && !in_array($mut, $sectionCandidates, true)) {
+                    $sectionCandidates[] = $mut;
+                }
+                $lettersOnly = preg_replace('/[^a-z0-9]/', '', $mut);
+                if ($lettersOnly !== '' && !in_array($lettersOnly, $sectionCandidates, true)) {
+                    $sectionCandidates[] = $lettersOnly;
+                }
+            }
+            if (!in_array('all', $sectionCandidates, true)) {
+                $sectionCandidates[] = 'all';
+            }
+        }
+    }
+
+    foreach ($gradeTokens as $gradeToken) {
+        $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
+
+        $schoolYearCandidates = [];
+        if ($student_school_year !== '') {
+            $schoolYearCandidates[] = $student_school_year;
+        }
+
+        $latestYear = null;
+        $yearStmt = $conn->prepare("SELECT school_year FROM class_schedules
+            WHERE (
+                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+                OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
+                OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+                OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
+            )
+            ORDER BY updated_at DESC
+            LIMIT 1");
+        if ($yearStmt) {
+            $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
+            $yearStmt->execute();
+            $yearStmt->bind_result($foundYear);
+            if ($yearStmt->fetch()) {
+                $latestYear = $foundYear;
+            }
+            $yearStmt->close();
+        }
+        if ($latestYear && !in_array($latestYear, $schoolYearCandidates, true)) {
+            $schoolYearCandidates[] = $latestYear;
+        }
+        if (empty($schoolYearCandidates)) {
+            $schoolYearCandidates[] = null;
+        }
+
+        foreach ($schoolYearCandidates as $candidateYear) {
+            $scheduleSql = "SELECT section, subject, teacher, day_of_week, start_time, end_time, room
+                FROM class_schedules
+                WHERE (
+                    REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
+                 OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
+                 OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
+                 OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
+                )";
+            $types = 'ssss';
+            $params = [$gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted];
+
+            if ($candidateYear !== null && $candidateYear !== '') {
+                $scheduleSql .= ' AND school_year = ?';
+                $types .= 's';
+                $params[] = $candidateYear;
+            }
+
+            $scheduleSql .= " ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time";
+            $scheduleStmt = $conn->prepare($scheduleSql);
+            if (!$scheduleStmt) {
+                continue;
+            }
+            $scheduleStmt->bind_param($types, ...$params);
+            if (!$scheduleStmt->execute()) {
+                $scheduleStmt->close();
+                continue;
+            }
+            $scheduleResult = $scheduleStmt->get_result();
+            $rows = [];
+            if ($scheduleResult instanceof mysqli_result) {
+                $rows = $scheduleResult->fetch_all(MYSQLI_ASSOC);
+                $scheduleResult->close();
+            }
+            $scheduleStmt->close();
+
+            if (empty($rows)) {
+                continue;
+            }
+
+            if ($applySectionFilter && !empty($sectionCandidates)) {
+                $filtered = [];
+                foreach ($rows as $entry) {
+                    $entrySection = strtolower(trim((string) ($entry['section'] ?? '')));
+                    if ($entrySection === '' || in_array($entrySection, $sectionCandidates, true)) {
+                        $filtered[] = $entry;
+                    }
+                }
+                if (!empty($filtered)) {
+                    $rows = $filtered;
+                }
+            }
+
+            if (!empty($rows)) {
+                $classScheduleRows = $rows;
+                $classScheduleYear = $candidateYear ?: $latestYear;
+                break 2;
+            }
+        }
+    }
+}
+
+$classScheduleRows = [];
 if ($year !== '') {
     $scheduleSql = "SELECT subject, teacher, day_of_week, start_time, end_time, room, section, school_year FROM class_schedules WHERE grade_level = ?";
     $scheduleParams = [$year];
@@ -1015,65 +1162,6 @@ unset($finance_view_ref);
                                 <i class="bi bi-box-arrow-right me-2"></i>Logout
                             </a>
                         </div>
-                </div>
-            </div>
-            <div class="card portal-card mt-4">
-                <div class="card-body">
-                    <h3 class="h6 fw-bold mb-3">Class Schedule</h3>
-                    <?php if (!empty($classScheduleRows)): ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Day</th>
-                                        <th scope="col">Time</th>
-                                        <th scope="col">Subject</th>
-                                        <th scope="col">Teacher</th>
-                                        <th scope="col">Room</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($classScheduleRows as $classRow):
-                                        $dayLabel = $classRow['day_of_week'] ?? '';
-                                        if ($dayLabel !== '') {
-                                            $dayLabel = ucwords(strtolower($dayLabel));
-                                        }
-
-                                        $startTimeRaw = $classRow['start_time'] ?? null;
-                                        $endTimeRaw = $classRow['end_time'] ?? null;
-                                        $startLabel = $startTimeRaw ? date('g:i A', strtotime($startTimeRaw)) : null;
-                                        $endLabel = $endTimeRaw ? date('g:i A', strtotime($endTimeRaw)) : null;
-
-                                        if ($startLabel && $endLabel) {
-                                            $timeLabel = $startLabel . ' - ' . $endLabel;
-                                        } elseif ($startLabel) {
-                                            $timeLabel = $startLabel;
-                                        } elseif ($endLabel) {
-                                            $timeLabel = 'Until ' . $endLabel;
-                                        } else {
-                                            $timeLabel = 'TBA';
-                                        }
-
-                                        $subjectLabel = $classRow['subject'] ?? 'TBA';
-                                        $teacherLabel = trim((string) ($classRow['teacher'] ?? ''));
-                                        $roomLabel = trim((string) ($classRow['room'] ?? ''));
-                                    ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($dayLabel !== '' ? $dayLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($timeLabel); ?></td>
-                                            <td><?php echo htmlspecialchars($subjectLabel !== '' ? $subjectLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($teacherLabel !== '' ? $teacherLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($roomLabel !== '' ? $roomLabel : 'TBA'); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php else: ?>
-                        <div class="empty-state">
-                            <i class="bi bi-info-circle me-2"></i>Class schedule will be posted soon. Please check back later.
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1620,6 +1708,71 @@ unset($finance_view_ref);
                         <?php else: ?>
                             <div class="empty-state">
                                 <i class="bi bi-info-circle me-2"></i>No payments recorded yet.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="card portal-card">
+                    <div class="card-body">
+                        <h3 class="h5 fw-bold mb-3">Class Schedule</h3>
+                        <p class="text-muted small mb-3">
+                            Grade: <strong><?php echo htmlspecialchars($year ?: 'TBA'); ?></strong>
+                            · Section: <strong><?php echo htmlspecialchars($display_section); ?></strong>
+                            <?php if ($classScheduleYear): ?>· School Year: <strong><?php echo htmlspecialchars($classScheduleYear); ?></strong><?php elseif ($student_school_year !== ''): ?>· School Year: <strong><?php echo htmlspecialchars($student_school_year); ?></strong><?php endif; ?>
+                        </p>
+                        <?php if (!empty($classScheduleRows)): ?>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Day</th>
+                                            <th scope="col">Time</th>
+                                            <th scope="col">Subject</th>
+                                            <th scope="col">Teacher</th>
+                                            <th scope="col">Room</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($classScheduleRows as $classRow):
+                                            $dayLabel = $classRow['day_of_week'] ?? '';
+                                            if ($dayLabel !== '') {
+                                                $dayLabel = ucwords(strtolower($dayLabel));
+                                            }
+
+                                            $startTimeRaw = $classRow['start_time'] ?? null;
+                                            $endTimeRaw = $classRow['end_time'] ?? null;
+                                            $startLabel = $startTimeRaw ? date('g:i A', strtotime((string) $startTimeRaw)) : null;
+                                            $endLabel = $endTimeRaw ? date('g:i A', strtotime((string) $endTimeRaw)) : null;
+
+                                            if ($startLabel && $endLabel) {
+                                                $timeLabel = $startLabel . ' - ' . $endLabel;
+                                            } elseif ($startLabel) {
+                                                $timeLabel = $startLabel;
+                                            } elseif ($endLabel) {
+                                                $timeLabel = 'Until ' . $endLabel;
+                                            } else {
+                                                $timeLabel = 'TBA';
+                                            }
+
+                                            $subjectLabel = $classRow['subject'] ?? 'TBA';
+                        $teacherLabel = trim((string) ($classRow['teacher'] ?? ''));
+                        $roomLabel = trim((string) ($classRow['room'] ?? ''));
+                                        ?>
+                                            <tr>
+                                                <td><?php echo htmlspecialchars($dayLabel !== '' ? $dayLabel : 'TBA'); ?></td>
+                                                <td><?php echo htmlspecialchars($timeLabel); ?></td>
+                                                <td><?php echo htmlspecialchars($subjectLabel !== '' ? $subjectLabel : 'TBA'); ?></td>
+                                                <td><?php echo htmlspecialchars($teacherLabel !== '' ? $teacherLabel : 'TBA'); ?></td>
+                                                <td><?php echo htmlspecialchars($roomLabel !== '' ? $roomLabel : 'TBA'); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <div class="empty-state mb-0">
+                                <i class="bi bi-info-circle me-2"></i>Class schedule will be posted soon. Please check back later.
                             </div>
                         <?php endif; ?>
                     </div>
