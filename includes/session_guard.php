@@ -136,22 +136,38 @@ SQL;
 
         $stmt = $conn->prepare('SELECT session_token FROM active_sessions WHERE context = ? AND identifier = ? LIMIT 1');
         if (!$stmt) {
-            session_guard_handle_failure($options);
-            return false;
+            error_log('[session_guard] Unable to prepare session validation query: ' . $conn->error);
+            return true;
         }
 
-        $stmt->bind_param('ss', $context, $identifier);
-        $stmt->execute();
-        $stmt->bind_result($storedToken);
+        if (!$stmt->bind_param('ss', $context, $identifier)) {
+            error_log('[session_guard] Unable to bind parameters for session validation: ' . $stmt->error);
+            $stmt->close();
+            return true;
+        }
 
-        if ($stmt->fetch()) {
+        if (!$stmt->execute()) {
+            error_log('[session_guard] Unable to execute session validation query: ' . $stmt->error);
             $stmt->close();
-            if (!hash_equals((string) $storedToken, $sessionToken)) {
-                session_guard_handle_failure($options);
-                return false;
-            }
-        } else {
-            $stmt->close();
+            return true;
+        }
+
+        $stmt->bind_result($storedToken);
+        $hasRow = $stmt->fetch();
+        $stmt->close();
+
+        if ($hasRow === null) {
+            error_log('[session_guard] Failed to fetch session validation row for ' . $context . ':' . $identifier);
+            return true;
+        }
+
+        if ($hasRow === false) {
+            // If the record is missing (e.g. table not writable) try to restamp it and allow the request.
+            session_guard_store($conn, $context, $identifier);
+            return true;
+        }
+
+        if (!hash_equals((string) $storedToken, $sessionToken)) {
             session_guard_handle_failure($options);
             return false;
         }
