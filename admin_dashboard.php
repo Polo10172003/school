@@ -780,8 +780,18 @@ if ($transactionLogTableExists) {
             </thead>
             <tbody>
               <?php foreach ($transactionLogs as $log):
-                $occurredAt = $log['occurred_at'] ?? '';
-                $whenLabel = $occurredAt !== '' ? date('M d, Y g:i A', strtotime($occurredAt)) : '—';
+                $occurredAtRaw = $log['occurred_at'] ?? '';
+                $whenLabel = '—';
+                $timestampIso = '';
+                if ($occurredAtRaw !== '') {
+                  try {
+                    $dt = new DateTime($occurredAtRaw);
+                    $whenLabel = $dt->format('M d, Y g:i A');
+                    $timestampIso = $dt->format(DateTime::ATOM);
+                  } catch (Exception $ignored) {
+                    $whenLabel = $occurredAtRaw;
+                  }
+                }
                 $actorName = trim((string) ($log['actor_fullname'] ?? ''));
                 if ($actorName === '') {
                   $actorName = trim((string) ($log['actor_username'] ?? ''));
@@ -831,7 +841,7 @@ if ($transactionLogTableExists) {
                 $description = trim((string) ($log['description'] ?? ''));
               ?>
                 <tr>
-                  <td><?= htmlspecialchars($whenLabel) ?></td>
+                  <td class="transaction-log-time"<?= $timestampIso !== '' ? ' data-timestamp="' . htmlspecialchars($timestampIso) . '"' : '' ?>><?= htmlspecialchars($whenLabel) ?></td>
                   <td>
                     <div style="display:flex;flex-direction:column;">
                       <strong><?= htmlspecialchars($actorName) ?></strong>
@@ -1460,6 +1470,34 @@ unset($sections);
     printWindow.print();
     printWindow.close();
   }
+</script>
+<script>
+  (function () {
+    if (typeof Intl === 'undefined' || typeof Intl.DateTimeFormat === 'undefined') {
+      return;
+    }
+    const formatter = new Intl.DateTimeFormat(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    document.querySelectorAll('.transaction-log-time[data-timestamp]').forEach(function (node) {
+      const iso = node.getAttribute('data-timestamp');
+      if (!iso) {
+        return;
+      }
+      const dateObj = new Date(iso);
+      if (Number.isNaN(dateObj.getTime())) {
+        return;
+      }
+      node.textContent = formatter.format(dateObj);
+      node.title = dateObj.toString();
+    });
+  })();
 </script>
 <?php
 $adminStorageKey = 'esr_session_admin';

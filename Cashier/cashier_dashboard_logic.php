@@ -1511,20 +1511,26 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             }
 
             $logAction = $isSubsidyPayment ? 'subsidy_recorded' : 'payment_recorded';
+            $studentLabelForLog = trim(($firstname ?? '') . ' ' . ($lastname ?? ''));
+            if ($studentLabelForLog === '') {
+                $studentLabelForLog = 'Student';
+            }
+            $studentIdentifier = $student_number !== null && $student_number !== ''
+                ? $student_number
+                : (string) $student_id;
+
             $logDescription = $isSubsidyPayment
                 ? sprintf(
-                    'Recorded subsidy for %s %s (student #%d).',
-                    $firstname ?? '',
-                    $lastname ?? '',
-                    $student_id
+                    'Recorded subsidy for %s (student %s).',
+                    $studentLabelForLog,
+                    $studentIdentifier
                 )
                 : sprintf(
-                    'Recorded %s payment of ₱%s for %s %s (student #%d).',
+                    'Recorded %s payment of ₱%s for %s (student %s).',
                     strtolower($payment_type ?: 'payment'),
                     number_format((float) $original_amount, 2),
-                    $firstname ?? '',
-                    $lastname ?? '',
-                    $student_id
+                    $studentLabelForLog,
+                    $studentIdentifier
                 );
 
             $logMetadata = [

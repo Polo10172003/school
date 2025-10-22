@@ -344,6 +344,7 @@ $studentDisplayName = trim($studentDisplayFirstname . ' ' . $studentDisplayLastn
 if ($studentDisplayName === '') {
     $studentDisplayName = 'Student';
 }
+$studentIdentifier = $student_number_value !== '' ? $student_number_value : (string) $student_id;
 
 $finalReceiptNumber = $studentRow['or_number'] ?? ($previousOrNumber ?? $or_number ?? null);
 $finalReferenceNumber = $studentRow['reference_number'] ?? ($previousReference ?? null);
@@ -371,7 +372,7 @@ transaction_log_record($conn, [
     'action'      => $status === 'paid' ? 'payment_marked_paid' : 'payment_declined',
     'target_type' => 'student',
     'target_id'   => $student_number_value !== '' ? $student_number_value : (string) $student_id,
-    'description' => sprintf('Marked payment #%d for %s as %s.', $id, $studentDisplayName, strtoupper($status)),
+    'description' => sprintf('Marked payment #%d for %s (student %s) as %s.', $id, $studentDisplayName, $studentIdentifier, strtoupper($status)),
     'metadata'    => $logMetadata,
     'context'     => 'cashier',
 ]);
