@@ -122,6 +122,211 @@ if (!function_exists('portal_stmt_fetch_assoc')) {
     }
 }
 
+if (!function_exists('portal_fetch_class_schedule')) {
+    /**
+     * Resolve class schedule entries for the given grade/section similar to the cashier email worker.
+     *
+     * @return array{entries:array<int,array<string,mixed>>,school_year:?string}
+     */
+    function portal_fetch_class_schedule(
+        mysqli $conn,
+        string $gradeLevel,
+        string $normalizedGradeKey,
+        ?string $section,
+        ?string $studentSchoolYear
+    ): array {
+        $result = [
+            'entries' => [],
+            'school_year' => null,
+        ];
+
+        $gradeLevel = trim($gradeLevel);
+        $normalizedGradeKey = trim($normalizedGradeKey);
+
+        if ($gradeLevel === '' && $normalizedGradeKey === '') {
+            return $result;
+        }
+
+        $gradeCandidates = [];
+        if ($normalizedGradeKey !== '') {
+            $gradeCandidates = cashier_grade_synonyms($normalizedGradeKey);
+            if (!in_array($normalizedGradeKey, $gradeCandidates, true)) {
+                $gradeCandidates[] = $normalizedGradeKey;
+            }
+        }
+        if ($gradeLevel !== '' && !in_array($gradeLevel, $gradeCandidates, true)) {
+            $gradeCandidates[] = $gradeLevel;
+        }
+
+        $gradeCandidates = array_values(array_unique(array_filter($gradeCandidates, static function ($value) {
+            return trim((string) $value) !== '';
+        })));
+
+        if (empty($gradeCandidates)) {
+            return $result;
+        }
+
+        $scheduleEntries = [];
+        $resolvedSchoolYear = null;
+        $sectionLookup = $section !== null ? strtolower(trim($section)) : null;
+
+        foreach ($gradeCandidates as $candidate) {
+            $gradeToken = strtolower(str_replace([' ', '-', '_'], '', (string) $candidate));
+            $gradeToken = preg_replace('/[^a-z0-9]/', '', $gradeToken);
+            if ($gradeToken === '') {
+                continue;
+            }
+            $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
+
+            $yearSql = "
+                SELECT school_year
+                FROM class_schedules
+                WHERE (
+                        REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci = ?
+                     OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci, ?) > 0
+                     OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci = ?
+                     OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci, ?) > 0
+                    )
+                ORDER BY updated_at DESC
+                LIMIT 1
+            ";
+            $yearStmt = $conn->prepare($yearSql);
+            if ($yearStmt) {
+                $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
+                if ($yearStmt->execute()) {
+                    $row = portal_stmt_fetch_assoc($yearStmt);
+                    if ($row && !empty($row['school_year'])) {
+                        $resolvedSchoolYear = (string) $row['school_year'];
+                    }
+                }
+                $yearStmt->close();
+            }
+
+            if (!$resolvedSchoolYear) {
+                continue;
+            }
+
+            $scheduleSql = "
+                SELECT section, subject, teacher, day_of_week, start_time, end_time, room
+                FROM class_schedules
+                WHERE (
+                        REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci = ?
+                     OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci, ?) > 0
+                     OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci = ?
+                     OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') COLLATE utf8mb4_uca1400_ai_ci, ?) > 0
+                    )
+                  AND school_year = ?
+                ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'),
+                         start_time IS NULL, start_time
+            ";
+            $scheduleStmt = $conn->prepare($scheduleSql);
+            if ($scheduleStmt) {
+                $scheduleStmt->bind_param('sssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted, $resolvedSchoolYear);
+                if ($scheduleStmt->execute()) {
+                    $entries = portal_stmt_fetch_all($scheduleStmt);
+                    if (!empty($entries)) {
+                        $scheduleEntries = $entries;
+                        break;
+                    }
+                }
+                $scheduleStmt->close();
+            }
+
+            $resolvedSchoolYear = null;
+        }
+
+        if (empty($scheduleEntries) && $gradeLevel !== '') {
+            $fallbackSql = "
+                SELECT subject, teacher, day_of_week, start_time, end_time, room, section, school_year
+                FROM class_schedules
+                WHERE grade_level = ?
+            ";
+            $conditions = [$gradeLevel];
+            $types = 's';
+
+            if ($studentSchoolYear !== null && $studentSchoolYear !== '') {
+                $fallbackSql .= " AND (school_year = ? OR school_year IS NULL OR school_year = '')";
+                $conditions[] = $studentSchoolYear;
+                $types .= 's';
+            }
+
+            $fallbackSql .= "
+                ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'),
+                         start_time IS NULL, start_time
+            ";
+
+            $fallbackStmt = $conn->prepare($fallbackSql);
+            if ($fallbackStmt) {
+                $fallbackStmt->bind_param($types, ...$conditions);
+                if ($fallbackStmt->execute()) {
+                    $fallbackEntries = portal_stmt_fetch_all($fallbackStmt);
+                    if (!empty($fallbackEntries)) {
+                        $scheduleEntries = $fallbackEntries;
+                        if (!$resolvedSchoolYear) {
+                            foreach ($scheduleEntries as $row) {
+                                $rowYear = trim((string) ($row['school_year'] ?? ''));
+                                if ($rowYear !== '') {
+                                    $resolvedSchoolYear = $rowYear;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                $fallbackStmt->close();
+            }
+        }
+
+        if (empty($scheduleEntries)) {
+            if ($studentSchoolYear !== null && $studentSchoolYear !== '') {
+                $resolvedSchoolYear = $studentSchoolYear;
+            }
+            return $result;
+        }
+
+        if ($sectionLookup !== null && $sectionLookup !== '') {
+            $sectionCandidates = [$sectionLookup];
+            $mutations = [];
+            $mutations[] = preg_replace('/\bsection\b/i', '', $sectionLookup);
+            $mutations[] = preg_replace('/\bsec\b/i', '', $sectionLookup);
+            $mutations[] = preg_replace('/(section|sec|sect|section-)/i', '', $sectionLookup);
+            $mutations[] = str_replace(['section', 'sec', '-'], ' ', $sectionLookup);
+
+            foreach ($mutations as $mut) {
+                $mut = strtolower(trim((string) $mut));
+                if ($mut !== '' && !in_array($mut, $sectionCandidates, true)) {
+                    $sectionCandidates[] = $mut;
+                }
+                $lettersOnly = preg_replace('/[^a-z0-9]/', '', $mut);
+                if ($lettersOnly !== '' && !in_array($lettersOnly, $sectionCandidates, true)) {
+                    $sectionCandidates[] = $lettersOnly;
+                }
+            }
+
+            if (!in_array('all', $sectionCandidates, true)) {
+                $sectionCandidates[] = 'all';
+            }
+
+            $filtered = [];
+            foreach ($scheduleEntries as $entry) {
+                $entrySection = strtolower(trim((string) ($entry['section'] ?? '')));
+                if ($entrySection === '' || in_array($entrySection, $sectionCandidates, true)) {
+                    $filtered[] = $entry;
+                }
+            }
+
+            if (!empty($filtered)) {
+                $scheduleEntries = $filtered;
+            }
+        }
+
+        $result['entries'] = array_values($scheduleEntries);
+        $result['school_year'] = $resolvedSchoolYear ?? $studentSchoolYear;
+
+        return $result;
+    }
+}
+
 // Make sure student is logged in
 if (!isset($_SESSION['student_number'])) {
     header("Location: student_login.php");
@@ -658,249 +863,15 @@ if ($gender_normalized === 'male') {
 $display_student_number = $student_number !== '' ? $student_number : 'Pending';
 $display_lrn = $student_lrn !== null && $student_lrn !== '' ? $student_lrn : 'Pending';
 
-$classScheduleRows = [];
-$classScheduleYear = null;
-if ($year !== '') {
-    $normalizedGradeKey = cashier_normalize_grade_key((string) $year);
-    $gradeCandidates = cashier_grade_synonyms($normalizedGradeKey);
-    if (!in_array($normalizedGradeKey, $gradeCandidates, true) && $normalizedGradeKey !== '') {
-        $gradeCandidates[] = $normalizedGradeKey;
-    }
-    if (!in_array($year, $gradeCandidates, true)) {
-        $gradeCandidates[] = $year;
-    }
-
-    $gradeTokens = [];
-    foreach ($gradeCandidates as $candidate) {
-        $token = strtolower((string) $candidate);
-        $token = str_replace([' ', '-', '_'], '', $token);
-        $token = preg_replace('/[^a-z0-9]/', '', $token);
-        if ($token !== '') {
-            $gradeTokens[] = $token;
-        }
-    }
-    $gradeTokens = array_values(array_unique($gradeTokens));
-
-    $sectionCandidates = [];
-    $applySectionFilter = false;
-    if (!$sectionEmpty) {
-        $sectionLower = strtolower(trim($sectionTrimmed));
-        if ($sectionLower !== '') {
-            $applySectionFilter = true;
-            $sectionCandidates[] = $sectionLower;
-            $mutations = [];
-            $mutations[] = preg_replace('/\bsection\b/i', '', $sectionLower);
-            $mutations[] = preg_replace('/\bsec\b/i', '', $sectionLower);
-            $mutations[] = preg_replace('/(section|sec|sect|section-)/i', '', $sectionLower);
-            $mutations[] = str_replace(['section', 'sec', '-'], ' ', $sectionLower);
-            foreach ($mutations as $mut) {
-                $mut = strtolower(trim((string) $mut));
-                if ($mut !== '' && !in_array($mut, $sectionCandidates, true)) {
-                    $sectionCandidates[] = $mut;
-                }
-                $lettersOnly = preg_replace('/[^a-z0-9]/', '', $mut);
-                if ($lettersOnly !== '' && !in_array($lettersOnly, $sectionCandidates, true)) {
-                    $sectionCandidates[] = $lettersOnly;
-                }
-            }
-            if (!in_array('all', $sectionCandidates, true)) {
-                $sectionCandidates[] = 'all';
-            }
-        }
-    }
-
-    foreach ($gradeTokens as $gradeToken) {
-        $gradeTokenAdjusted = str_replace('primary', 'prime', $gradeToken);
-
-        $schoolYearCandidates = [];
-        if ($student_school_year !== '') {
-            $schoolYearCandidates[] = $student_school_year;
-        }
-
-        $latestYear = null;
-        $yearStmt = $conn->prepare("SELECT school_year FROM class_schedules
-            WHERE (
-                REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
-                OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
-                OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
-            )
-            ORDER BY updated_at DESC
-            LIMIT 1");
-        if ($yearStmt) {
-            $yearStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
-            $yearStmt->execute();
-            $yearStmt->bind_result($foundYear);
-            if ($yearStmt->fetch()) {
-                $latestYear = $foundYear;
-            }
-            $yearStmt->close();
-        }
-        if ($latestYear && !in_array($latestYear, $schoolYearCandidates, true)) {
-            $schoolYearCandidates[] = $latestYear;
-        }
-        if (empty($schoolYearCandidates)) {
-            $schoolYearCandidates[] = null;
-        }
-
-        foreach ($schoolYearCandidates as $candidateYear) {
-            if ($candidateYear !== null && $candidateYear !== '') {
-                $scheduleStmt = $conn->prepare(
-                    "SELECT section, subject, teacher, day_of_week, start_time, end_time, room
-                     FROM class_schedules
-                     WHERE (
-                            REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                         OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
-                         OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
-                         OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
-                     )
-                     AND school_year = ?
-                     ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'),
-                              start_time IS NULL, start_time"
-                );
-                if (!$scheduleStmt) {
-                    continue;
-                }
-                $scheduleStmt->bind_param('sssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted, $candidateYear);
-            } else {
-                $scheduleStmt = $conn->prepare(
-                    "SELECT section, subject, teacher, day_of_week, start_time, end_time, room
-                     FROM class_schedules
-                     WHERE (
-                            REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = ?
-                         OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), ?) > 0
-                         OR REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', '') = REPLACE(?, 'primary', 'prime')
-                         OR INSTR(REPLACE(REPLACE(REPLACE(LOWER(grade_level), ' ', ''), '-', ''), '_', ''), REPLACE(?, 'primary', 'prime')) > 0
-                     )
-                     ORDER BY FIELD(day_of_week,'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'),
-                              start_time IS NULL, start_time"
-                );
-                if (!$scheduleStmt) {
-                    continue;
-                }
-                $scheduleStmt->bind_param('ssss', $gradeToken, $gradeToken, $gradeTokenAdjusted, $gradeTokenAdjusted);
-            }
-
-            if (!$scheduleStmt->execute()) {
-                $scheduleStmt->close();
-                continue;
-            }
-            $rows = [];
-            $sectionCol = $subjectCol = $teacherCol = $dayCol = $startCol = $endCol = $roomCol = null;
-            $scheduleStmt->bind_result($sectionCol, $subjectCol, $teacherCol, $dayCol, $startCol, $endCol, $roomCol);
-            while ($scheduleStmt->fetch()) {
-                $rows[] = [
-                    'section'     => $sectionCol,
-                    'subject'     => $subjectCol,
-                    'teacher'     => $teacherCol,
-                    'day_of_week' => $dayCol,
-                    'start_time'  => $startCol,
-                    'end_time'    => $endCol,
-                    'room'        => $roomCol,
-                ];
-            }
-            $scheduleStmt->close();
-
-            if (empty($rows)) {
-                continue;
-            }
-
-            if ($applySectionFilter && !empty($sectionCandidates)) {
-                $filtered = [];
-                foreach ($rows as $entry) {
-                    $entrySection = strtolower(trim((string) ($entry['section'] ?? '')));
-                    if ($entrySection === '' || in_array($entrySection, $sectionCandidates, true)) {
-                        $filtered[] = $entry;
-                    }
-                }
-                if (!empty($filtered)) {
-                    $rows = $filtered;
-                }
-            }
-
-            if (!empty($rows)) {
-                $classScheduleRows = $rows;
-                $classScheduleYear = $candidateYear ?: $latestYear;
-                break 2;
-            }
-        }
-    }
-}
-
-if (empty($classScheduleRows) && $year !== '') {
-    $fallbackRows = [];
-    $scheduleSql = "SELECT subject, teacher, day_of_week, start_time, end_time, room, section, school_year FROM class_schedules WHERE grade_level = ?";
-    $scheduleParams = [$year];
-    $scheduleTypes = 's';
-
-    if ($student_school_year !== '') {
-        $scheduleSql .= " AND (school_year = ? OR school_year IS NULL OR school_year = '')";
-        $scheduleParams[] = $student_school_year;
-        $scheduleTypes .= 's';
-    }
-
-    if (!$sectionEmpty && strcasecmp($sectionTrimmed, 'ALL') !== 0) {
-        $scheduleSql .= " AND (section = ? OR section = 'ALL')";
-        $scheduleParams[] = $sectionTrimmed;
-        $scheduleTypes .= 's';
-    }
-
-    $scheduleSql .= " ORDER BY FIELD(day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time";
-
-    $scheduleStmt = $conn->prepare($scheduleSql);
-    if ($scheduleStmt) {
-        $gradeParam = $year;
-        if ($student_school_year !== '' && !$sectionEmpty && strcasecmp($sectionTrimmed, 'ALL') !== 0) {
-            $yearParam = $student_school_year;
-            $sectionParam = $sectionTrimmed;
-            $scheduleStmt->bind_param('sss', $gradeParam, $yearParam, $sectionParam);
-        } elseif ($student_school_year !== '') {
-            $yearParam = $student_school_year;
-            $scheduleStmt->bind_param('ss', $gradeParam, $yearParam);
-        } elseif (!$sectionEmpty && strcasecmp($sectionTrimmed, 'ALL') !== 0) {
-            $sectionParam = $sectionTrimmed;
-            $scheduleStmt->bind_param('ss', $gradeParam, $sectionParam);
-        } else {
-            $scheduleStmt->bind_param('s', $gradeParam);
-        }
-
-        if ($scheduleStmt->execute()) {
-            $subjectCol = $teacherCol = $dayCol = $startCol = $endCol = $roomCol = $sectionCol = $yearCol = null;
-            $scheduleStmt->bind_result($subjectCol, $teacherCol, $dayCol, $startCol, $endCol, $roomCol, $sectionCol, $yearCol);
-            while ($scheduleStmt->fetch()) {
-                $fallbackRows[] = [
-                    'subject'     => $subjectCol,
-                    'teacher'     => $teacherCol,
-                    'day_of_week' => $dayCol,
-                    'start_time'  => $startCol,
-                    'end_time'    => $endCol,
-                    'room'        => $roomCol,
-                    'section'     => $sectionCol,
-                    'school_year' => $yearCol,
-                ];
-            }
-        }
-        $scheduleStmt->close();
-    }
-
-    if (!empty($fallbackRows)) {
-        $classScheduleRows = $fallbackRows;
-        if ($classScheduleYear === null) {
-            foreach ($classScheduleRows as $candidateRow) {
-                $rowYear = trim((string) ($candidateRow['school_year'] ?? ''));
-                if ($rowYear !== '') {
-                    $classScheduleYear = $rowYear;
-                    break;
-                }
-            }
-            if ($classScheduleYear === null && $student_school_year !== '') {
-                $classScheduleYear = $student_school_year;
-            }
-        }
-    }
-}
-
-
+$classScheduleData = portal_fetch_class_schedule(
+    $conn,
+    (string) $year,
+    (string) $grade_key,
+    $sectionTrimmed !== '' ? $sectionTrimmed : null,
+    $student_school_year !== '' ? $student_school_year : null
+);
+$classScheduleRows = $classScheduleData['entries'];
+$classScheduleYear = $classScheduleData['school_year'];
 
 $pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
 $escGrades = ['grade11','grade12'];
