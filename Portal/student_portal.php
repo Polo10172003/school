@@ -697,16 +697,22 @@ if ($year !== '') {
                 $scheduleStmt->close();
                 continue;
             }
-            $scheduleResult = $scheduleStmt->get_result();
             $rows = [];
-            if ($scheduleResult instanceof mysqli_result) {
-                while ($row = $scheduleResult->fetch_assoc()) {
-                    if (!$row) {
-                        break;
-                    }
-                    $rows[] = $row;
-                }
-                $scheduleResult->close();
+            $sectionCol = $subjectCol = $teacherCol = $dayCol = $startCol = $endCol = $roomCol = null;
+            $scheduleStmt->bind_result($sectionCol, $subjectCol, $teacherCol, $dayCol, $startCol, $endCol, $roomCol);
+            while ($scheduleStmt->fetch()) {
+                $rows[] = [
+                    'section'     => $sectionCol,
+                    'subject'     => $subjectCol,
+                    'teacher'     => $teacherCol,
+                    'day_of_week' => $dayCol,
+                    'start_time'  => $startCol,
+                    'end_time'    => $endCol,
+                    'room'        => $roomCol,
+                ];
+            }
+            if (method_exists($scheduleStmt, 'free_result')) {
+                $scheduleStmt->free_result();
             }
             $scheduleStmt->close();
 
@@ -760,15 +766,22 @@ if (empty($classScheduleRows) && $year !== '') {
     if ($scheduleStmt) {
         $scheduleStmt->bind_param($scheduleTypes, ...$scheduleParams);
         if ($scheduleStmt->execute()) {
-            $scheduleResult = $scheduleStmt->get_result();
-            if ($scheduleResult instanceof mysqli_result) {
-                while ($row = $scheduleResult->fetch_assoc()) {
-                    if (!$row) {
-                        break;
-                    }
-                    $fallbackRows[] = $row;
-                }
-                $scheduleResult->close();
+            $subjectCol = $teacherCol = $dayCol = $startCol = $endCol = $roomCol = $sectionCol = $yearCol = null;
+            $scheduleStmt->bind_result($subjectCol, $teacherCol, $dayCol, $startCol, $endCol, $roomCol, $sectionCol, $yearCol);
+            while ($scheduleStmt->fetch()) {
+                $fallbackRows[] = [
+                    'subject'     => $subjectCol,
+                    'teacher'     => $teacherCol,
+                    'day_of_week' => $dayCol,
+                    'start_time'  => $startCol,
+                    'end_time'    => $endCol,
+                    'room'        => $roomCol,
+                    'section'     => $sectionCol,
+                    'school_year' => $yearCol,
+                ];
+            }
+            if (method_exists($scheduleStmt, 'free_result')) {
+                $scheduleStmt->free_result();
             }
         }
         $scheduleStmt->close();
