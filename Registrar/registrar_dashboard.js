@@ -62,6 +62,7 @@
       actions.push(`<a href="update_section.php?id=${id}">Change Section</a>`);
       actions.push(`<a href="update_student_status.php?id=${id}">Update Status</a>`);
     }
+    actions.push(`<a href="registration_assessment.php?student_id=${id}" target="_blank">Print RAFor</a>`);
 
     const portalClass = portalActive ? 'success' : 'pending';
     const portalLabel = portalActive ? 'Activated' : 'Pending';
