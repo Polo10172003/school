@@ -406,7 +406,7 @@ if ($result instanceof mysqli_result) {
                       <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
                       <a href="update_student_status.php?id=<?= (int) $row['id'] ?>">Update Status</a>
                     <?php endif; ?>
-                    <a href="registration_assessment.php?student_id=<?= (int) $row['id'] ?>" target="_blank">Print RAFor</a>
+                    <a href="registration_assessment.php?student_id=<?= (int) $row['id'] ?>" target="_blank">View RAF</a>
                     <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
                       <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Pending' ?>
                     </span>

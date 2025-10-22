@@ -231,7 +231,7 @@ if (!function_exists('email_worker_process')) {
         <p>Thank you,<br>Escuela De Sto. Rosario Admissions Office</p>
         ";
 
-            $mail->addAttachment($pdf_path, 'Enrollment_Form.pdf');
+            $mail->addAttachment($pdf_path, 'Application_FormCopy.pdf');
             $logAttempt = static function (string $line) use ($student_id): void {
                 @file_put_contents(
                     __DIR__ . '/../temp/email_worker_trace.log',
