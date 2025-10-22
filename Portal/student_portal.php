@@ -1135,6 +1135,17 @@ unset($finance_view_ref);
         background: rgba(231, 76, 60, 0.12);
     }
 
+    .portal-class-schedule__table th,
+    .portal-class-schedule__table td {
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    .portal-class-schedule__table td:first-child {
+        font-weight: 600;
+        color: #145A32;
+    }
+
     .portal-plan-card {
         transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
@@ -1266,65 +1277,6 @@ unset($finance_view_ref);
                                 <i class="bi bi-box-arrow-right me-2"></i>Logout
                             </a>
                         </div>
-                </div>
-            </div>
-            <div class="card portal-card mt-4">
-                <div class="card-body">
-                    <h3 class="h6 fw-bold mb-3">Class Schedule</h3>
-                    <?php if (!empty($classScheduleRows)): ?>
-                        <div class="table-responsive">
-                            <table class="table table-sm mb-0">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Day</th>
-                                        <th scope="col">Time</th>
-                                        <th scope="col">Subject</th>
-                                        <th scope="col">Teacher</th>
-                                        <th scope="col">Room</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($classScheduleRows as $classRow):
-                                        $dayLabel = $classRow['day_of_week'] ?? '';
-                                        if ($dayLabel !== '') {
-                                            $dayLabel = ucwords(strtolower($dayLabel));
-                                        }
-
-                                        $startTimeRaw = $classRow['start_time'] ?? null;
-                                        $endTimeRaw = $classRow['end_time'] ?? null;
-                                        $startLabel = $startTimeRaw ? date('g:i A', strtotime($startTimeRaw)) : null;
-                                        $endLabel = $endTimeRaw ? date('g:i A', strtotime($endTimeRaw)) : null;
-
-                                        if ($startLabel && $endLabel) {
-                                            $timeLabel = $startLabel . ' - ' . $endLabel;
-                                        } elseif ($startLabel) {
-                                            $timeLabel = $startLabel;
-                                        } elseif ($endLabel) {
-                                            $timeLabel = 'Until ' . $endLabel;
-                                        } else {
-                                            $timeLabel = 'TBA';
-                                        }
-
-                                        $subjectLabel = $classRow['subject'] ?? 'TBA';
-                                        $teacherLabel = trim((string) ($classRow['teacher'] ?? ''));
-                                        $roomLabel = trim((string) ($classRow['room'] ?? ''));
-                                    ?>
-                                        <tr>
-                                            <td><?php echo htmlspecialchars($dayLabel !== '' ? $dayLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($timeLabel); ?></td>
-                                            <td><?php echo htmlspecialchars($subjectLabel !== '' ? $subjectLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($teacherLabel !== '' ? $teacherLabel : 'TBA'); ?></td>
-                                            <td><?php echo htmlspecialchars($roomLabel !== '' ? $roomLabel : 'TBA'); ?></td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    <?php else: ?>
-                        <div class="empty-state">
-                            <i class="bi bi-info-circle me-2"></i>Class schedule will be posted soon. Please check back later.
-                        </div>
-                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -1871,6 +1823,99 @@ unset($finance_view_ref);
                         <?php else: ?>
                             <div class="empty-state">
                                 <i class="bi bi-info-circle me-2"></i>No payments recorded yet.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="card portal-card mt-4 portal-class-schedule">
+                    <div class="card-body">
+                        <h3 class="h5 fw-bold mb-3 text-center">Class Schedule</h3>
+                        <?php if (!empty($classScheduleRows)): ?>
+                            <?php
+                                $scheduleSchoolYearDisplay = $classScheduleYear ?: ($student_school_year !== '' ? $student_school_year : '');
+                                $weekdayOrder = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday','TBA'];
+                                $dayGroups = [];
+                                foreach ($classScheduleRows as $entry) {
+                                    $dayKey = trim((string) ($entry['day_of_week'] ?? ''));
+                                    $dayKey = $dayKey !== '' ? ucwords(strtolower($dayKey)) : 'TBA';
+                                    $dayGroups[$dayKey][] = $entry;
+                                }
+                            ?>
+                            <p class="text-muted text-center small mb-3">
+                                Grade: <strong><?php echo htmlspecialchars($year ?: 'TBA'); ?></strong>
+                                · Section: <strong><?php echo htmlspecialchars($display_section); ?></strong>
+                                <?php if ($scheduleSchoolYearDisplay !== ''): ?>
+                                    · School Year: <strong><?php echo htmlspecialchars($scheduleSchoolYearDisplay); ?></strong>
+                                <?php endif; ?>
+                            </p>
+                            <div class="table-responsive">
+                                <table class="table portal-table align-middle mb-0 portal-class-schedule__table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Day</th>
+                                            <th scope="col">Time</th>
+                                            <th scope="col">Subject</th>
+                                            <th scope="col">Teacher</th>
+                                            <th scope="col">Room</th>
+                                            <th scope="col">Applies To</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($weekdayOrder as $weekday):
+                                            if (empty($dayGroups[$weekday])) {
+                                                continue;
+                                            }
+                                            $entriesForDay = $dayGroups[$weekday];
+                        $rowspan = count($entriesForDay);
+                        foreach ($entriesForDay as $index => $entry):
+                            $startRaw = trim((string) ($entry['start_time'] ?? ''));
+                            $endRaw = trim((string) ($entry['end_time'] ?? ''));
+                            $startDisplay = $startRaw !== '' ? date('g:i A', strtotime($startRaw)) : '—';
+                            $endDisplay = $endRaw !== '' ? date('g:i A', strtotime($endRaw)) : '—';
+                            if ($startDisplay === '—' && $endDisplay === '—') {
+                                $timeDisplay = 'TBA';
+                            } elseif ($endDisplay === '—') {
+                                $timeDisplay = $startDisplay;
+                            } elseif ($startDisplay === '—') {
+                                $timeDisplay = 'Until ' . $endDisplay;
+                            } else {
+                                $timeDisplay = $startDisplay . ' - ' . $endDisplay;
+                            }
+                            $subjectLabel = trim((string) ($entry['subject'] ?? ''));
+                            if ($subjectLabel === '') {
+                                $subjectLabel = 'TBA';
+                            }
+                            $teacherLabel = trim((string) ($entry['teacher'] ?? ''));
+                            if ($teacherLabel === '') {
+                                $teacherLabel = 'TBA';
+                            }
+                            $roomLabel = trim((string) ($entry['room'] ?? ''));
+                            if ($roomLabel === '') {
+                                $roomLabel = 'TBA';
+                            }
+                            $entrySectionRaw = trim((string) ($entry['section'] ?? ''));
+                            $appliesTo = (strcasecmp($entrySectionRaw, 'ALL') === 0)
+                                ? 'All Sections'
+                                : ($entrySectionRaw !== '' ? $entrySectionRaw : $display_section);
+                                        ?>
+                                        <tr>
+                                            <?php if ($index === 0): ?>
+                                                <td rowspan="<?php echo (int) $rowspan; ?>" class="fw-semibold"><?php echo htmlspecialchars($weekday); ?></td>
+                                            <?php endif; ?>
+                                            <td><?php echo htmlspecialchars($timeDisplay); ?></td>
+                                            <td><?php echo htmlspecialchars($subjectLabel); ?></td>
+                                            <td><?php echo htmlspecialchars($teacherLabel); ?></td>
+                                            <td><?php echo htmlspecialchars($roomLabel); ?></td>
+                                            <td><?php echo htmlspecialchars($appliesTo); ?></td>
+                                        </tr>
+                                        <?php endforeach; endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <div class="empty-state mb-0">
+                                <i class="bi bi-info-circle me-2"></i>Class schedule will be posted soon. Please check back later.
                             </div>
                         <?php endif; ?>
                     </div>
