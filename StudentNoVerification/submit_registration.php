@@ -240,16 +240,18 @@ if (!$isReturningFlow) {
         "SELECT id FROM students_registration 
          WHERE LOWER(firstname) = LOWER(?) 
            AND LOWER(lastname) = LOWER(?) 
+           AND LOWER(COALESCE(middlename, '')) = LOWER(?)
            AND enrollment_status IN ('waiting', 'enrolled')
          LIMIT 1"
     );
     if ($nameCheck) {
-        $nameCheck->bind_param('ss', $firstname, $lastname);
+        $normalizedMiddle = $middlename !== '' ? $middlename : '';
+        $nameCheck->bind_param('sss', $firstname, $lastname, $normalizedMiddle);
         $nameCheck->execute();
         $nameCheck->store_result();
         if ($nameCheck->num_rows > 0) {
             $nameCheck->close();
-            $_SESSION['registration_error'] = 'A student with the same name already exists in our records. Please contact the registrar for assistance.';
+            $_SESSION['registration_error'] = 'A student with the same first, middle, and last name already exists in our records. Please contact the registrar for assistance.';
             header('Location: review_registration.php');
             exit();
         }
