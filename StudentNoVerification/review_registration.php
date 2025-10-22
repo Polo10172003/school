@@ -399,7 +399,7 @@ if (!isset($data['school_year']) || trim((string) $data['school_year']) !== $exp
 $lrnValue = trim((string) ($data['lrn'] ?? ''));
 $lrnAutoFlag = (($data['lrn_auto'] ?? '') === '1');
 $lrnDisplay = $lrnAutoFlag
-    ? 'Will be generated automatically upon submission.'
+    ? 'LRN for Pre-Prime 1 will be updated soon.'
     : ($lrnValue !== '' ? $lrnValue : 'Not provided');
 
 $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['returning_inactive_source_id']);

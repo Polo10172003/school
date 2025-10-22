@@ -584,6 +584,42 @@ if ($gender_normalized === 'male') {
 $display_student_number = $student_number !== '' ? $student_number : 'Pending';
 $display_lrn = $student_lrn !== null && $student_lrn !== '' ? $student_lrn : 'Pending';
 
+$classScheduleRows = [];
+if ($year !== '') {
+    $scheduleSql = "SELECT subject, teacher, day_of_week, start_time, end_time, room, section, school_year FROM class_schedules WHERE grade_level = ?";
+    $scheduleParams = [$year];
+    $scheduleTypes = 's';
+
+    if ($student_school_year !== '') {
+        $scheduleSql .= " AND (school_year = ? OR school_year IS NULL OR school_year = '')";
+        $scheduleParams[] = $student_school_year;
+        $scheduleTypes .= 's';
+    }
+
+    if (!$sectionEmpty && strcasecmp($sectionTrimmed, 'ALL') !== 0) {
+        $scheduleSql .= " AND (section = ? OR section = 'ALL')";
+        $scheduleParams[] = $sectionTrimmed;
+        $scheduleTypes .= 's';
+    }
+
+    $scheduleSql .= " ORDER BY FIELD(day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), start_time IS NULL, start_time";
+
+    $scheduleStmt = $conn->prepare($scheduleSql);
+    if ($scheduleStmt) {
+        $scheduleStmt->bind_param($scheduleTypes, ...$scheduleParams);
+        if ($scheduleStmt->execute()) {
+            $scheduleResult = $scheduleStmt->get_result();
+            if ($scheduleResult instanceof mysqli_result) {
+                while ($row = $scheduleResult->fetch_assoc()) {
+                    $classScheduleRows[] = $row;
+                }
+                $scheduleResult->close();
+            }
+        }
+        $scheduleStmt->close();
+    }
+}
+
 
 
 $pricing_variant_param = isset($_GET['pricing_variant']) ? strtolower(trim((string) $_GET['pricing_variant'])) : null;
@@ -689,15 +725,6 @@ unset($finance_view_ref);
 $has_multiple_views = count($finance_views) > 1;
 $student_type_lower = strtolower($student_type);
 
-$activeScheduleRows = [];
-$activeScheduleMessage = '';
-foreach ($finance_views as $candidateScheduleView) {
-    if (!empty($candidateScheduleView['is_default'])) {
-        $activeScheduleRows = $candidateScheduleView['schedule_rows'] ?? [];
-        $activeScheduleMessage = $candidateScheduleView['schedule_message'] ?? '';
-        break;
-    }
-}
 
 foreach ($finance_views as &$finance_view_ref) {
     if (($finance_view_ref['key'] ?? '') !== 'previous') {
@@ -990,66 +1017,65 @@ unset($finance_view_ref);
                         </div>
                 </div>
             </div>
+            <div class="card portal-card mt-4">
+                <div class="card-body">
+                    <h3 class="h6 fw-bold mb-3">Class Schedule</h3>
+                    <?php if (!empty($classScheduleRows)): ?>
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Day</th>
+                                        <th scope="col">Time</th>
+                                        <th scope="col">Subject</th>
+                                        <th scope="col">Teacher</th>
+                                        <th scope="col">Room</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($classScheduleRows as $classRow):
+                                        $dayLabel = $classRow['day_of_week'] ?? '';
+                                        if ($dayLabel !== '') {
+                                            $dayLabel = ucwords(strtolower($dayLabel));
+                                        }
 
-            <?php
-                $activeSchedulePreview = array_slice($activeScheduleRows, 0, 5);
-                $scheduleMessageTrimmed = trim((string) $activeScheduleMessage);
-                $hasSchedulePreview = !empty($activeSchedulePreview);
-            ?>
-            <?php if ($hasSchedulePreview || $scheduleMessageTrimmed !== ''): ?>
-                <div class="card portal-card mt-4">
-                    <div class="card-body">
-                        <h3 class="h6 fw-bold mb-3">Upcoming Payment Schedule</h3>
-                        <?php if ($hasSchedulePreview): ?>
-                            <div class="table-responsive">
-                                <table class="table table-sm mb-0">
-                                    <thead>
+                                        $startTimeRaw = $classRow['start_time'] ?? null;
+                                        $endTimeRaw = $classRow['end_time'] ?? null;
+                                        $startLabel = $startTimeRaw ? date('g:i A', strtotime($startTimeRaw)) : null;
+                                        $endLabel = $endTimeRaw ? date('g:i A', strtotime($endTimeRaw)) : null;
+
+                                        if ($startLabel && $endLabel) {
+                                            $timeLabel = $startLabel . ' - ' . $endLabel;
+                                        } elseif ($startLabel) {
+                                            $timeLabel = $startLabel;
+                                        } elseif ($endLabel) {
+                                            $timeLabel = 'Until ' . $endLabel;
+                                        } else {
+                                            $timeLabel = 'TBA';
+                                        }
+
+                                        $subjectLabel = $classRow['subject'] ?? 'TBA';
+                                        $teacherLabel = trim((string) ($classRow['teacher'] ?? ''));
+                                        $roomLabel = trim((string) ($classRow['room'] ?? ''));
+                                    ?>
                                         <tr>
-                                            <th scope="col">Due On</th>
-                                            <th scope="col" class="text-end">Amount</th>
-                                            <th scope="col">Notes</th>
+                                            <td><?php echo htmlspecialchars($dayLabel !== '' ? $dayLabel : 'TBA'); ?></td>
+                                            <td><?php echo htmlspecialchars($timeLabel); ?></td>
+                                            <td><?php echo htmlspecialchars($subjectLabel !== '' ? $subjectLabel : 'TBA'); ?></td>
+                                            <td><?php echo htmlspecialchars($teacherLabel !== '' ? $teacherLabel : 'TBA'); ?></td>
+                                            <td><?php echo htmlspecialchars($roomLabel !== '' ? $roomLabel : 'TBA'); ?></td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php foreach ($activeSchedulePreview as $scheduleRow): ?>
-                                            <tr>
-                                                <td><?php echo htmlspecialchars($scheduleRow['label'] ?? $scheduleRow['due_date'] ?? ''); ?></td>
-                                                <td class="text-end">
-                                                    <?php
-                                                        $amountDisplay = '';
-                                                        if (array_key_exists('amount_outstanding', $scheduleRow)) {
-                                                            $originalAmount = (float) ($scheduleRow['amount_original'] ?? 0);
-                                                            $outstandingAmount = (float) ($scheduleRow['amount_outstanding'] ?? 0);
-                                                            if ($outstandingAmount <= 0.009) {
-                                                                $amountDisplay = '<span class="text-success fw-semibold">Paid</span> (₱' . number_format($originalAmount, 2) . ')';
-                                                            } elseif ($originalAmount > $outstandingAmount + 0.009) {
-                                                                $amountDisplay = '₱' . number_format($outstandingAmount, 2) . ' of ₱' . number_format($originalAmount, 2) . ' remaining';
-                                                            } else {
-                                                                $amountDisplay = '₱' . number_format($outstandingAmount, 2);
-                                                            }
-                                                        } else {
-                                                            $amountDisplay = '₱' . number_format((float) ($scheduleRow['amount'] ?? 0), 2);
-                                                        }
-                                                        echo $amountDisplay;
-                                                    ?>
-                                                </td>
-                                                <td><?php echo htmlspecialchars($scheduleRow['notes'] ?? ''); ?></td>
-                                            </tr>
-                                        <?php endforeach; ?>
-                                    </tbody>
-                                </table>
-                                <?php if (count($activeScheduleRows) > count($activeSchedulePreview)): ?>
-                                    <p class="small text-muted mt-3 mb-0">View the full schedule in the finance section.</p>
-                                <?php endif; ?>
-                            </div>
-                        <?php else: ?>
-                            <div class="empty-state">
-                                <i class="bi bi-info-circle me-2"></i><?php echo htmlspecialchars($scheduleMessageTrimmed); ?>
-                            </div>
-                        <?php endif; ?>
-                    </div>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    <?php else: ?>
+                        <div class="empty-state">
+                            <i class="bi bi-info-circle me-2"></i>Class schedule will be posted soon. Please check back later.
+                        </div>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
+            </div>
         </div>
 
             <div class="col-lg-8 d-flex flex-column gap-4 finance-column">
@@ -2101,11 +2127,14 @@ unset($finance_view_ref);
                 const shouldAutoOpen = options.autoOpen !== false;
                 if (shouldAutoOpen) {
                     const lastSeenId = getLastSeenAnnouncementId();
-                    const latestUnread = inboxState.items.find(function (item) {
-                        return !item.is_read && Number(item.id) > 0 && Number(item.id) !== lastSeenId;
-                    });
+                    const latestUnread = inboxState.items.length > 0 ? inboxState.items[0] : null;
+                    const shouldShowLatest = latestUnread && Number(latestUnread.id) > 0 && Number(latestUnread.id) !== lastSeenId;
                     if (latestUnread) {
-                        openAnnouncementModal(latestUnread);
+                        if (shouldShowLatest) {
+                            openAnnouncementModal(latestUnread);
+                        } else if (lastSeenId === 0) {
+                            setLastSeenAnnouncementId(latestUnread.id);
+                        }
                     } else if (inboxState.items.length > 0 && lastSeenId === 0) {
                         // ensure we don't repeatedly prompt when everything is read
                         setLastSeenAnnouncementId(inboxState.items[0].id);

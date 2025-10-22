@@ -271,7 +271,7 @@ $isReturningFlow = isset($_SESSION['returning_source_id']) || isset($_SESSION['r
                     </div>
                 </div>
                 <p class="form-text text-muted" id="lrnAutoMessage" style="<?= $lrn_auto === '1' ? '' : 'display:none;'; ?>">
-                    For Pre-Prime 1 learners, the system will generate an LRN automatically.
+                    LRN for Pre-Prime 1 will be updated soon.
                 </p>
 
                 <div class="form-row" id="courseGroup" style="display: none;">
