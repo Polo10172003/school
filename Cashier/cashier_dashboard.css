@@ -598,12 +598,14 @@
   border-radius: 10px;
   width: 500px;
   max-width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
   box-sizing: border-box;
   position: relative;
 }
 
 .payment-modal__remarks {
-  margin-top: 18px;
+  margin-top: 14px;
 }
 
 .payment-modal__remarks label {
@@ -624,12 +626,14 @@
 
 .payment-modal__remarks textarea {
   width: 100%;
+  box-sizing: border-box;
   border: 1px solid #ccd1d1;
   border-radius: 6px;
   padding: 10px 12px;
   font-size: 0.95rem;
   resize: vertical;
-  min-height: 90px;
+  min-height: 70px;
+  max-height: 160px;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
