@@ -42,6 +42,7 @@
     const declineRemarksField = document.getElementById('declineRemarks');
     const screenshotSection = document.getElementById('screenshotSection');
     const modalScreenshot = document.getElementById('modalScreenshot');
+    const modalContent = modal.querySelector('.payment-modal__content');
     let currentType = '';
     let activeButton = null;
 
@@ -140,6 +141,9 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         currentType = (btn.dataset.type || '').toLowerCase();
         if (declineRemarksField) {
           declineRemarksField.value = '';
+        }
+        if (modalContent) {
+          modalContent.scrollTop = 0;
         }
         if (currentType === 'cash') {
           document.getElementById('modalLabel').textContent = 'Official Receipt #:';

@@ -600,12 +600,16 @@
   max-width: 95%;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
   box-sizing: border-box;
   position: relative;
+  display: flex;
+  flex-direction: column;
 }
 
 .payment-modal__remarks {
   margin-top: 14px;
+  align-self: stretch;
 }
 
 .payment-modal__remarks label {
@@ -661,11 +665,12 @@
 
 .payment-modal__screenshot {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .payment-modal__screenshot-img {
-  max-width: 100%;
+  display: block;
+  width: 100%;
   height: auto;
   border: 1px solid #ccc;
   border-radius: 6px;
