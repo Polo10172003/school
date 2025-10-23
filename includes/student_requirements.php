@@ -143,21 +143,17 @@ function student_requirements_determine_scope(string $gradeLevel): string
         return 'k_to_12';
     }
 
-    $earlyGrades = [
+    $earlyExactMatches = [
         'preprime1',
         'preprime2',
-        'preprime',
-        'preprimeone',
-        'preprimei',
-        'preschool',
         'kindergarten',
-        'nursery',
-        'preparatory',
-        'preparatory1',
-        'preparatory2',
     ];
 
-    return in_array($normalized, $earlyGrades, true) ? 'early_child' : 'k_to_12';
+    if (in_array($normalized, $earlyExactMatches, true)) {
+        return 'early_child';
+    }
+
+    return 'k_to_12';
 }
 
 /**
