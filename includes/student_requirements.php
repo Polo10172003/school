@@ -138,7 +138,7 @@ function student_requirements_label(string $key): string
  */
 function student_requirements_determine_scope(string $gradeLevel): string
 {
-    $normalized = strtolower(preg_replace('/[^a-z0-9]/', '', $gradeLevel));
+    $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $gradeLevel));
     if ($normalized === '') {
         return 'k_to_12';
     }
