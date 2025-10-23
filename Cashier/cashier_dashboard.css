@@ -627,6 +627,8 @@
 .payment-modal__remarks textarea {
   width: 100%;
   box-sizing: border-box;
+  display: block;
+  max-width: 100%;
   border: 1px solid #ccd1d1;
   border-radius: 6px;
   padding: 10px 12px;
