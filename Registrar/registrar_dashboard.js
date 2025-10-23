@@ -521,6 +521,10 @@
         throw new Error(payload && payload.error ? payload.error : 'Unexpected response');
       }
 
+      if (payload.requirements_error && typeof console !== 'undefined') {
+        console.warn('[registrar] requirements: ' + payload.requirements_error);
+      }
+
       const students = Array.isArray(payload.students) ? payload.students : [];
       const rows = students.map(buildRowHtml).join('');
       tableBody.innerHTML = rows;

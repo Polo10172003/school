@@ -75,10 +75,18 @@ try {
     exit();
 }
 
-$students = student_requirements_append_summary($conn, $students);
+$requirementsError = null;
+try {
+    student_requirements_ensure_schema($conn);
+    $students = student_requirements_append_summary($conn, $students);
+} catch (Throwable $requirementsErrorCaught) {
+    $requirementsError = 'Unable to load document status tracker.';
+    error_log('[registrar] fetch requirements failed: ' . $requirementsErrorCaught->getMessage());
+}
 
 $conn->close();
 echo json_encode([
     'success' => true,
     'students' => $students,
+    'requirements_error' => $requirementsError,
 ]);

@@ -212,8 +212,14 @@ if ($result instanceof mysqli_result) {
     $result->free();
 }
 
-student_requirements_ensure_schema($conn);
-$enrolledStudents = student_requirements_append_summary($conn, $enrolledStudents);
+$requirementsErrorMessage = '';
+try {
+    student_requirements_ensure_schema($conn);
+    $enrolledStudents = student_requirements_append_summary($conn, $enrolledStudents);
+} catch (Throwable $requirementsError) {
+    $requirementsErrorMessage = 'Unable to load document status tracker right now.';
+    error_log('[registrar] requirements bootstrap failed: ' . $requirementsError->getMessage());
+}
 ?>
 
     <section class="dashboard-card" id="onsite-enrollment">
@@ -267,6 +273,11 @@ $enrolledStudents = student_requirements_append_summary($conn, $enrolledStudents
   // initialize on load
   updateVisibility();
 </script>
+    <?php if ($requirementsErrorMessage !== ''): ?>
+      <div class="dashboard-alert error" role="status">
+        <span><?= htmlspecialchars($requirementsErrorMessage) ?></span>
+      </div>
+    <?php endif; ?>
     <section class="dashboard-card" id="grade-dropbox">
       <span class="dashboard-section-title">Grade Dropbox</span>
       <h2>Academic Performance Dropbox</h2>
