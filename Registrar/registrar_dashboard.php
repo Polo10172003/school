@@ -4,6 +4,7 @@ include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../admin_functions.php';
 require_once __DIR__ . '/../includes/registrar_guides.php';
 require_once __DIR__ . '/../includes/adviser_assignments.php';
+require_once __DIR__ . '/../includes/student_requirements.php';
 $pusherConfig = require __DIR__ . '/../config/pusher.php';
 $pusherClientConfig = [
     'key' => $pusherConfig['key'] ?? '',
@@ -210,6 +211,9 @@ if ($result instanceof mysqli_result) {
     }
     $result->free();
 }
+
+student_requirements_ensure_schema($conn);
+$enrolledStudents = student_requirements_append_summary($conn, $enrolledStudents);
 ?>
 
     <section class="dashboard-card" id="onsite-enrollment">
@@ -357,43 +361,72 @@ if ($result instanceof mysqli_result) {
             <thead>
               <tr>
                 <th><input type="checkbox" id="checkAll"></th>
-                <th>ID</th>
+                <th>Student #</th>
                 <th>Name</th>
                 <th>Grade Level</th>
                 <th>Section</th>
                 <th>Adviser</th>
                 <th>Academic Status</th>
+                <th>Requirements</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody id="enrolledTableBody">
               <?php foreach ($enrolledStudents as $row): ?>
-                <tr data-student-row="<?= (int) $row['id'] ?>">
+                <?php
+                  $studentId = isset($row['id']) ? (int) $row['id'] : 0;
+                  $firstName = isset($row['firstname']) ? trim((string) $row['firstname']) : '';
+                  $lastName = isset($row['lastname']) ? trim((string) $row['lastname']) : '';
+                  $fullName = trim($firstName . ' ' . $lastName);
+                  if ($fullName === '') {
+                      $fullName = 'Student';
+                  }
+                  $gradeLevelValue = $row['year'] ?? ($row['grade_level'] ?? '');
+                  $gradeLevelValue = $gradeLevelValue !== null ? trim((string) $gradeLevelValue) : '';
+                  $displayGrade = $gradeLevelValue !== '' ? $gradeLevelValue : 'Not Set';
+                  $sectionDisplay = isset($row['section']) && $row['section'] !== '' ? (string) $row['section'] : 'Not Assigned';
+                  $adviserDisplay = isset($row['adviser']) && $row['adviser'] !== '' ? (string) $row['adviser'] : 'Not Assigned';
+                  $studentNumberRaw = trim((string) ($row['student_number'] ?? ''));
+                  $studentNumberDisplay = $studentNumberRaw !== '' ? strtoupper($studentNumberRaw) : 'Pending';
+                  $requirementsSummary = $row['requirements_summary'] ?? [];
+                  $requirementsScope = $row['requirements_scope'] ?? ($requirementsSummary['scope'] ?? '');
+                  $requirementsLabel = $requirementsSummary['status_label'] ?? 'Not Checked';
+                  $requirementsClass = $requirementsSummary['status_class'] ?? 'pending';
+                  $requirementsSpanId = 'requirements-status-' . $studentId;
+                  $academicStatusRaw = $row['academic_status'] ?? '';
+                ?>
+                <tr data-student-row="<?= $studentId ?>">
                   <td>
-                    <input type="checkbox" name="student_ids[]" value="<?= (int) $row['id'] ?>">
+                    <input type="checkbox" name="student_ids[]" value="<?= $studentId ?>">
                   </td>
-                  <td><?= (int) $row['id'] ?></td>
-                  <td><?= htmlspecialchars($row['firstname'] . ' ' . $row['lastname']) ?></td>
+                  <td><?= htmlspecialchars($studentNumberDisplay) ?></td>
+                  <td><?= htmlspecialchars($fullName) ?></td>
+                  <td><?= htmlspecialchars($displayGrade) ?></td>
+                  <td><?= htmlspecialchars($sectionDisplay) ?></td>
+                  <td><?= htmlspecialchars($adviserDisplay) ?></td>
                   <td>
-                    <?php
-                    $gradeLevelValue = $row['year'] ?? '';
-                    if ($gradeLevelValue === '' && isset($row['grade_level'])) {
-                        $gradeLevelValue = $row['grade_level'];
-                    }
-                    echo htmlspecialchars($gradeLevelValue !== '' ? $gradeLevelValue : 'Not Set');
-                    ?>
+                    <?php if ($gradeLevelValue === 'Grade 12' && $academicStatusRaw === 'Passed'): ?>
+                      <span class="dashboard-status-pill success">Graduated</span>
+                    <?php else: ?>
+                      <?= htmlspecialchars($academicStatusRaw !== '' ? $academicStatusRaw : 'Ongoing') ?>
+                    <?php endif; ?>
                   </td>
-                  <td><?= htmlspecialchars($row['section'] ?? 'Not Assigned') ?></td>
-                  <td><?= htmlspecialchars($row['adviser'] ?? 'Not Assigned') ?></td>
                   <td>
-                    <?php
-                    if (($row['year'] ?? '') === 'Grade 12' && ($row['academic_status'] ?? '') === 'Passed') {
-                        echo '<span class="dashboard-status-pill success">Graduated</span>';
-                    } else {
-                        $statusLabel = !empty($row['academic_status']) ? htmlspecialchars($row['academic_status']) : 'Ongoing';
-                        echo $statusLabel;
-                    }
-                    ?>
+                    <div class="requirements-cell">
+                      <span id="<?= htmlspecialchars($requirementsSpanId) ?>" class="dashboard-status-pill <?= htmlspecialchars($requirementsClass) ?>">
+                        <?= htmlspecialchars($requirementsLabel) ?>
+                      </span>
+                      <button
+                        type="button"
+                        class="dashboard-btn secondary requirements-btn"
+                        data-student-id="<?= $studentId ?>"
+                        data-student-name="<?= htmlspecialchars($fullName, ENT_QUOTES) ?>"
+                        data-student-number="<?= htmlspecialchars($studentNumberDisplay, ENT_QUOTES) ?>"
+                        data-grade-level="<?= htmlspecialchars($gradeLevelValue, ENT_QUOTES) ?>"
+                        data-scope="<?= htmlspecialchars((string) $requirementsScope, ENT_QUOTES) ?>"
+                        data-status-target="<?= htmlspecialchars($requirementsSpanId, ENT_QUOTES) ?>"
+                      >Files</button>
+                    </div>
                   </td>
                   <td class="dashboard-table-actions">
                     <?php if (($row['academic_status'] ?? '') === 'Graduated'): ?>
@@ -425,6 +458,23 @@ if ($result instanceof mysqli_result) {
         <div class="dashboard-empty-state" id="enrolledEmptyState" style="<?= empty($enrolledStudents) ? '' : 'display:none;' ?>">No enrolled students found.</div>
       </form>
     </section>
+
+    <div id="requirementsModal" class="registrar-modal" aria-hidden="true">
+      <div class="registrar-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="requirementsModalTitle">
+        <button type="button" class="registrar-modal__close" id="requirementsModalClose" aria-label="Close">&times;</button>
+        <header class="registrar-modal__header">
+          <h3 id="requirementsModalTitle">Student Files Tracking</h3>
+          <p id="requirementsModalSubtitle" class="registrar-modal__subtitle text-muted"></p>
+        </header>
+        <div class="registrar-modal__body" id="requirementsModalBody">
+          <p class="text-muted">Loading requirements...</p>
+        </div>
+        <footer class="registrar-modal__footer">
+          <button type="button" class="dashboard-btn secondary" id="requirementsModalCancel">Cancel</button>
+          <button type="button" class="dashboard-btn" id="requirementsModalSave">Save</button>
+        </footer>
+      </div>
+    </div>
 
 <script>
   (function () {

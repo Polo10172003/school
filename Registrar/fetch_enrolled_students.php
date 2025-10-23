@@ -15,6 +15,7 @@ if (empty($_SESSION['registrar_username'])) {
 header('Content-Type: application/json');
 
 include __DIR__ . '/../db_connection.php';
+require_once __DIR__ . '/../includes/student_requirements.php';
 if ($conn->connect_error) {
     http_response_code(500);
     echo json_encode(['success' => false, 'error' => 'Database connection failed.']);
@@ -27,6 +28,8 @@ $conn->set_charset('utf8mb4');
 
 $gradeFilter = trim((string) ($_GET['grade_filter'] ?? ''));
 $students = [];
+
+student_requirements_ensure_schema($conn);
 
 try {
     if ($gradeFilter !== '') {
@@ -71,6 +74,8 @@ try {
     $conn->close();
     exit();
 }
+
+$students = student_requirements_append_summary($conn, $students);
 
 $conn->close();
 echo json_encode([
