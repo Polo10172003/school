@@ -79,6 +79,16 @@ $requirementsError = null;
 try {
     student_requirements_ensure_schema($conn);
     $students = student_requirements_append_summary($conn, $students);
+    foreach ($students as &$row) {
+        $studentNumberRaw = '';
+        if (isset($row['student_number']) && $row['student_number'] !== null) {
+            $studentNumberRaw = trim((string) $row['student_number']);
+        } elseif (isset($row['studentnumber']) && $row['studentnumber'] !== null) {
+            $studentNumberRaw = trim((string) $row['studentnumber']);
+        }
+        $row['student_number_formatted'] = $studentNumberRaw !== '' ? strtoupper($studentNumberRaw) : '';
+    }
+    unset($row);
 } catch (Throwable $requirementsErrorCaught) {
     $requirementsError = 'Unable to load document status tracker.';
     error_log('[registrar] fetch requirements failed: ' . $requirementsErrorCaught->getMessage());

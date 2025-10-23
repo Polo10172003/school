@@ -48,8 +48,10 @@
     const displayGrade = rawGrade !== '' ? rawGrade : 'Not Set';
     const section = student.section && student.section !== '' ? student.section : 'Not Assigned';
     const adviser = student.adviser && student.adviser !== '' ? student.adviser : 'Not Assigned';
-    const studentNumberRaw = (student.student_number || '').trim();
-    const studentNumber = studentNumberRaw !== '' ? studentNumberRaw.toUpperCase() : 'Pending';
+    const studentNumberSource =
+      (student.student_number_formatted || student.student_number || '').trim();
+    const studentNumber =
+      studentNumberSource !== '' ? studentNumberSource.toUpperCase() : 'Pending';
     const academicStatusRaw = student.academic_status || '';
     const portalStatusRaw = String(student.portal_status || '').toLowerCase();
     const portalActive = portalStatusRaw === 'activated';

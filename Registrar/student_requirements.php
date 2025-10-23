@@ -133,6 +133,10 @@ if ($method === 'POST') {
     } else {
         $scope = $scopeInput;
     }
+    $gradeScope = student_requirements_determine_scope($gradeLevel);
+    if ($scope !== $gradeScope) {
+        $scope = $gradeScope;
+    }
 
     $keyMap = student_requirements_key_map();
     $mergedValues = [];

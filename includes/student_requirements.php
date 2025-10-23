@@ -165,12 +165,22 @@ function student_requirements_determine_scope(string $gradeLevel): string
  */
 function student_requirements_resolve_scope(string $gradeLevel, array $normalizedRecord): string
 {
-    $scope = strtolower(trim((string) ($normalizedRecord['scope'] ?? '')));
-    if ($scope !== '' && $scope !== 'auto') {
-        return $scope;
+    $gradeScope = student_requirements_determine_scope($gradeLevel);
+    $storedScope = strtolower(trim((string) ($normalizedRecord['scope'] ?? '')));
+
+    if ($gradeScope === 'early_child') {
+        return 'early_child';
     }
 
-    return student_requirements_determine_scope($gradeLevel);
+    if ($storedScope === 'k_to_12') {
+        return 'k_to_12';
+    }
+
+    if ($storedScope === '' || $storedScope === 'auto') {
+        return $gradeScope;
+    }
+
+    return $gradeScope;
 }
 
 /**
