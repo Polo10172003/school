@@ -153,6 +153,22 @@ function student_requirements_determine_scope(string $gradeLevel): string
         return 'early_child';
     }
 
+    $earlyPrefixes = [
+        'preprime',
+        'kinder',
+        'kindergarten',
+    ];
+
+    foreach ($earlyPrefixes as $prefix) {
+        if (strpos($normalized, $prefix) === 0) {
+            return 'early_child';
+        }
+    }
+
+    if ($normalized === 'preprime') {
+        return 'early_child';
+    }
+
     return 'k_to_12';
 }
 
