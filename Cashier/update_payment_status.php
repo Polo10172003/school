@@ -39,6 +39,27 @@ if (!in_array($status, ['paid', 'declined'], true)) {
     exit();
 }
 
+$declineRemarks = null;
+if ($status === 'declined') {
+    $declineRemarksRaw = isset($_POST['remarks']) ? (string) $_POST['remarks'] : '';
+    $declineRemarksRaw = str_replace(["\r\n", "\r"], "\n", $declineRemarksRaw);
+    $declineRemarks = trim($declineRemarksRaw);
+
+    if ($declineRemarks === '') {
+        echo json_encode(['success' => false, 'error' => 'Remarks are required when declining a payment.']);
+        exit();
+    }
+
+    $remarksLength = function_exists('mb_strlen')
+        ? mb_strlen($declineRemarks, 'UTF-8')
+        : strlen($declineRemarks);
+
+    if ($remarksLength > 500) {
+        echo json_encode(['success' => false, 'error' => 'Remarks must be 500 characters or fewer.']);
+        exit();
+    }
+}
+
 $payment_stmt = $conn->prepare('SELECT payment_status, payment_type, student_id, grade_level, school_year, firstname, lastname, amount, or_number, reference_number FROM student_payments WHERE id = ? LIMIT 1');
 if (!$payment_stmt) {
     echo json_encode(['success' => false, 'error' => 'Unable to lookup payment.']);
@@ -261,7 +282,15 @@ if (!empty($email)) {
 
     $traceFile = __DIR__ . '/../temp/cashier_worker_trace.log';
     try {
-        $inlineResult = cashier_email_worker_process((int) $student_id, (string) $payment_type, (float) $amount, (string) $status, $conn, true);
+        $inlineResult = cashier_email_worker_process(
+            (int) $student_id,
+            (string) $payment_type,
+            (float) $amount,
+            (string) $status,
+            $conn,
+            true,
+            $status === 'declined' ? $declineRemarks : null
+        );
         if ($inlineResult) {
             @file_put_contents(
                 $traceFile,
@@ -299,6 +328,7 @@ if (!empty($email)) {
             escapeshellarg($payment_type),
             escapeshellarg((string) $amount),
             escapeshellarg($status),
+            escapeshellarg($status === 'declined' ? (string) $declineRemarks : ''),
         ];
         $cmd = implode(' ', $cmdParts);
         exec($cmd . ' > /dev/null 2>&1');
@@ -365,6 +395,7 @@ $logMetadata = [
     'reference_number'          => $finalReferenceNumber,
     'previous_receipt_number'   => $previousOrNumber,
     'previous_reference_number' => $previousReference,
+    'decline_remarks'           => $status === 'declined' ? $declineRemarks : null,
 ];
 
 transaction_log_record($conn, [

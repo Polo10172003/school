@@ -38,6 +38,8 @@
     const closeModal = document.getElementById('closeModal');
     const acceptBtn = document.getElementById('acceptPaymentBtn');
     const declineBtn = document.getElementById('declinePaymentBtn');
+    const declineRemarksWrapper = document.getElementById('declineRemarksWrapper');
+    const declineRemarksField = document.getElementById('declineRemarks');
     const screenshotSection = document.getElementById('screenshotSection');
     const modalScreenshot = document.getElementById('modalScreenshot');
     let currentType = '';
@@ -83,6 +85,9 @@
 
       targetBtn.disabled = isProcessing;
       otherBtn.disabled = isProcessing;
+      if (declineRemarksField && action === 'decline') {
+        declineRemarksField.disabled = isProcessing;
+      }
       targetBtn.dataset.originalText = targetBtn.dataset.originalText || targetBtn.textContent;
       otherBtn.dataset.originalText = otherBtn.dataset.originalText || otherBtn.textContent;
 
@@ -97,6 +102,9 @@
         modal.classList.remove('modal-processing');
         targetBtn.disabled = false;
         otherBtn.disabled = false;
+        if (declineRemarksField && action === 'decline') {
+          declineRemarksField.disabled = false;
+        }
       }
     };
 
@@ -130,18 +138,23 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
         }
 
         currentType = (btn.dataset.type || '').toLowerCase();
+        if (declineRemarksField) {
+          declineRemarksField.value = '';
+        }
         if (currentType === 'cash') {
           document.getElementById('modalLabel').textContent = 'Official Receipt #:';
           document.getElementById('modalRefOr').textContent = btn.dataset.or ||btn.dataset.ref || 'N/A';
 
           if (acceptBtn) acceptBtn.style.display = 'none';
           if (declineBtn) declineBtn.style.display = 'none';
+          if (declineRemarksWrapper) declineRemarksWrapper.style.display = 'none';
         } else {
           document.getElementById('modalLabel').textContent = 'Reference #:';
           document.getElementById('modalRefOr').textContent = btn.dataset.reference || btn.dataset.ref ||'N/A';
 
           if (acceptBtn) acceptBtn.style.display = 'inline-block';
           if (declineBtn) declineBtn.style.display = 'inline-block';
+          if (declineRemarksWrapper) declineRemarksWrapper.style.display = '';
         }
 
         modal.style.display = 'flex';
@@ -234,6 +247,20 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
 
         try {
           const declinePayload = { id, status: 'declined' };
+          if (declineRemarksField) {
+            const remarks = declineRemarksField.value.trim();
+            if (!remarks) {
+              alert('Please provide remarks before declining the payment.');
+              setProcessingState(false, 'decline');
+              return;
+            }
+            if (remarks.length > 500) {
+              alert('Remarks must be 500 characters or fewer.');
+              setProcessingState(false, 'decline');
+              return;
+            }
+            declinePayload.remarks = remarks;
+          }
           const studentIdInput = document.getElementById('modalStudentId');
           if (studentIdInput && studentIdInput.value) {
             declinePayload.student_id = studentIdInput.value;

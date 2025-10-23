@@ -1608,6 +1608,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                         escapeshellarg($payment_type),
                         escapeshellarg((string) $amount),
                         escapeshellarg($payment_status),
+                        escapeshellarg(''),
                     ];
                     $cmd = implode(' ', $cmdParts);
                     $execOutput = [];

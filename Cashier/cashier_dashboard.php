@@ -1031,6 +1031,11 @@ if ($receiptPaymentId) {
     <input type="hidden" id="modalPaymentId">
     <input type="hidden" id="modalStudentId">
 
+    <div class="payment-modal__remarks" id="declineRemarksWrapper">
+      <label for="declineRemarks">Cashier Remarks <span>(required when declining)</span></label>
+      <textarea id="declineRemarks" rows="3" maxlength="500" placeholder="Share a short explanation the student will see in the email."></textarea>
+    </div>
+
     <!-- Accept / Decline Buttons -->
     <div class="payment-modal__actions">
       <button id="acceptPaymentBtn" class="payment-modal__button payment-modal__button--accept">Accept</button>

@@ -21,7 +21,7 @@ if (!function_exists('cashier_email_worker_process')) {
      * @param string      $status            Payment status string.
      * @param mysqli|null $existingConnection Optional open mysqli connection.
      * @param bool        $appendDebugLog     Write debug info to temp file when true.
-     *
+     * @param string|null $declineRemarks   Optional cashier remarks when status is declined.
      * @return bool True when the email was dispatched (or at least attempted without fatal failure).
      */
     function cashier_email_worker_process(
@@ -30,12 +30,29 @@ if (!function_exists('cashier_email_worker_process')) {
         $amount,
         string $status,
         ?mysqli $existingConnection = null,
-        bool $appendDebugLog = false
+        bool $appendDebugLog = false,
+        ?string $declineRemarks = null
     ): bool {
         $student_id = max(0, $student_id);
         $payment_type = trim($payment_type);
         $status = trim($status);
         $amountFloat = (float) $amount;
+        if ($declineRemarks !== null) {
+            $declineRemarks = str_replace(["\r\n", "\r"], "\n", (string) $declineRemarks);
+            $declineRemarks = trim($declineRemarks);
+            if ($declineRemarks === '') {
+                $declineRemarks = null;
+            } else {
+                $remarksLength = function_exists('mb_strlen')
+                    ? mb_strlen($declineRemarks, 'UTF-8')
+                    : strlen($declineRemarks);
+                if ($remarksLength > 500) {
+                    $declineRemarks = function_exists('mb_substr')
+                        ? mb_substr($declineRemarks, 0, 500, 'UTF-8')
+                        : substr($declineRemarks, 0, 500);
+                }
+            }
+        }
 
         if ($student_id <= 0) {
             error_log('Cashier email worker: invalid student id.');
@@ -88,6 +105,7 @@ if (!function_exists('cashier_email_worker_process')) {
                     'amount'        => $amountFloat,
                     'status'        => $status,
                     'environment'   => php_sapi_name(),
+                    'decline_remarks' => $declineRemarks,
                 ];
                 @file_put_contents(
                     $tempDir . '/cashier_worker_debug.txt',
@@ -544,6 +562,9 @@ if (!function_exists('cashier_email_worker_process')) {
         $submittedReference = $reference_number ?: ($or_number ?: 'N/A');
 
         if ($normalizedStatus === 'declined') {
+            $declineRemarksDisplay = $declineRemarks !== null && $declineRemarks !== ''
+                ? nl2br(htmlspecialchars($declineRemarks, ENT_QUOTES))
+                : '<em>No remarks were provided.</em>';
             $mail->Subject = 'Payment Could Not Be Approved';
             $mail->Body = "
                 <h2 style='color:#c0392b;'>Payment Could Not Be Approved</h2>
@@ -581,10 +602,13 @@ if (!function_exists('cashier_email_worker_process')) {
                             <td style='padding:8px; border:1px solid #e6b0aa; background:#f9e5e3;'><strong>Submitted Transaction / Reference</strong></td>
                             <td style='padding:8px; border:1px solid #e6b0aa;'>" . htmlspecialchars($submittedReference, ENT_QUOTES) . "</td>
                         </tr>
+                        <tr>
+                            <td style='padding:8px; border:1px solid #e6b0aa; background:#f9e5e3;'><strong>Cashier Remarks</strong></td>
+                            <td style='padding:8px; border:1px solid #e6b0aa;'>{$declineRemarksDisplay}</td>
+                        </tr>
                     </table>
                 </div>
-                <p>This usually happens when the reference number or uploaded proof does not match our records. Please visit the cashier's office or call <strong>(0969) 354-2870</strong> to clarify your payment. Bringing the original receipt or deposit slip will help us resolve the issue quickly.</p>
-                <p>If you already paid successfully, you may resubmit the correct payment details through the student portal once the issue is resolved.</p>
+                <p>Please review the cashier's remarks above and prepare any supporting documents if you need to clarify this transaction. You may visit the cashier's office or call <strong>(0969) 354-2870</strong> for assistance.</p>
                 <p>Thank you,<br><strong>Escuela De Sto. Rosario Cashier's Office</strong></p>
             ";
         } else {
@@ -750,8 +774,10 @@ if (php_sapi_name() === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIP
     $paymentType = (string) ($argv[2] ?? '');
     $amount      = (float) ($argv[3] ?? 0);
     $status      = (string) ($argv[4] ?? '');
+    $remarks     = (string) ($argv[5] ?? '');
+    $remarks     = $remarks !== '' ? $remarks : null;
 
-    $result = cashier_email_worker_process($student_id, $paymentType, $amount, $status, null, true);
+    $result = cashier_email_worker_process($student_id, $paymentType, $amount, $status, null, true, $remarks);
     if ($result) {
         echo "✅ Cashier email worker completed.\n";
     } else {

@@ -602,6 +602,48 @@
   position: relative;
 }
 
+.payment-modal__remarks {
+  margin-top: 18px;
+}
+
+.payment-modal__remarks label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 600;
+  color: #2c3e50;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+}
+
+.payment-modal__remarks label span {
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: #7f8c8d;
+}
+
+.payment-modal__remarks textarea {
+  width: 100%;
+  border: 1px solid #ccd1d1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  resize: vertical;
+  min-height: 90px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.payment-modal__remarks textarea:focus {
+  border-color: #145a32;
+  box-shadow: 0 0 0 3px rgba(20, 90, 50, 0.15);
+  outline: none;
+}
+
+.payment-modal.modal-processing .payment-modal__remarks textarea {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .payment-modal__close {
   position: absolute;
   top: 10px;
