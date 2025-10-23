@@ -15,42 +15,77 @@ function student_requirements_ensure_schema(mysqli $conn): void
         return;
     }
 
-    $createSql = "
-        CREATE TABLE IF NOT EXISTS student_requirement_records (
-            student_id INT UNSIGNED NOT NULL,
-            form_137_received TINYINT(1) NOT NULL DEFAULT 0,
-            psa_received TINYINT(1) NOT NULL DEFAULT 0,
-            good_moral_received TINYINT(1) NOT NULL DEFAULT 0,
-            baptismal_received TINYINT(1) NOT NULL DEFAULT 0,
-            marriage_contract_received TINYINT(1) NOT NULL DEFAULT 0,
-            requirement_scope VARCHAR(32) NOT NULL DEFAULT 'auto',
-            updated_by VARCHAR(190) DEFAULT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (student_id),
-            CONSTRAINT fk_student_requirement_student
-                FOREIGN KEY (student_id) REFERENCES students_registration(id)
-                ON DELETE CASCADE
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-    ";
+    $tableExists = false;
+    if ($result = $conn->query("SHOW TABLES LIKE 'student_requirement_records'")) {
+        $tableExists = $result->num_rows > 0;
+        $result->free();
+    }
 
-    if (!$conn->query($createSql)) {
-        error_log('[requirements] Failed to ensure schema: ' . $conn->error);
-    } else {
-        // Verify that newer columns exist (older tables may miss them).
-        $columns = [];
-        if ($result = $conn->query('SHOW COLUMNS FROM student_requirement_records')) {
-            while ($row = $result->fetch_assoc()) {
-                $columns[strtolower((string) ($row['Field'] ?? ''))] = true;
+    if (!$tableExists) {
+        $collations = ['utf8mb4_uca1400_ai_ci', 'utf8mb4_unicode_ci', 'utf8mb4_general_ci'];
+        $created = false;
+        foreach ($collations as $collation) {
+            $collation = trim($collation);
+            if ($collation === '') {
+                continue;
             }
-            $result->free();
+            $createSql = "
+                CREATE TABLE IF NOT EXISTS student_requirement_records (
+                    student_id INT NOT NULL,
+                    form_137_received TINYINT(1) NOT NULL DEFAULT 0,
+                    psa_received TINYINT(1) NOT NULL DEFAULT 0,
+                    good_moral_received TINYINT(1) NOT NULL DEFAULT 0,
+                    baptismal_received TINYINT(1) NOT NULL DEFAULT 0,
+                    marriage_contract_received TINYINT(1) NOT NULL DEFAULT 0,
+                    requirement_scope VARCHAR(32) NOT NULL DEFAULT 'auto',
+                    updated_by VARCHAR(190) DEFAULT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    PRIMARY KEY (student_id),
+                    CONSTRAINT fk_student_requirement_student
+                        FOREIGN KEY (student_id) REFERENCES students_registration(id)
+                        ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE {$collation}
+            ";
+
+            if ($conn->query($createSql)) {
+                $created = true;
+                break;
+            }
+
+            error_log('[requirements] Failed to create table with collation ' . $collation . ': ' . $conn->error);
+
+            if ($result = $conn->query("SHOW TABLES LIKE 'student_requirement_records'")) {
+                $tableExists = $result->num_rows > 0;
+                $result->free();
+                if ($tableExists) {
+                    $created = true;
+                    break;
+                }
+            }
         }
 
-        if (!isset($columns['requirement_scope'])) {
-            $conn->query("ALTER TABLE student_requirement_records ADD COLUMN requirement_scope VARCHAR(32) NOT NULL DEFAULT 'auto' AFTER marriage_contract_received");
+        if (!$created) {
+            throw new RuntimeException('Unable to create student requirement records table: ' . $conn->error);
         }
-        if (!isset($columns['updated_by'])) {
-            $conn->query("ALTER TABLE student_requirement_records ADD COLUMN updated_by VARCHAR(190) DEFAULT NULL AFTER requirement_scope");
+    }
+
+    $columns = [];
+    if ($result = $conn->query('SHOW COLUMNS FROM student_requirement_records')) {
+        while ($row = $result->fetch_assoc()) {
+            $columns[strtolower((string) ($row['Field'] ?? ''))] = true;
+        }
+        $result->free();
+    }
+
+    if (!isset($columns['requirement_scope'])) {
+        if (!$conn->query("ALTER TABLE student_requirement_records ADD COLUMN requirement_scope VARCHAR(32) NOT NULL DEFAULT 'auto' AFTER marriage_contract_received")) {
+            error_log('[requirements] Failed adding requirement_scope column: ' . $conn->error);
+        }
+    }
+    if (!isset($columns['updated_by'])) {
+        if (!$conn->query("ALTER TABLE student_requirement_records ADD COLUMN updated_by VARCHAR(190) DEFAULT NULL AFTER requirement_scope")) {
+            error_log('[requirements] Failed adding updated_by column: ' . $conn->error);
         }
     }
 
