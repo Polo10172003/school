@@ -5,6 +5,7 @@ use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\PHPMailer;
 
 require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../config/mailer.php';
 
 if (!function_exists('cashier_normalize_grade_key')) {
@@ -22,6 +23,7 @@ if (!function_exists('cashier_email_worker_process')) {
      * @param mysqli|null $existingConnection Optional open mysqli connection.
      * @param bool        $appendDebugLog     Write debug info to temp file when true.
      * @param string|null $declineRemarks   Optional cashier remarks when status is declined.
+     * @param bool        $portalJustActivated True when the portal was just activated with this payment.
      * @return bool True when the email was dispatched (or at least attempted without fatal failure).
      */
     function cashier_email_worker_process(
@@ -31,7 +33,8 @@ if (!function_exists('cashier_email_worker_process')) {
         string $status,
         ?mysqli $existingConnection = null,
         bool $appendDebugLog = false,
-        ?string $declineRemarks = null
+        ?string $declineRemarks = null,
+        bool $portalJustActivated = false
     ): bool {
         $student_id = max(0, $student_id);
         $payment_type = trim($payment_type);
@@ -53,6 +56,8 @@ if (!function_exists('cashier_email_worker_process')) {
                 }
             }
         }
+
+        $portalJustActivated = (bool) $portalJustActivated;
 
         if ($student_id <= 0) {
             error_log('Cashier email worker: invalid student id.');
@@ -116,7 +121,7 @@ if (!function_exists('cashier_email_worker_process')) {
 
         $scheduleColumnAvailable = true;
         $stmt = $conn->prepare("
-            SELECT emailaddress, firstname, lastname, student_number, year, section, schedule_sent_at, student_type
+            SELECT emailaddress, firstname, lastname, student_number, year, section, schedule_sent_at, student_type, portal_status
             FROM students_registration
             WHERE id = ?
             LIMIT 1
@@ -125,7 +130,7 @@ if (!function_exists('cashier_email_worker_process')) {
             error_log('Cashier email worker: primary student query failed. ' . $conn->error);
             $scheduleColumnAvailable = false;
             $stmt = $conn->prepare("
-                SELECT emailaddress, firstname, lastname, student_number, year, section, student_type
+                SELECT emailaddress, firstname, lastname, student_number, year, section, student_type, portal_status
                 FROM students_registration
                 WHERE id = ?
                 LIMIT 1
@@ -145,6 +150,8 @@ if (!function_exists('cashier_email_worker_process')) {
             return false;
         }
 
+        $portal_status_raw = null;
+
         $stmt->bind_param('i', $student_id);
         $stmt->execute();
 
@@ -158,7 +165,8 @@ if (!function_exists('cashier_email_worker_process')) {
                 $grade_level,
                 $student_section,
                 $schedule_sent_at_raw,
-                $student_type
+                $student_type,
+                $portal_status_raw
             );
         } else {
             $stmt->bind_result(
@@ -168,7 +176,8 @@ if (!function_exists('cashier_email_worker_process')) {
                 $student_number,
                 $grade_level,
                 $student_section,
-                $student_type
+                $student_type,
+                $portal_status_raw
             );
         }
         $stmt->fetch();
@@ -199,6 +208,9 @@ if (!function_exists('cashier_email_worker_process')) {
             }
             return false;
         }
+
+        $portal_status_raw = is_string($portal_status_raw) ? $portal_status_raw : '';
+        $portalStatusNormalized = strtolower(trim($portal_status_raw));
 
         $or_number = null;
         $reference_number = null;
@@ -560,6 +572,14 @@ if (!function_exists('cashier_email_worker_process')) {
         $dateProcessed = date('F j, Y');
         $statusDisplay = strtoupper($status);
         $submittedReference = $reference_number ?: ($or_number ?: 'N/A');
+        $baseUrlCandidate = defined('APP_BASE_URL') ? APP_BASE_URL : '';
+        $baseUrlCandidate = is_string($baseUrlCandidate) ? trim($baseUrlCandidate) : '';
+        if ($baseUrlCandidate !== '' && !preg_match('#^https?://#i', $baseUrlCandidate)) {
+            $baseUrlCandidate = '';
+        }
+        $portalLoginUrl = $baseUrlCandidate !== ''
+            ? rtrim($baseUrlCandidate, '/') . '/Portal/student_login.php'
+            : 'Portal/student_login.php';
 
         if ($normalizedStatus === 'declined') {
             $declineRemarksDisplay = $declineRemarks !== null && $declineRemarks !== ''
@@ -653,8 +673,18 @@ if (!function_exists('cashier_email_worker_process')) {
                     </table>
                 </div>
                 <p>Your enrollment is now marked as <strong>ENROLLED</strong>.</p>
-                <p><strong>IMPORTANT:</strong> Please wait for activation of your student portal.</p>
             ";
+
+            if ($portalJustActivated) {
+                $mail->Body .= "
+                <div style='border-left:4px solid #27ae60; padding:15px; margin:20px 0; background:#ecf9f1; border-radius:6px;'>
+                    <h3 style='margin-top:0; color:#1e8449;'>Student Portal Activated</h3>
+                    <p>Your ESR student portal account is now active. Use your student number <strong>" . htmlspecialchars($studentNumberDisplay, ENT_QUOTES) . "</strong> to log in.</p>
+                    <p>Visit the Student Portal login page: <a href='" . htmlspecialchars($portalLoginUrl, ENT_QUOTES) . "' style='color:#1e8449; font-weight:600;'>" . htmlspecialchars($portalLoginUrl, ENT_QUOTES) . "</a>.</p>
+                    <p>On your first login you will be asked to set your own password. Please complete that step right away to secure your account.</p>
+                </div>
+                ";
+            }
 
             if ($scheduleHtml !== '') {
                 $mail->Body .= $scheduleHtml;
@@ -776,8 +806,10 @@ if (php_sapi_name() === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIP
     $status      = (string) ($argv[4] ?? '');
     $remarks     = (string) ($argv[5] ?? '');
     $remarks     = $remarks !== '' ? $remarks : null;
+    $portalArg   = strtolower(trim((string) ($argv[6] ?? '')));
+    $portalJustActivated = in_array($portalArg, ['1', 'true', 'yes', 'on'], true);
 
-    $result = cashier_email_worker_process($student_id, $paymentType, $amount, $status, null, true, $remarks);
+    $result = cashier_email_worker_process($student_id, $paymentType, $amount, $status, null, true, $remarks, $portalJustActivated);
     if ($result) {
         echo "✅ Cashier email worker completed.\n";
     } else {

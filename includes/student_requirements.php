@@ -31,7 +31,7 @@ function student_requirements_ensure_schema(mysqli $conn): void
             }
             $createSql = "
                 CREATE TABLE IF NOT EXISTS student_requirement_records (
-                    student_id INT NOT NULL,
+                    student_id INT UNSIGNED NOT NULL,
                     form_137_received TINYINT(1) NOT NULL DEFAULT 0,
                     psa_received TINYINT(1) NOT NULL DEFAULT 0,
                     good_moral_received TINYINT(1) NOT NULL DEFAULT 0,
@@ -138,38 +138,26 @@ function student_requirements_label(string $key): string
  */
 function student_requirements_determine_scope(string $gradeLevel): string
 {
-    $normalized = strtolower(preg_replace('/[^a-z0-9]/i', '', $gradeLevel));
+    $normalized = strtolower(preg_replace('/[^a-z0-9]/', '', $gradeLevel));
     if ($normalized === '') {
         return 'k_to_12';
     }
 
-    $earlyExactMatches = [
+    $earlyGrades = [
         'preprime1',
         'preprime2',
-        'kindergarten',
-    ];
-
-    if (in_array($normalized, $earlyExactMatches, true)) {
-        return 'early_child';
-    }
-
-    $earlyPrefixes = [
         'preprime',
-        'kinder',
+        'preprimeone',
+        'preprimei',
+        'preschool',
         'kindergarten',
+        'nursery',
+        'preparatory',
+        'preparatory1',
+        'preparatory2',
     ];
 
-    foreach ($earlyPrefixes as $prefix) {
-        if (strpos($normalized, $prefix) === 0) {
-            return 'early_child';
-        }
-    }
-
-    if ($normalized === 'preprime') {
-        return 'early_child';
-    }
-
-    return 'k_to_12';
+    return in_array($normalized, $earlyGrades, true) ? 'early_child' : 'k_to_12';
 }
 
 /**
@@ -177,22 +165,12 @@ function student_requirements_determine_scope(string $gradeLevel): string
  */
 function student_requirements_resolve_scope(string $gradeLevel, array $normalizedRecord): string
 {
-    $gradeScope = student_requirements_determine_scope($gradeLevel);
-    $storedScope = strtolower(trim((string) ($normalizedRecord['scope'] ?? '')));
-
-    if ($gradeScope === 'early_child') {
-        return 'early_child';
+    $scope = strtolower(trim((string) ($normalizedRecord['scope'] ?? '')));
+    if ($scope !== '' && $scope !== 'auto') {
+        return $scope;
     }
 
-    if ($storedScope === 'k_to_12') {
-        return 'k_to_12';
-    }
-
-    if ($storedScope === '' || $storedScope === 'auto') {
-        return $gradeScope;
-    }
-
-    return $gradeScope;
+    return student_requirements_determine_scope($gradeLevel);
 }
 
 /**

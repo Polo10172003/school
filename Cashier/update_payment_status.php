@@ -262,6 +262,8 @@ if ($status === 'paid') {
     );
 }
 
+$portalJustActivated = is_array($portalActivationResult) && !empty($portalActivationResult['activation_performed']);
+
 $registrarPushPayload = null;
 if ($status === 'paid') {
     $studentInfoStmt = $conn->prepare('SELECT id, firstname, lastname, year, section, adviser, academic_status, portal_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
@@ -303,7 +305,8 @@ if (!empty($email)) {
             (string) $status,
             $conn,
             true,
-            $status === 'declined' ? $declineRemarks : null
+            $status === 'declined' ? $declineRemarks : null,
+            $portalJustActivated
         );
         if ($inlineResult) {
             @file_put_contents(
@@ -343,6 +346,7 @@ if (!empty($email)) {
             escapeshellarg((string) $amount),
             escapeshellarg($status),
             escapeshellarg($status === 'declined' ? (string) $declineRemarks : ''),
+            escapeshellarg($portalJustActivated ? '1' : '0'),
         ];
         $cmd = implode(' ', $cmdParts);
         exec($cmd . ' > /dev/null 2>&1');

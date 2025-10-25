@@ -463,7 +463,7 @@ try {
 
         <div class="dashboard-actions" id="enrolledActions" style="<?= empty($enrolledStudents) ? 'display:none;' : '' ?>">
           <button type="submit" class="dashboard-btn">Update Selected Status</button>
-          <button type="button" id="bulkActivateBtn" class="dashboard-btn secondary">Activate Selected Accounts</button>
+          <button type="button" id="bulkActivateBtn" class="dashboard-btn secondary" disabled title="Portal activation now occurs automatically after payment.">Activate Selected Accounts</button>
         </div>
 
         <div class="dashboard-empty-state" id="enrolledEmptyState" style="<?= empty($enrolledStudents) ? '' : 'display:none;' ?>">No enrolled students found.</div>
@@ -559,63 +559,10 @@ if (masterCheckbox) {
 <script>
   const bulkActivateBtn = document.getElementById('bulkActivateBtn');
   if (bulkActivateBtn) {
-    const originalText = bulkActivateBtn.innerText;
-    const setBusyState = (isBusy) => {
-      if (isBusy) {
-        bulkActivateBtn.disabled = true;
-        bulkActivateBtn.classList.add('is-loading');
-        bulkActivateBtn.innerText = 'Activating...';
-      } else {
-        bulkActivateBtn.disabled = false;
-        bulkActivateBtn.classList.remove('is-loading');
-        bulkActivateBtn.innerText = originalText;
-      }
-    };
-
-    bulkActivateBtn.addEventListener('click', async () => {
-    const checkedBoxes = [...studentCheckboxes()].filter(cb => cb.checked);
-    const checked = checkedBoxes.map(cb => cb.value);
-    if (checked.length === 0) {
-        alert("Please select at least one student.");
-        return;
-    }
-
-      setBusyState(true);
-      try {
-        const res = await fetch("bulk_activate.php", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ student_ids: checked })
-        });
-
-        const data = await res.json();
-        if (data.success) {
-            checked.forEach(id => {
-                const span = document.getElementById("portal-status-" + id);
-                if (span) {
-                  span.innerText = "Activated";
-                  span.classList.remove('pending');
-                  span.classList.add('success');
-                }
-            });
-            clearSelections();
-            let msg = `✅ ${data.activated} accounts activated.`;
-          if (data.errors && data.errors.length > 0) {
-              msg += `\n⚠ Some issues:\n- ${data.errors.join("\n- ")}`;
-          }
-            alert(msg);
-        } else {
-            alert("❌ Error activating accounts." + (data.error || ' Unknown error.'));
-        }
-      } catch (error) {
-        console.error('[registrar] bulk activation failed', error);
-        alert("❌ Error activating accounts. Please try again.");
-      } finally {
-        setBusyState(false);
-      }
-  });
+    bulkActivateBtn.addEventListener('click', () => {
+      alert('Portal accounts activate automatically after the cashier marks the first payment as paid. No manual action is required.');
+    });
   }
-
 </script>
 <?php
 $pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
