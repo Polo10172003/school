@@ -51,6 +51,15 @@ if (!function_exists('ensure_student_portal_activation_calculate_due')) {
                 $selectedPlanType = preg_replace('/_{2,}/', '_', $selectedPlanType);
                 $selectedPlanType = trim($selectedPlanType, '_');
                 $pricingCategory = $planSelection['pricing_category'] ?? null;
+
+                if ($pricingCategory !== null && $pricingCategory !== '') {
+                    $feeWithPricing = cashier_fetch_fee($conn, $currentGradeKey, $typeCandidates, $pricingCategory);
+                    if ($feeWithPricing) {
+                        $fee = $feeWithPricing;
+                        $feeId = (int) ($fee['id'] ?? 0);
+                        $plans = $fee['plans'] ?? $plans;
+                    }
+                }
             }
         }
 
@@ -219,9 +228,24 @@ if (!function_exists('ensure_student_portal_activation')) {
             'errors'                  => [],
         ];
 
+        $debugLogPath = __DIR__ . '/../temp/portal_activation_debug.log';
+        $debugAppend = static function (string $message, array $context = []) use ($debugLogPath): void {
+            $payload = [
+                'timestamp' => date('c'),
+                'message'   => $message,
+                'context'   => $context,
+            ];
+            @file_put_contents(
+                $debugLogPath,
+                json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL,
+                FILE_APPEND
+            );
+        };
+
         $studentId = max(0, $studentId);
         if ($studentId <= 0) {
             $result['errors'][] = 'invalid_student_id';
+            $debugAppend('invalid_student_id', ['student_id' => $studentId]);
             return $result;
         }
 
@@ -243,6 +267,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         ');
         if (!$studentStmt) {
             $result['errors'][] = 'student_lookup_prepare_failed';
+            $debugAppend('student_lookup_prepare_failed', ['student_id' => $studentId, 'error' => $conn->error]);
             return $result;
         }
 
@@ -250,6 +275,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         if (!$studentStmt->execute()) {
             $result['errors'][] = 'student_lookup_execute_failed';
             $studentStmt->close();
+            $debugAppend('student_lookup_execute_failed', ['student_id' => $studentId, 'error' => $studentStmt->error]);
             return $result;
         }
 
@@ -258,6 +284,7 @@ if (!function_exists('ensure_student_portal_activation')) {
 
         if (!$studentRow) {
             $result['errors'][] = 'student_not_found';
+            $debugAppend('student_not_found', ['student_id' => $studentId]);
             return $result;
         }
 
@@ -281,12 +308,14 @@ if (!function_exists('ensure_student_portal_activation')) {
             $result['already_activated'] = true;
             $result['activation_skipped_reason'] = 'already_activated';
             $result['email_dispatched'] = false;
+            $debugAppend('already_activated', ['student_id' => $studentId]);
             return $result;
         }
 
         if (!$dueSummary['eligible']) {
             $result['activation_skipped_reason'] = 'due_not_met';
             $result['email_dispatched'] = false;
+            $debugAppend('due_not_met', ['student_id' => $studentId, 'due_summary' => $dueSummary]);
             return $result;
         }
 
@@ -394,6 +423,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         $portalStmt = $conn->prepare("UPDATE students_registration SET portal_status = 'activated' WHERE id = ?");
         if (!$portalStmt) {
             $result['errors'][] = 'portal_update_prepare_failed';
+            $debugAppend('portal_update_prepare_failed', ['student_id' => $studentId, 'error' => $conn->error]);
             return $result;
         }
 
@@ -401,6 +431,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         if (!$portalStmt->execute()) {
             $result['errors'][] = 'portal_update_execute_failed';
             $portalStmt->close();
+            $debugAppend('portal_update_execute_failed', ['student_id' => $studentId, 'error' => $portalStmt->error]);
             return $result;
         }
         $portalStmt->close();
@@ -438,6 +469,12 @@ if (!function_exists('ensure_student_portal_activation')) {
             ],
             'context'     => $options['context'],
         ]);
+        $debugAppend('portal_activated', [
+            'student_id'  => $studentId,
+            'student_num' => $studentNumber,
+            'due_summary' => $dueSummary,
+            'payment_id'  => $options['payment_id'],
+        ]);
 
         if (!$options['send_email']) {
             $result['email_dispatched'] = false;
@@ -466,6 +503,7 @@ if (!function_exists('ensure_student_portal_activation')) {
             exec($cmd . ' > /dev/null 2>&1', $unusedOutput, $execStatus);
             if ($execStatus === 0) {
                 $emailDispatched = true;
+                $debugAppend('email_worker_dispatched_async', ['student_id' => $studentId]);
             }
         }
 
@@ -480,10 +518,12 @@ if (!function_exists('ensure_student_portal_activation')) {
                 } catch (Throwable $emailError) {
                     $result['errors'][] = 'email_dispatch_failed';
                     error_log('[portal_activation] Email worker error for student ' . $studentId . ': ' . $emailError->getMessage());
+                    $debugAppend('email_dispatch_failed', ['student_id' => $studentId, 'error' => $emailError->getMessage()]);
                     $emailDispatched = false;
                 }
             } else {
                 $result['errors'][] = 'email_worker_missing';
+                $debugAppend('email_worker_missing', ['student_id' => $studentId]);
             }
         }
 
