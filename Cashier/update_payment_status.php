@@ -3,6 +3,7 @@ define('SESSION_GUARD_JSON', true);
 require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
+require_once __DIR__ . '/../includes/portal_activation.php';
 include __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -248,6 +249,19 @@ if ($status === 'paid') {
     cashier_assign_section_if_needed($conn, (int) $student_id);
 }
 
+$portalActivationResult = null;
+if ($status === 'paid') {
+    $portalActivationResult = ensure_student_portal_activation(
+        $conn,
+        (int) $student_id,
+        [
+            'context'    => 'cashier',
+            'payment_id' => $id,
+            'send_email' => true,
+        ]
+    );
+}
+
 $registrarPushPayload = null;
 if ($status === 'paid') {
     $studentInfoStmt = $conn->prepare('SELECT id, firstname, lastname, year, section, adviser, academic_status, portal_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
@@ -396,6 +410,7 @@ $logMetadata = [
     'previous_receipt_number'   => $previousOrNumber,
     'previous_reference_number' => $previousReference,
     'decline_remarks'           => $status === 'declined' ? $declineRemarks : null,
+    'portal_activation'         => $portalActivationResult,
 ];
 
 transaction_log_record($conn, [
