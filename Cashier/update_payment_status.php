@@ -213,7 +213,7 @@ if (
 }
 
 if ($status === 'paid') {
-    $enroll_stmt = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+    $enroll_stmt = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled', portal_status = 'activated' WHERE id = ?");
     $enroll_stmt->bind_param('i', $student_id);
     $enroll_stmt->execute();
     $enroll_stmt->close();

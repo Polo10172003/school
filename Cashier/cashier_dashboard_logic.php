@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/section_assignment.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
+require_once __DIR__ . '/../includes/portal_activation.php';
 
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
@@ -1453,7 +1454,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             $recordedPaymentId = null;
         }
         if ($saveSuccess) {
-            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled' WHERE id = ?");
+            $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled', portal_status = 'activated' WHERE id = ?");
             $upd->bind_param('i', $student_id);
             $upd->execute();
             $upd->close();
@@ -1480,6 +1481,16 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                     $statusCheck->close();
                 }
             }
+
+            ensure_student_portal_activation(
+                $conn,
+                (int) $student_id,
+                [
+                    'context'    => 'cashier',
+                    'payment_id' => isset($recordedPaymentId) ? $recordedPaymentId : null,
+                    'send_email' => true,
+                ]
+            );
 
             if ($posted_plan !== '' && isset(cashier_dashboard_plan_labels()[$posted_plan])) {
                 cashier_dashboard_save_plan_selection(
