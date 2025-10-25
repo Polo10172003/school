@@ -3,7 +3,7 @@ define('SESSION_GUARD_JSON', true);
 require_once __DIR__ . '/../includes/session.php';
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
-require_once __DIR__ . '/../includes/portal_activation.php';
+require_once __DIR__ . '/../includes/student_account_helper.php';
 include __DIR__ . '/../db_connection.php';
 
 header('Content-Type: application/json');
@@ -212,6 +212,22 @@ if (
     }
 }
 
+$portalStatusBefore = null;
+
+if ($status === 'paid') {
+    $portalLookup = $conn->prepare('SELECT portal_status FROM students_registration WHERE id = ? LIMIT 1');
+    if ($portalLookup) {
+        $portalLookup->bind_param('i', $student_id);
+        if ($portalLookup->execute()) {
+            $portalLookup->bind_result($portalStatusBeforeRaw);
+            if ($portalLookup->fetch()) {
+                $portalStatusBefore = $portalStatusBeforeRaw;
+            }
+        }
+        $portalLookup->close();
+    }
+}
+
 if ($status === 'paid') {
     $enroll_stmt = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled', portal_status = 'activated' WHERE id = ?");
     $enroll_stmt->bind_param('i', $student_id);
@@ -249,30 +265,26 @@ if ($status === 'paid') {
     cashier_assign_section_if_needed($conn, (int) $student_id);
 }
 
-$portalActivationResult = null;
-if ($status === 'paid') {
-    $portalActivationResult = ensure_student_portal_activation(
-        $conn,
-        (int) $student_id,
-        [
-            'context'    => 'cashier',
-            'payment_id' => $id,
-            'send_email' => true,
-        ]
-    );
-}
-
-$portalJustActivated = is_array($portalActivationResult) && !empty($portalActivationResult['activation_performed']);
+$portalJustActivated = false;
 
 $registrarPushPayload = null;
 if ($status === 'paid') {
-    $studentInfoStmt = $conn->prepare('SELECT id, firstname, lastname, year, section, adviser, academic_status, portal_status, school_year FROM students_registration WHERE id = ? LIMIT 1');
+    $studentInfoStmt = $conn->prepare('SELECT id, firstname, lastname, year, section, adviser, academic_status, portal_status, school_year, student_number, emailaddress FROM students_registration WHERE id = ? LIMIT 1');
     if ($studentInfoStmt) {
         $studentInfoStmt->bind_param('i', $student_id);
         if ($studentInfoStmt->execute()) {
             $studentInfoResult = $studentInfoStmt->get_result();
             if ($studentInfoResult && $studentInfoResult->num_rows === 1) {
                 $studentInfoRow = $studentInfoResult->fetch_assoc();
+                if ($portalStatusBefore !== null) {
+                    $portalJustActivated = strtolower(trim((string) $portalStatusBefore)) !== 'activated'
+                        && strtolower(trim((string) ($studentInfoRow['portal_status'] ?? ''))) === 'activated';
+                } else {
+                    $portalJustActivated = strtolower(trim((string) ($studentInfoRow['portal_status'] ?? ''))) === 'activated';
+                }
+
+                ensure_student_account_profile($conn, $studentInfoRow);
+
                 $registrarPushPayload = [
                     'id' => (int) ($studentInfoRow['id'] ?? 0),
                     'firstname' => (string) ($studentInfoRow['firstname'] ?? ''),
@@ -414,7 +426,6 @@ $logMetadata = [
     'previous_receipt_number'   => $previousOrNumber,
     'previous_reference_number' => $previousReference,
     'decline_remarks'           => $status === 'declined' ? $declineRemarks : null,
-    'portal_activation'         => $portalActivationResult,
 ];
 
 transaction_log_record($conn, [

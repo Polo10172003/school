@@ -440,16 +440,20 @@ try {
                     </div>
                   </td>
                   <td class="dashboard-table-actions">
-                    <?php if (($row['academic_status'] ?? '') === 'Graduated'): ?>
-                      <a href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
-                      <a href="archive_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
-                      <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
-                    <?php else: ?>
-                      <a href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
-                      <a href="archive_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
-                      <a href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
-                      <a href="update_student_status.php?id=<?= (int) $row['id'] ?>">Update Status</a>
-                    <?php endif; ?>
+                    <?php
+                      $actionLinks = [
+                        sprintf('<a href="edit_student.php?id=%d">Edit</a>', (int) $row['id']),
+                        sprintf('<a href="archive_student.php?id=%d" onclick="return confirm(\'Archive this student?\')">Archive</a>', (int) $row['id']),
+                        sprintf('<a href="update_section.php?id=%d">Change Section</a>', (int) $row['id']),
+                      ];
+
+                      if (($row['academic_status'] ?? '') !== 'Graduated') {
+                          $actionLinks[] = sprintf('<a href="update_student_status.php?id=%d">Update Status</a>', (int) $row['id']);
+                      }
+
+                      echo implode(' | ', $actionLinks);
+                    ?>
+                    <br>
                     <a href="registration_assessment.php?student_id=<?= (int) $row['id'] ?>" target="_blank">View RAF</a>
                     <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
                       <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Pending' ?>
@@ -463,7 +467,6 @@ try {
 
         <div class="dashboard-actions" id="enrolledActions" style="<?= empty($enrolledStudents) ? 'display:none;' : '' ?>">
           <button type="submit" class="dashboard-btn">Update Selected Status</button>
-          <button type="button" id="bulkActivateBtn" class="dashboard-btn secondary" disabled title="Portal activation now occurs automatically after payment.">Activate Selected Accounts</button>
         </div>
 
         <div class="dashboard-empty-state" id="enrolledEmptyState" style="<?= empty($enrolledStudents) ? '' : 'display:none;' ?>">No enrolled students found.</div>
@@ -555,14 +558,6 @@ if (masterCheckbox) {
         studentCheckboxes().forEach(b => b.checked = this.checked);
     });
 }
-</script>
-<script>
-  const bulkActivateBtn = document.getElementById('bulkActivateBtn');
-  if (bulkActivateBtn) {
-    bulkActivateBtn.addEventListener('click', () => {
-      alert('Portal accounts activate automatically after the cashier marks the first payment as paid. No manual action is required.');
-    });
-  }
 </script>
 <?php
 $pusherClientJson = json_encode($pusherClientConfig, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);

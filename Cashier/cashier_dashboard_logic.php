@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/section_assignment.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
-require_once __DIR__ . '/../includes/portal_activation.php';
+require_once __DIR__ . '/../includes/student_account_helper.php';
 
 /**
  * Cashier dashboard helper and controller-like functions extracted from the main view file
@@ -1454,6 +1454,20 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
             $recordedPaymentId = null;
         }
         if ($saveSuccess) {
+            $portalJustActivated = false;
+            $portalStatusBefore = null;
+            $portalLookup = $conn->prepare('SELECT portal_status FROM students_registration WHERE id = ? LIMIT 1');
+            if ($portalLookup) {
+                $portalLookup->bind_param('i', $student_id);
+                if ($portalLookup->execute()) {
+                    $portalLookup->bind_result($portalStatusBeforeRaw);
+                    if ($portalLookup->fetch()) {
+                        $portalStatusBefore = $portalStatusBeforeRaw;
+                    }
+                }
+                $portalLookup->close();
+            }
+
             $upd = $conn->prepare("UPDATE students_registration SET enrollment_status = 'enrolled', portal_status = 'activated' WHERE id = ?");
             $upd->bind_param('i', $student_id);
             $upd->execute();
@@ -1482,15 +1496,22 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                 }
             }
 
-            ensure_student_portal_activation(
-                $conn,
-                (int) $student_id,
-                [
-                    'context'    => 'cashier',
-                    'payment_id' => isset($recordedPaymentId) ? $recordedPaymentId : null,
-                    'send_email' => true,
-                ]
-            );
+            $portalJustActivated = strtolower(trim((string) $portalStatusBefore)) !== 'activated';
+
+            $profileStmt = $conn->prepare('SELECT student_number, firstname, lastname, emailaddress FROM students_registration WHERE id = ? LIMIT 1');
+            if ($profileStmt) {
+                $profileStmt->bind_param('i', $student_id);
+                if ($profileStmt->execute()) {
+                    $profileResult = $profileStmt->get_result();
+                    if ($profileResult && $profileResult->num_rows === 1) {
+                        $profileRow = $profileResult->fetch_assoc();
+                        if ($profileRow) {
+                            ensure_student_account_profile($conn, $profileRow);
+                        }
+                    }
+                }
+                $profileStmt->close();
+            }
 
             if ($posted_plan !== '' && isset(cashier_dashboard_plan_labels()[$posted_plan])) {
                 cashier_dashboard_save_plan_selection(
@@ -1594,7 +1615,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
 
                 $inlineResult = false;
                 try {
-                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn, true, null, false);
+                    $inlineResult = cashier_email_worker_process($student_id, $payment_type, (float) $amount, $payment_status, $conn, true, null, $portalJustActivated);
                 } catch (Throwable $workerError) {
                     error_log('[cashier] email worker threw exception for student ' . $student_id . ' payment ' . $recordedPaymentId . ': ' . $workerError->getMessage());
                 }
@@ -1620,7 +1641,7 @@ function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
                         escapeshellarg((string) $amount),
                         escapeshellarg($payment_status),
                         escapeshellarg(''),
-                        escapeshellarg('0'),
+                        escapeshellarg($portalJustActivated ? '1' : '0'),
                     ];
                     $cmd = implode(' ', $cmdParts);
                     $execOutput = [];
