@@ -75,6 +75,11 @@ $searchQuery = $searchData['query'];
 $searchType = $searchData['type'];
 $clearSearchFlag = $searchData['cleared'];
 
+$studentIdsForOther = array_column($search_results, 'id');
+$otherPaymentsMap = !empty($studentIdsForOther)
+    ? cashier_other_payments_fetch_grouped($conn, $studentIdsForOther)
+    : [];
+
 $payments = cashier_dashboard_fetch_payments($conn);
 $paymentRows = [];
 if ($payments instanceof mysqli_result) {
@@ -411,7 +416,10 @@ if ($receiptPaymentId) {
 
         <div class="cashier-search-results">
           <?php foreach ($search_results as $s): ?>
-            <?php $snapshot = $search_financial[$s['id']] ?? null; ?>
+            <?php
+              $snapshot = $search_financial[$s['id']] ?? null;
+              $otherPayments = $otherPaymentsMap[$s['id']] ?? [];
+            ?>
             <article class="cashier-search-card" id="student-<?= $s['id'] ?>">
               <header class="cashier-search-card__header">
                 <span class="search-result-pill">Student Portal</span>
@@ -766,6 +774,104 @@ if ($receiptPaymentId) {
                     <button type="submit" class="dashboard-btn"><?= $isEscSubsidyPlan ? 'Confirm Subsidy' : 'Submit Payment'; ?></button>
                   </div>
                 </form>
+
+                <div class="cashier-search-card__section" id="other-payments-<?= $s['id'] ?>">
+                  <h4>Other Payments &amp; Fees</h4>
+                  <p class="text-muted">Log field trips, graduation fees, tickets, or any non-tuition charges settled through the cashier.</p>
+                  <form class="dashboard-form cashier-other-payment-form" method="POST" action="cashier_dashboard.php#other-payments-<?= $s['id'] ?>" data-student="<?= $s['id'] ?>">
+                    <input type="hidden" name="other_payment" value="1">
+                    <input type="hidden" name="student_id" value="<?= $s['id'] ?>">
+
+                    <div class="cashier-payment-grid">
+                      <div>
+                        <label for="other_fee_label_<?= $s['id'] ?>">Fee name</label>
+                        <input type="text" name="other_fee_label" id="other_fee_label_<?= $s['id'] ?>" placeholder="e.g., Field Trip Fee" required>
+                      </div>
+                      <div>
+                        <label for="other_payment_mode_<?= $s['id'] ?>">Payment mode</label>
+                        <select name="other_payment_mode" id="other_payment_mode_<?= $s['id'] ?>" class="other-payment-mode" data-target="other-payment-fields-<?= $s['id'] ?>">
+                          <option value="Cash">Cash</option>
+                          <option value="GCash">GCash</option>
+                          <option value="Bank Transfer">Bank Transfer</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label for="other_fee_amount_<?= $s['id'] ?>">Amount</label>
+                        <input type="number" step="0.01" min="0.01" name="other_fee_amount" id="other_fee_amount_<?= $s['id'] ?>" required>
+                      </div>
+                      <div>
+                        <label for="other_payment_date_<?= $s['id'] ?>">Payment date</label>
+                        <input type="date" name="other_payment_date" id="other_payment_date_<?= $s['id'] ?>" value="<?= date('Y-m-d') ?>" required>
+                      </div>
+                    </div>
+
+                    <div id="other-payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
+                      <div class="other-cash-field">
+                        <label for="other_or_number_<?= $s['id'] ?>">Transaction No.</label>
+                        <input type="text" name="other_or_number" id="other_or_number_<?= $s['id'] ?>">
+                      </div>
+                      <div class="other-noncash-field" style="display:none;">
+                        <label for="other_reference_number_<?= $s['id'] ?>">Reference #</label>
+                        <input type="text" name="other_reference_number" id="other_reference_number_<?= $s['id'] ?>">
+                      </div>
+                    </div>
+
+                    <div>
+                      <label for="other_payment_notes_<?= $s['id'] ?>">Notes (optional)</label>
+                      <textarea name="other_payment_notes" id="other_payment_notes_<?= $s['id'] ?>" rows="2" placeholder="Additional details that will appear on the receipt and portal."></textarea>
+                    </div>
+
+                    <div class="dashboard-actions">
+                      <button type="submit" class="dashboard-btn secondary">Save Other Payment</button>
+                    </div>
+                  </form>
+
+                  <?php if (!empty($otherPayments)): ?>
+                    <div class="table-responsive" style="margin-top:12px;">
+                      <table class="table portal-table align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Fee</th>
+                            <th scope="col" class="text-end">Amount</th>
+                            <th scope="col">Method</th>
+                            <th scope="col">Reference</th>
+                            <th scope="col">Recorded By</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <?php foreach ($otherPayments as $other): ?>
+                            <?php
+                              $otherDate = $other['payment_date'] ?? $other['created_at'] ?? '';
+                              $otherAmount = isset($other['amount']) ? (float) $other['amount'] : 0.0;
+                              $refPieces = [];
+                              if (!empty($other['or_number'])) {
+                                  $refPieces[] = 'Transaction #: ' . htmlspecialchars($other['or_number']);
+                              }
+                              if (!empty($other['reference_number'])) {
+                                  $refPieces[] = 'Reference #: ' . htmlspecialchars($other['reference_number']);
+                              }
+                              if (empty($refPieces)) {
+                                  $refPieces[] = '<span class="text-muted">N/A</span>';
+                              }
+                            ?>
+                            <tr>
+                              <td><?= htmlspecialchars($otherDate ?: date('Y-m-d')); ?></td>
+                              <td><?= htmlspecialchars($other['label'] ?? 'Other fee'); ?><?php if (!empty($other['notes'])): ?><div class="text-muted small"><?= nl2br(htmlspecialchars($other['notes'])); ?></div><?php endif; ?></td>
+                              <td class="text-end">₱<?= number_format($otherAmount, 2); ?></td>
+                              <td><?= htmlspecialchars($other['payment_method'] ?? 'Cash'); ?></td>
+                              <td><?php echo implode('<br>', $refPieces); ?></td>
+                              <td><?= htmlspecialchars($other['created_by'] ?: 'Cashier Desk'); ?></td>
+                            </tr>
+                          <?php endforeach; ?>
+                        </tbody>
+                      </table>
+                    </div>
+                  <?php else: ?>
+                    <div class="cashier-alert cashier-alert--muted" style="margin-top:12px;">No additional fees recorded yet.</div>
+                  <?php endif; ?>
+                </div>
               </div>
             </article>
           <?php endforeach; ?>

@@ -905,6 +905,8 @@ $financial_snapshot = cashier_dashboard_build_student_financial($conn, (int) $st
     'target_school_year' => $targetSchoolYear,
 ]);
 
+$other_payments_records = cashier_other_payments_fetch_for_student($conn, (int) $student_id);
+
 $finance_views = [];
 $available_pricing_options = array_keys(cashier_dashboard_pricing_labels());
 $selected_pricing_key = 'regular';
@@ -1823,6 +1825,61 @@ unset($finance_view_ref);
                         <?php else: ?>
                             <div class="empty-state">
                                 <i class="bi bi-info-circle me-2"></i>No payments recorded yet.
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <div class="card portal-card mt-4">
+                    <div class="card-body">
+                        <h3 class="h5 fw-bold mb-3">Other Payments &amp; Fees</h3>
+                        <?php if (!empty($other_payments_records)): ?>
+                            <div class="table-responsive">
+                                <table class="table portal-table align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Date</th>
+                                            <th scope="col">Fee</th>
+                                            <th scope="col" class="text-end">Amount</th>
+                                            <th scope="col">Method</th>
+                                            <th scope="col">Reference</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($other_payments_records as $other_payment): ?>
+                                            <?php
+                                                $otherDate = $other_payment['payment_date'] ?? $other_payment['created_at'] ?? '';
+                                                $otherAmount = isset($other_payment['amount']) ? (float) $other_payment['amount'] : 0.0;
+                                                $refParts = [];
+                                                if (!empty($other_payment['or_number'])) {
+                                                    $refParts[] = 'Transaction #: ' . htmlspecialchars($other_payment['or_number']);
+                                                }
+                                                if (!empty($other_payment['reference_number'])) {
+                                                    $refParts[] = 'Reference #: ' . htmlspecialchars($other_payment['reference_number']);
+                                                }
+                                                if (empty($refParts)) {
+                                                    $refParts[] = 'N/A';
+                                                }
+                                            ?>
+                                            <tr>
+                                                <td class="fw-semibold"><?php echo htmlspecialchars($otherDate ?: date('Y-m-d')); ?></td>
+                                                <td>
+                                                    <?php echo htmlspecialchars($other_payment['label'] ?? 'Other fee'); ?>
+                                                    <?php if (!empty($other_payment['notes'])): ?>
+                                                        <div class="text-muted small"><?php echo nl2br(htmlspecialchars($other_payment['notes'])); ?></div>
+                                                    <?php endif; ?>
+                                                </td>
+                                                <td class="text-end">₱<?php echo number_format($otherAmount, 2); ?></td>
+                                                <td><?php echo htmlspecialchars($other_payment['payment_method'] ?? 'Cash'); ?></td>
+                                                <td><?php echo htmlspecialchars(implode(' • ', $refParts)); ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php else: ?>
+                            <div class="empty-state">
+                                <i class="bi bi-receipt me-2"></i>No additional fees recorded yet.
                             </div>
                         <?php endif; ?>
                     </div>

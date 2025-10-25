@@ -106,8 +106,268 @@ function cashier_dashboard_default_pricing_variant_for_grade(string $gradeKey): 
 }
 
 /**
- * Provide a consistent ordering weight for display rows per plan.
+ * Ensure auxiliary table for cashier-recorded miscellaneous payments exists.
  */
+function cashier_other_payments_ensure_schema(mysqli $conn): bool
+{
+    static $ensured = false;
+    if ($ensured) {
+        return true;
+    }
+
+    $sql = <<<SQL
+        CREATE TABLE IF NOT EXISTS student_other_payments (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            student_id INT NOT NULL,
+            label VARCHAR(120) NOT NULL,
+            amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+            payment_method VARCHAR(50) NOT NULL DEFAULT 'Cash',
+            payment_status VARCHAR(30) NOT NULL DEFAULT 'paid',
+            payment_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            or_number VARCHAR(100) NULL,
+            reference_number VARCHAR(100) NULL,
+            notes TEXT NULL,
+            created_by VARCHAR(100) NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_student_other_payments_student (student_id),
+            KEY idx_student_other_payments_date (payment_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    SQL;
+
+    if (!$conn->query($sql)) {
+        error_log('[cashier] failed ensuring other payments schema: ' . $conn->error);
+        return false;
+    }
+
+    $ensured = true;
+    return true;
+}
+
+/**
+ * Fetch other payments grouped by student ID.
+ *
+ * @param array<int,int> $studentIds
+ * @return array<int,array<int,array<string,mixed>>>
+ */
+function cashier_other_payments_fetch_grouped(mysqli $conn, array $studentIds): array
+{
+    $grouped = [];
+    $studentIds = array_values(array_unique(array_filter(array_map('intval', $studentIds), static function ($value) {
+        return $value > 0;
+    })));
+
+    if (empty($studentIds)) {
+        return $grouped;
+    }
+
+    if (!cashier_other_payments_ensure_schema($conn)) {
+        return $grouped;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+    $types = str_repeat('i', count($studentIds));
+    $sql = "
+        SELECT id, student_id, label, amount, payment_method, payment_status, payment_date, or_number, reference_number, notes, created_by, created_at
+        FROM student_other_payments
+        WHERE student_id IN ($placeholders)
+        ORDER BY payment_date DESC, id DESC
+    ";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        error_log('[cashier] prepare failed fetching other payments: ' . $conn->error);
+        return $grouped;
+    }
+
+    $stmt->bind_param($types, ...$studentIds);
+    if ($stmt->execute()) {
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $sid = isset($row['student_id']) ? (int) $row['student_id'] : 0;
+                if ($sid <= 0) {
+                    continue;
+                }
+                if (!isset($grouped[$sid])) {
+                    $grouped[$sid] = [];
+                }
+                $grouped[$sid][] = $row;
+            }
+            $result->free();
+        }
+    } else {
+        error_log('[cashier] execute failed fetching other payments: ' . $stmt->error);
+    }
+    $stmt->close();
+
+    return $grouped;
+}
+
+/**
+ * Fetch other payments for a single student.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function cashier_other_payments_fetch_for_student(mysqli $conn, int $studentId): array
+{
+    $map = cashier_other_payments_fetch_grouped($conn, [$studentId]);
+    return $map[$studentId] ?? [];
+}
+
+/**
+ * Handle submission of ad-hoc/other cashier payments.
+ */
+function cashier_dashboard_handle_other_payment_submission(mysqli $conn): ?string
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        return null;
+    }
+
+    if (!isset($_POST['other_payment']) || $_POST['other_payment'] !== '1') {
+        return null;
+    }
+
+    $studentId = isset($_POST['student_id']) ? (int) $_POST['student_id'] : 0;
+    $label = trim((string) ($_POST['other_fee_label'] ?? ''));
+    $amount = isset($_POST['other_fee_amount']) ? (float) $_POST['other_fee_amount'] : 0.0;
+    $paymentMethod = trim((string) ($_POST['other_payment_mode'] ?? 'Cash'));
+    if ($paymentMethod === '') {
+        $paymentMethod = 'Cash';
+    }
+
+    $paymentDateRaw = trim((string) ($_POST['other_payment_date'] ?? ''));
+    $paymentDate = $paymentDateRaw !== '' ? $paymentDateRaw : date('Y-m-d');
+    $notes = trim((string) ($_POST['other_payment_notes'] ?? ''));
+    $orNumber = trim((string) ($_POST['other_or_number'] ?? ''));
+    $referenceNumber = trim((string) ($_POST['other_reference_number'] ?? ''));
+
+    $redirectTarget = 'cashier_dashboard.php#other-payments-' . ($studentId > 0 ? $studentId : '');
+
+    if ($studentId <= 0) {
+        $_SESSION['cashier_flash'] = 'Select a student before recording an additional fee.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    if ($label === '') {
+        $_SESSION['cashier_flash'] = 'Enter a label or name for the fee (e.g., Field Trip).';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    if ($amount <= 0) {
+        $_SESSION['cashier_flash'] = 'Enter a valid amount greater than zero.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    $isCashMethod = strcasecmp($paymentMethod, 'Cash') === 0;
+    if ($isCashMethod) {
+        if ($orNumber === '') {
+            $_SESSION['cashier_flash'] = 'Transaction number is required for cash payments.';
+            $_SESSION['cashier_flash_type'] = 'error';
+            return $redirectTarget;
+        }
+        $referenceNumber = '';
+    } else {
+        if ($referenceNumber === '') {
+            $_SESSION['cashier_flash'] = 'Reference number is required for online payments.';
+            $_SESSION['cashier_flash_type'] = 'error';
+            return $redirectTarget;
+        }
+        $orNumber = '';
+    }
+
+    $dateObject = DateTime::createFromFormat('Y-m-d', $paymentDate);
+    if (!$dateObject) {
+        $paymentDate = date('Y-m-d');
+    }
+
+    if (!cashier_other_payments_ensure_schema($conn)) {
+        $_SESSION['cashier_flash'] = 'Unable to record the fee because the storage table could not be prepared.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    $studentLookup = $conn->prepare('SELECT student_number, firstname, lastname FROM students_registration WHERE id = ? LIMIT 1');
+    if (!$studentLookup) {
+        $_SESSION['cashier_flash'] = 'Unable to locate the student record.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+    $studentLookup->bind_param('i', $studentId);
+    $studentLookup->execute();
+    $studentLookup->bind_result($studentNumberRow, $firstNameRow, $lastNameRow);
+    $hasStudent = $studentLookup->fetch();
+    $studentLookup->close();
+
+    if (!$hasStudent) {
+        $_SESSION['cashier_flash'] = 'Unable to locate the student record.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    $createdBy = $_SESSION['cashier_username'] ?? null;
+
+    $insert = $conn->prepare('
+        INSERT INTO student_other_payments
+            (student_id, label, amount, payment_method, payment_status, payment_date, or_number, reference_number, notes, created_by)
+        VALUES (?, ?, ?, ?, "paid", ?, ?, ?, ?, ?)
+    ');
+    if (!$insert) {
+        $_SESSION['cashier_flash'] = 'Unable to prepare the additional payment record.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        return $redirectTarget;
+    }
+
+    $orParam = $orNumber !== '' ? $orNumber : null;
+    $refParam = $referenceNumber !== '' ? $referenceNumber : null;
+    $notesParam = $notes !== '' ? $notes : null;
+    $createdByParam = $createdBy !== null && $createdBy !== '' ? $createdBy : null;
+    $insert->bind_param('isdssssss', $studentId, $label, $amount, $paymentMethod, $paymentDate, $orParam, $refParam, $notesParam, $createdByParam);
+
+    if (!$insert->execute()) {
+        $_SESSION['cashier_flash'] = 'Unable to record the additional payment. Please try again.';
+        $_SESSION['cashier_flash_type'] = 'error';
+        error_log('[cashier] other payment insert failed: ' . $insert->error);
+        $insert->close();
+        return $redirectTarget;
+    }
+
+    $otherPaymentId = (int) $insert->insert_id;
+    $insert->close();
+
+    transaction_log_record($conn, [
+        'category'    => 'payment',
+        'action'      => 'other_payment_recorded',
+        'target_type' => 'student',
+        'target_id'   => $studentNumberRow !== null && $studentNumberRow !== '' ? $studentNumberRow : (string) $studentId,
+        'description' => sprintf('Recorded additional payment "%s" amounting to ₱%0.2f via %s.', $label, $amount, $paymentMethod),
+        'metadata'    => [
+            'student_id'      => $studentId,
+            'student_number'  => $studentNumberRow,
+            'label'           => $label,
+            'amount'          => $amount,
+            'payment_method'  => $paymentMethod,
+            'payment_date'    => $paymentDate,
+            'or_number'       => $orNumber,
+            'reference'       => $referenceNumber,
+            'notes'           => $notes,
+            'other_payment_id'=> $otherPaymentId,
+        ],
+        'context'     => 'cashier',
+    ]);
+
+    $_SESSION['cashier_flash'] = sprintf('Recorded %s payment (₱%s).', $label, number_format($amount, 2));
+    $_SESSION['cashier_flash_type'] = 'success';
+
+    return $redirectTarget;
+}
+
+/**
+* Provide a consistent ordering weight for display rows per plan.
+*/
 function cashier_dashboard_plan_order(string $plan): int
 {
     static $order = [
@@ -976,6 +1236,10 @@ function cashier_dashboard_validate_payment(mysqli $conn, $studentIdRaw, float $
  */
 function cashier_dashboard_handle_payment_submission(mysqli $conn): ?string
 {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['other_payment']) && $_POST['other_payment'] === '1') {
+        return cashier_dashboard_handle_other_payment_submission($conn);
+    }
+
     if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['student_id'])) {
         return null;
     }

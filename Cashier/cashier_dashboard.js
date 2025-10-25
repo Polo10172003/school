@@ -76,6 +76,38 @@
       syncFields();
     });
 
+    document.querySelectorAll('.other-payment-mode').forEach((select) => {
+      const containerId = select.dataset.target;
+      const fieldsContainer = containerId ? document.getElementById(containerId) : null;
+      if (!fieldsContainer) {
+        return;
+      }
+      const cashField = fieldsContainer.querySelector('.other-cash-field');
+      const noncashField = fieldsContainer.querySelector('.other-noncash-field');
+      const orInput = fieldsContainer.querySelector('input[name="other_or_number"]');
+      const refInput = fieldsContainer.querySelector('input[name="other_reference_number"]');
+
+      const syncOtherFields = () => {
+        const mode = (select.value || 'cash').toLowerCase();
+        const isCash = mode === 'cash';
+        if (cashField) {
+          cashField.style.display = isCash ? '' : 'none';
+        }
+        if (noncashField) {
+          noncashField.style.display = isCash ? 'none' : '';
+        }
+        if (orInput) {
+          orInput.required = isCash;
+        }
+        if (refInput) {
+          refInput.required = !isCash;
+        }
+      };
+
+      select.addEventListener('change', syncOtherFields);
+      syncOtherFields();
+    });
+
     const setProcessingState = (isProcessing, action) => {
       const targetBtn = action === 'accept' ? acceptBtn : declineBtn;
       const otherBtn = action === 'accept' ? declineBtn : acceptBtn;
