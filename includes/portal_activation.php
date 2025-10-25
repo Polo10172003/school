@@ -28,6 +28,20 @@ if (!function_exists('ensure_student_portal_activation')) {
         ];
         $options = array_merge($defaults, $options);
 
+        $logFile = __DIR__ . '/../temp/portal_activation_debug.log';
+        $logEvent = static function (string $event, array $context = []) use ($logFile): void {
+            $payload = [
+                'timestamp' => date('c'),
+                'event'     => $event,
+                'context'   => $context,
+            ];
+            @file_put_contents(
+                $logFile,
+                json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL,
+                FILE_APPEND
+            );
+        };
+
         $result = [
             'student_found'        => false,
             'already_activated'    => false,
@@ -41,8 +55,11 @@ if (!function_exists('ensure_student_portal_activation')) {
         ];
 
         $studentId = max(0, $studentId);
+        $logEvent('activation_start', ['student_id' => $studentId, 'options' => $options]);
+
         if ($studentId <= 0) {
             $result['errors'][] = 'invalid_student_id';
+            $logEvent('invalid_student_id', ['student_id' => $studentId]);
             return $result;
         }
 
@@ -61,6 +78,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         ');
         if (!$studentStmt) {
             $result['errors'][] = 'student_lookup_prepare_failed';
+            $logEvent('student_lookup_prepare_failed', ['student_id' => $studentId, 'error' => $conn->error]);
             return $result;
         }
 
@@ -68,6 +86,7 @@ if (!function_exists('ensure_student_portal_activation')) {
         if (!$studentStmt->execute()) {
             $result['errors'][] = 'student_lookup_execute_failed';
             $studentStmt->close();
+            $logEvent('student_lookup_execute_failed', ['student_id' => $studentId, 'error' => $studentStmt->error]);
             return $result;
         }
 
@@ -76,12 +95,19 @@ if (!function_exists('ensure_student_portal_activation')) {
 
         if (!$studentRow) {
             $result['errors'][] = 'student_not_found';
+            $logEvent('student_not_found', ['student_id' => $studentId]);
             return $result;
         }
         $result['student_found'] = true;
 
-        if (!in_array($studentRow['enrollment_status'] ?? '', ['enrolled', 'ready', 'waiting'], true)) {
+        $enrollmentStatusRaw = (string) ($studentRow['enrollment_status'] ?? '');
+        $normalizedEnrollment = strtolower(trim($enrollmentStatusRaw));
+        if (!in_array($normalizedEnrollment, ['enrolled', 'ready', 'waiting'], true)) {
             $result['errors'][] = 'student_not_enrolled';
+            $logEvent('student_not_enrolled', [
+                'student_id'        => $studentId,
+                'enrollment_status' => $enrollmentStatusRaw,
+            ]);
             return $result;
         }
 
@@ -93,6 +119,7 @@ if (!function_exists('ensure_student_portal_activation')) {
 
         if ($portalStatus === 'activated') {
             $result['already_activated'] = true;
+            $logEvent('already_activated', ['student_id' => $studentId]);
             return $result;
         }
 
@@ -137,12 +164,26 @@ if (!function_exists('ensure_student_portal_activation')) {
                 if ($insert->execute()) {
                     $result['account_created'] = true;
                     $accountId = (int) $insert->insert_id;
+                    $logEvent('account_created', [
+                        'student_id'     => $studentId,
+                        'account_id'     => $accountId,
+                        'student_number' => $studentNumber,
+                        'email'          => $email,
+                    ]);
                 } else {
                     $result['errors'][] = 'account_insert_failed';
+                    $logEvent('account_insert_failed', [
+                        'student_id' => $studentId,
+                        'error'      => $insert->error,
+                    ]);
                 }
                 $insert->close();
             } else {
                 $result['errors'][] = 'account_insert_prepare_failed';
+                $logEvent('account_insert_prepare_failed', [
+                    'student_id' => $studentId,
+                    'error'      => $conn->error,
+                ]);
             }
         } elseif ($accountId !== null) {
             $updates = [];
@@ -184,12 +225,25 @@ if (!function_exists('ensure_student_portal_activation')) {
                     $updateStmt->bind_param($types, ...$values);
                     if ($updateStmt->execute()) {
                         $result['account_updated'] = true;
+                        $logEvent('account_updated', [
+                            'student_id'     => $studentId,
+                            'account_id'     => $accountId,
+                            'fields_updated' => $updates,
+                        ]);
                     } else {
                         $result['errors'][] = 'account_update_failed';
+                        $logEvent('account_update_failed', [
+                            'student_id' => $studentId,
+                            'error'      => $updateStmt->error,
+                        ]);
                     }
                     $updateStmt->close();
                 } else {
                     $result['errors'][] = 'account_update_prepare_failed';
+                    $logEvent('account_update_prepare_failed', [
+                        'student_id' => $studentId,
+                        'error'      => $conn->error,
+                    ]);
                 }
             }
         }
@@ -197,17 +251,24 @@ if (!function_exists('ensure_student_portal_activation')) {
         $portalStmt = $conn->prepare("UPDATE students_registration SET portal_status = 'activated' WHERE id = ?");
         if (!$portalStmt) {
             $result['errors'][] = 'portal_update_prepare_failed';
+            $logEvent('portal_update_prepare_failed', ['student_id' => $studentId, 'error' => $conn->error]);
             return $result;
         }
         $portalStmt->bind_param('i', $studentId);
         if (!$portalStmt->execute()) {
             $result['errors'][] = 'portal_update_execute_failed';
             $portalStmt->close();
+            $logEvent('portal_update_execute_failed', ['student_id' => $studentId, 'error' => $portalStmt->error]);
             return $result;
         }
+        $affectedRows = $portalStmt->affected_rows;
         $portalStmt->close();
 
         $result['activation_performed'] = true;
+        $logEvent('portal_status_updated', [
+            'student_id'    => $studentId,
+            'affected_rows' => $affectedRows,
+        ]);
 
         $studentFullName = trim(($firstname !== '' ? $firstname : '') . ' ' . ($lastname !== '' ? $lastname : ''));
         if ($studentFullName === '') {
@@ -236,9 +297,15 @@ if (!function_exists('ensure_student_portal_activation')) {
             ],
             'context'     => $options['context'],
         ]);
+        $logEvent('transaction_logged', [
+            'student_id' => $studentId,
+            'context'    => $options['context'],
+            'payment_id' => $options['payment_id'],
+        ]);
 
         if (!$options['send_email']) {
             $result['email_dispatched'] = false;
+            $logEvent('email_skipped', ['student_id' => $studentId]);
             return $result;
         }
 
@@ -264,6 +331,7 @@ if (!function_exists('ensure_student_portal_activation')) {
             exec($cmd . ' > /dev/null 2>&1', $unusedOutput, $execStatus);
             if ($execStatus === 0) {
                 $emailDispatched = true;
+                $logEvent('email_dispatched_async', ['student_id' => $studentId]);
             }
         }
 
@@ -278,14 +346,20 @@ if (!function_exists('ensure_student_portal_activation')) {
                 } catch (Throwable $emailError) {
                     $result['errors'][] = 'email_dispatch_failed';
                     error_log('[portal_activation] Email worker error for student ' . $studentId . ': ' . $emailError->getMessage());
+                    $logEvent('email_dispatch_failed', ['student_id' => $studentId, 'error' => $emailError->getMessage()]);
                     $emailDispatched = false;
                 }
             } else {
                 $result['errors'][] = 'email_worker_missing';
+                $logEvent('email_worker_missing', ['student_id' => $studentId]);
             }
         }
 
         $result['email_dispatched'] = $emailDispatched;
+        $logEvent('activation_complete', [
+            'student_id' => $studentId,
+            'result'     => $result,
+        ]);
 
         return $result;
     }
