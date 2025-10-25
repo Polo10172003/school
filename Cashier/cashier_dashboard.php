@@ -80,36 +80,13 @@ $otherPaymentsMap = !empty($studentIdsForOther)
     ? cashier_other_payments_fetch_grouped($conn, $studentIdsForOther)
     : [];
 
-$payments = cashier_dashboard_fetch_payments($conn);
-$paymentRows = [];
-if ($payments instanceof mysqli_result) {
-    while ($row = $payments->fetch_assoc()) {
-        $paymentRows[] = $row;
-    }
-}
+$paymentRows = cashier_dashboard_fetch_payments($conn);
 $pendingPaymentCount = 0;
+$pendingStatuses = ['pending', 'processing', 'review'];
 foreach ($paymentRows as $row) {
-    $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
-    if (in_array($status, ['pending', 'processing', 'review'], true)) {
+    $normalized = strtolower(trim((string) ($row['status_normalized'] ?? $row['payment_status'] ?? '')));
+    if (in_array($normalized, $pendingStatuses, true)) {
         $pendingPaymentCount++;
-    }
-}
-$paymentToggleLabel = 'View Payment Records' . ($pendingPaymentCount > 0 ? " ({$pendingPaymentCount} pending)" : '');
-$paymentToggleActiveLabel = 'Hide Payment Records';
-$payments = cashier_dashboard_fetch_payments($conn);
-$paymentRows = [];
-$pendingPaymentCount = 0;
-if ($payments instanceof mysqli_result) {
-    while ($row = $payments->fetch_assoc()) {
-        $paymentTypeRaw = strtolower(trim((string) ($row['payment_type'] ?? '')));
-        if (strpos($paymentTypeRaw, 'carry-over') !== false) {
-            continue;
-        }
-        $paymentRows[] = $row;
-        $status = strtolower(trim((string) ($row['payment_status'] ?? '')));
-        if (in_array($status, ['pending', 'processing', 'review'], true)) {
-            $pendingPaymentCount++;
-        }
     }
 }
 $paymentToggleLabel = 'View Payment Records' . ($pendingPaymentCount > 0 ? " ({$pendingPaymentCount} pending)" : '');
@@ -146,14 +123,21 @@ $gradeOptions = [
 ];
 
 $receiptPaymentId = $_SESSION['cashier_receipt_payment_id'] ?? null;
+$receiptOtherId = $_SESSION['cashier_receipt_other_payment_id'] ?? null;
 $receiptData = null;
+
 if ($receiptPaymentId) {
     $receiptData = cashier_dashboard_fetch_receipt_data($conn, (int) $receiptPaymentId);
     unset($_SESSION['cashier_receipt_payment_id']);
-    if ($receiptData) {
-        $receiptData['amount_formatted'] = number_format((float) ($receiptData['amount'] ?? 0), 2);
-        $receiptData['generated_at'] = date('Y-m-d H:i');
-    }
+} elseif ($receiptOtherId) {
+    $receiptData = cashier_dashboard_fetch_other_receipt_data($conn, (int) $receiptOtherId);
+    unset($_SESSION['cashier_receipt_other_payment_id']);
+    unset($_SESSION['cashier_receipt_other_payment_or']);
+}
+
+if ($receiptData) {
+    $receiptData['amount_formatted'] = number_format((float) ($receiptData['amount'] ?? 0), 2);
+    $receiptData['generated_at'] = date('Y-m-d H:i');
 }
 
 ?>
@@ -196,6 +180,15 @@ if ($receiptPaymentId) {
           border-bottom: 2px solid #0f172a;
           padding-bottom: 16px;
           margin-bottom: 20px;
+        }
+        .receipt-header__left {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+        }
+        .receipt-logo {
+          width: 68px;
+          height: auto;
         }
         .receipt-header h1 {
           margin: 0;
@@ -277,9 +270,12 @@ if ($receiptPaymentId) {
       </style>
       <div class="receipt-card">
         <div class="receipt-header">
-          <div>
-            <h1>Transaction Receipt</h1>
-            <div>Onsite Payment Processing</div>
+          <div class="receipt-header__left">
+            <img src="../Esrlogo.png" alt="Escuela De Sto. Rosario" class="receipt-logo">
+            <div class="receipt-header__title">
+              <h1>Transaction Receipt</h1>
+              <div>Onsite Payment Processing</div>
+            </div>
           </div>
           <div class="receipt-meta">
             <div><strong>Transaction No.:</strong> {{or_number}}</div>
@@ -308,6 +304,14 @@ if ($receiptPaymentId) {
           <tr>
             <th>Payment Type</th>
             <td>{{payment_type}}</td>
+          </tr>
+          <tr>
+            <th>Fee Item</th>
+            <td>{{fee_label}}</td>
+          </tr>
+          <tr>
+            <th>Notes</th>
+            <td>{{fee_notes}}</td>
           </tr>
           <tr>
             <th>Reference No.</th>
@@ -807,9 +811,9 @@ if ($receiptPaymentId) {
                     </div>
 
                     <div id="other-payment-fields-<?= $s['id'] ?>" class="cashier-payment-grid">
-                      <div class="other-cash-field">
-                        <label for="other_or_number_<?= $s['id'] ?>">Transaction No.</label>
-                        <input type="text" name="other_or_number" id="other_or_number_<?= $s['id'] ?>">
+                      <div class="other-cash-field auto-or-field">
+                        <label>Transaction No.</label>
+                        <div class="auto-or-placeholder">Transaction number will be generated after submission.</div>
                       </div>
                       <div class="other-noncash-field" style="display:none;">
                         <label for="other_reference_number_<?= $s['id'] ?>">Reference #</label>
@@ -921,28 +925,44 @@ if ($receiptPaymentId) {
             <tbody id="paymentTableBody">
               <?php if (!empty($paymentRows)): ?>
                 <?php foreach ($paymentRows as $row): ?>
+                  <?php
+                    $createdAtDisplay = $row['created_at_display'] ?? '';
+                    $studentLabel = trim(($row['lastname'] ?? '') . ', ' . ($row['firstname'] ?? '') . ' ' . ($row['middlename'] ?? ''));
+                    $displayType = $row['display_type'] ?? ($row['payment_type'] ?? 'Payment');
+                    $amountValue = isset($row['amount']) ? (float) $row['amount'] : 0.0;
+                    $statusLabel = $row['payment_status'] ?? 'Pending';
+                    $statusId = 'status-' . (int) ($row['id'] ?? 0);
+                    $recordCategory = $row['record_category'] ?? 'tuition';
+                    $isOtherRecord = $recordCategory === 'other';
+                    $refValue = $row['reference_number'] ?? $row['or_number'] ?? null;
+                  ?>
                   <tr>
-                    <td><?= date('Y-m-d', strtotime($row['created_at'])) ?></td>
-                    <td><?= htmlspecialchars($row['lastname']) ?>, <?= htmlspecialchars($row['firstname']) ?> <?= htmlspecialchars($row['middlename']) ?></td>
-                    <td><?= htmlspecialchars($row['payment_type']) ?></td>
-                    <td>₱ <?= number_format($row['amount'], 2) ?></td>
-                    <td id="status-<?= $row['id'] ?>"><?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?></td>
+                    <td><?= htmlspecialchars($createdAtDisplay); ?></td>
+                    <td><?= htmlspecialchars($studentLabel); ?></td>
+                    <td><?= htmlspecialchars($displayType); ?></td>
+                    <td>₱ <?= number_format($amountValue, 2); ?></td>
+                    <td id="<?= htmlspecialchars($statusId); ?>"><?= htmlspecialchars($statusLabel); ?></td>
                     <td class="text-center">
-                      <button
-                        type="button"
-                        class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
-                        data-id="<?= $row['id'] ?>"
-                        data-student-id="<?= (int) $row['student_id'] ?>"
-                        data-student="<?= htmlspecialchars($row['lastname'] . ', ' . $row['firstname']) ?>"
-                        data-type="<?= htmlspecialchars($row['payment_type']) ?>"
-                        data-amount="<?= $row['amount'] ?>"
-                        data-status="<?= htmlspecialchars($row['payment_status'] ?? 'Pending') ?>"
-                        data-ref="<?= htmlspecialchars($row['reference_number'] ?? $row['or_number'] ?? 'N/A') ?>"
-                        data-reference="<?= htmlspecialchars($row['reference_number'] ?? '') ?>"
-                        data-or="<?= htmlspecialchars($row['or_number'] ?? '') ?>"
-                        data-screenshot="<?= htmlspecialchars($row['screenshot_path'] ?? '') ?>">
-                        View Payment
-                      </button>
+                      <?php if ($isOtherRecord): ?>
+                        &mdash;
+                      <?php else: ?>
+                        <button
+                          type="button"
+                          class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
+                          data-category="<?= htmlspecialchars($recordCategory) ?>"
+                          data-id="<?= (int) ($row['id'] ?? 0) ?>"
+                          data-student-id="<?= (int) ($row['student_id'] ?? 0) ?>"
+                          data-student="<?= htmlspecialchars($studentLabel) ?>"
+                          data-type="<?= htmlspecialchars($displayType) ?>"
+                          data-amount="<?= $amountValue ?>"
+                          data-status="<?= htmlspecialchars($statusLabel) ?>"
+                          data-ref="<?= htmlspecialchars($refValue ?? 'N/A') ?>"
+                          data-reference="<?= htmlspecialchars($row['reference_number'] ?? '') ?>"
+                          data-or="<?= htmlspecialchars($row['or_number'] ?? '') ?>"
+                          data-screenshot="<?= htmlspecialchars($row['screenshot_path'] ?? '') ?>">
+                          View Payment
+                        </button>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>

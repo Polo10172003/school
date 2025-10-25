@@ -119,7 +119,7 @@ $data_payments = [
 <div class="cards">
     <div class="card">
         <h3><?= number_format($total_students) ?></h3>
-        <p>Total Students</p>
+        <p>Pre Enrolled Students</p>
     </div>
     <div class="card">
         <h3><?= number_format($total_enrolled) ?></h3>

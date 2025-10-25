@@ -239,8 +239,8 @@ function cashier_dashboard_handle_other_payment_submission(mysqli $conn): ?strin
     $paymentDateRaw = trim((string) ($_POST['other_payment_date'] ?? ''));
     $paymentDate = $paymentDateRaw !== '' ? $paymentDateRaw : date('Y-m-d');
     $notes = trim((string) ($_POST['other_payment_notes'] ?? ''));
-    $orNumber = trim((string) ($_POST['other_or_number'] ?? ''));
     $referenceNumber = trim((string) ($_POST['other_reference_number'] ?? ''));
+    $orNumber = trim((string) ($_POST['other_or_number'] ?? ''));
 
     $redirectTarget = 'cashier_dashboard.php#other-payments-' . ($studentId > 0 ? $studentId : '');
 
@@ -263,20 +263,20 @@ function cashier_dashboard_handle_other_payment_submission(mysqli $conn): ?strin
     }
 
     $isCashMethod = strcasecmp($paymentMethod, 'Cash') === 0;
+    $generatedOrNumber = null;
     if ($isCashMethod) {
-        if ($orNumber === '') {
-            $_SESSION['cashier_flash'] = 'Transaction number is required for cash payments.';
-            $_SESSION['cashier_flash_type'] = 'error';
-            return $redirectTarget;
-        }
+        $generatedOrNumber = cashier_generate_transaction_number($conn);
+        $orNumber = $generatedOrNumber;
         $referenceNumber = '';
     } else {
         if ($referenceNumber === '') {
-            $_SESSION['cashier_flash'] = 'Reference number is required for online payments.';
+            $_SESSION['cashier_flash'] = 'Reference number is required for non-cash payments.';
             $_SESSION['cashier_flash_type'] = 'error';
             return $redirectTarget;
         }
-        $orNumber = '';
+        if ($orNumber === '') {
+            $orNumber = null;
+        }
     }
 
     $dateObject = DateTime::createFromFormat('Y-m-d', $paymentDate);
@@ -361,6 +361,11 @@ function cashier_dashboard_handle_other_payment_submission(mysqli $conn): ?strin
 
     $_SESSION['cashier_flash'] = sprintf('Recorded %s payment (₱%s).', $label, number_format($amount, 2));
     $_SESSION['cashier_flash_type'] = 'success';
+
+    $_SESSION['cashier_receipt_other_payment_id'] = $otherPaymentId;
+    if ($generatedOrNumber !== null) {
+        $_SESSION['cashier_receipt_other_payment_or'] = $generatedOrNumber;
+    }
 
     return $redirectTarget;
 }
@@ -4058,31 +4063,145 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
 // Close previously opened block that was left unclosed (balances braces).
 
-function cashier_dashboard_fetch_payments(mysqli $conn): mysqli_result
+function cashier_dashboard_fetch_payments(mysqli $conn): array
 {
-    $filter_sql = 'WHERE 1=1';
+    $records = [];
+
+    $filterStatus = null;
     if (!empty($_GET['filter_status'])) {
-        $filter_status = $conn->real_escape_string((string) $_GET['filter_status']);
-        $filter_sql .= " AND LOWER(sp.payment_status) = '" . strtolower($filter_status) . "'";
-    }
-    if (!empty($_GET['filter_year'])) {
-        $filter_year = $conn->real_escape_string((string) $_GET['filter_year']);
-        $filter_sql .= " AND sp.school_year = '$filter_year'";
-    }
-    if (!empty($_GET['filter_grade'])) {
-        $filter_grade = cashier_normalize_grade_key((string) $_GET['filter_grade']);
-        $filter_sql .= " AND REPLACE(REPLACE(REPLACE(LOWER(sp.grade_level), ' ', ''), '-', ''), '_', '') = '$filter_grade'";
+        $filterStatus = strtolower(trim((string) $_GET['filter_status']));
     }
 
-    $sql = "
-        SELECT sp.*, sr.firstname, sr.lastname, sr.middlename
+    $filterYear = null;
+    if (!empty($_GET['filter_year'])) {
+        $filterYear = trim((string) $_GET['filter_year']);
+    }
+
+    $filterGrade = null;
+    if (!empty($_GET['filter_grade'])) {
+        $filterGrade = cashier_normalize_grade_key((string) $_GET['filter_grade']);
+    }
+
+    $filterParts = ['1=1'];
+    if ($filterStatus) {
+        $filterParts[] = "LOWER(sp.payment_status) = '" . $conn->real_escape_string($filterStatus) . "'";
+    }
+    if ($filterYear) {
+        $filterParts[] = "sp.school_year = '" . $conn->real_escape_string($filterYear) . "'";
+    }
+    if ($filterGrade) {
+        $filterParts[] = "REPLACE(REPLACE(REPLACE(LOWER(sp.grade_level), ' ', ''), '-', ''), '_', '') = '" . $conn->real_escape_string($filterGrade) . "'";
+    }
+    $filterSql = 'WHERE ' . implode(' AND ', $filterParts);
+
+    $tuitionQuery = "
+        SELECT sp.*, sr.firstname, sr.lastname, sr.middlename, sr.student_number
         FROM student_payments sp
         JOIN students_registration sr ON sr.id = sp.student_id
-        $filter_sql
+        $filterSql
         ORDER BY sp.created_at DESC
     ";
 
-    return $conn->query($sql);
+    if ($tuitionResult = $conn->query($tuitionQuery)) {
+        while ($row = $tuitionResult->fetch_assoc()) {
+            $typeRaw = strtolower(trim((string) ($row['payment_type'] ?? '')));
+            if (strpos($typeRaw, 'carry-over') !== false) {
+                continue;
+            }
+
+            $createdAt = $row['created_at'] ?? $row['payment_date'] ?? date('Y-m-d H:i:s');
+            $createdAtDisplay = date('Y-m-d', strtotime((string) $createdAt));
+            $statusRaw = strtolower(trim((string) ($row['payment_status'] ?? '')));
+
+            $records[] = [
+                'record_category'   => 'tuition',
+                'id'                => (int) ($row['id'] ?? 0),
+                'student_id'        => (int) ($row['student_id'] ?? 0),
+                'firstname'         => $row['firstname'] ?? '',
+                'lastname'          => $row['lastname'] ?? '',
+                'middlename'        => $row['middlename'] ?? '',
+                'student_number'    => $row['student_number'] ?? null,
+                'payment_type'      => $row['payment_type'] ?? '',
+                'display_type'      => $row['payment_type'] ?? '',
+                'amount'            => (float) ($row['amount'] ?? 0),
+                'payment_status'    => $row['payment_status'] ?? 'Pending',
+                'status_normalized' => $statusRaw,
+                'payment_date'      => $row['payment_date'] ?? '',
+                'created_at'        => $createdAt,
+                'created_at_display'=> $createdAtDisplay,
+                'grade_level'       => $row['grade_level'] ?? '',
+                'school_year'       => $row['school_year'] ?? '',
+                'or_number'         => $row['or_number'] ?? '',
+                'reference_number'  => $row['reference_number'] ?? '',
+                'screenshot_path'   => $row['screenshot_path'] ?? null,
+            ];
+        }
+        $tuitionResult->free();
+    }
+
+    if (cashier_other_payments_ensure_schema($conn)) {
+        $otherConditions = ['1=1'];
+        if ($filterStatus) {
+            $otherConditions[] = "LOWER(op.payment_status) = '" . $conn->real_escape_string($filterStatus) . "'";
+        }
+        if ($filterYear) {
+            $otherConditions[] = "(sr.school_year = '" . $conn->real_escape_string($filterYear) . "' OR sr.school_year IS NULL)";
+        }
+        if ($filterGrade) {
+            $otherConditions[] = "REPLACE(REPLACE(REPLACE(LOWER(sr.year), ' ', ''), '-', ''), '_', '') = '" . $conn->real_escape_string($filterGrade) . "'";
+        }
+        $otherWhere = 'WHERE ' . implode(' AND ', $otherConditions);
+
+        $otherQuery = "
+            SELECT op.*, sr.firstname, sr.lastname, sr.middlename, sr.student_number, sr.year AS grade_level, sr.school_year
+            FROM student_other_payments op
+            JOIN students_registration sr ON sr.id = op.student_id
+            $otherWhere
+            ORDER BY op.created_at DESC
+        ";
+
+        if ($otherResult = $conn->query($otherQuery)) {
+            while ($row = $otherResult->fetch_assoc()) {
+                $createdAt = $row['created_at'] ?? $row['payment_date'] ?? date('Y-m-d H:i:s');
+                $createdAtDisplay = date('Y-m-d', strtotime((string) $createdAt));
+                $statusRaw = strtolower(trim((string) ($row['payment_status'] ?? 'paid')));
+                $label = $row['label'] ?? 'Other Fee';
+
+                $records[] = [
+                    'record_category'   => 'other',
+                    'id'                => (int) ($row['id'] ?? 0),
+                    'student_id'        => (int) ($row['student_id'] ?? 0),
+                    'firstname'         => $row['firstname'] ?? '',
+                    'lastname'          => $row['lastname'] ?? '',
+                    'middlename'        => $row['middlename'] ?? '',
+                    'student_number'    => $row['student_number'] ?? null,
+                    'payment_type'      => $row['payment_method'] ?? 'Cash',
+                    'display_type'      => 'Other Fee - ' . $label,
+                    'other_label'       => $label,
+                    'amount'            => (float) ($row['amount'] ?? 0),
+                    'payment_status'    => $row['payment_status'] ?? 'Paid',
+                    'status_normalized' => $statusRaw,
+                    'payment_date'      => $row['payment_date'] ?? '',
+                    'created_at'        => $createdAt,
+                    'created_at_display'=> $createdAtDisplay,
+                    'grade_level'       => $row['grade_level'] ?? '',
+                    'school_year'       => $row['school_year'] ?? '',
+                    'or_number'         => $row['or_number'] ?? '',
+                    'reference_number'  => $row['reference_number'] ?? '',
+                    'screenshot_path'   => null,
+                ];
+            }
+            $otherResult->free();
+        }
+    }
+
+    usort($records, static function (array $a, array $b): int {
+        $timeA = $a['created_at'] ?? '';
+        $timeB = $b['created_at'] ?? '';
+        return strcmp((string) $timeB, (string) $timeA);
+    });
+
+    return $records;
 }
 
 /**
@@ -4122,6 +4241,7 @@ function cashier_dashboard_fetch_receipt_data(mysqli $conn, int $paymentId): ?ar
     $studentName = trim(((string) ($row['firstname'] ?? '')) . ' ' . ((string) ($row['lastname'] ?? '')));
 
     return [
+        'category' => 'tuition',
         'id' => (int) ($row['id'] ?? 0),
         'student_id' => (int) ($row['student_id'] ?? 0),
         'student_name' => $studentName !== '' ? $studentName : 'Student',
@@ -4130,10 +4250,70 @@ function cashier_dashboard_fetch_receipt_data(mysqli $conn, int $paymentId): ?ar
         'school_year' => $row['school_year'] ?? '',
         'amount' => (float) ($row['amount'] ?? 0),
         'payment_type' => $row['payment_type'] ?? 'Cash',
+        'fee_label' => $row['payment_type'] ?? 'Tuition Fee',
+        'fee_notes' => '',
         'payment_status' => $row['payment_status'] ?? '',
         'payment_date' => $row['payment_date'] ?? ($row['created_at'] ?? date('Y-m-d')),
         'created_at' => $row['created_at'] ?? '',
         'or_number' => $row['or_number'] ?? '',
+        'reference_number' => $row['reference_number'] ?? '',
+    ];
+}
+
+function cashier_dashboard_fetch_other_receipt_data(mysqli $conn, int $otherPaymentId): ?array
+{
+    if ($otherPaymentId <= 0) {
+        return null;
+    }
+
+    if (!cashier_other_payments_ensure_schema($conn)) {
+        return null;
+    }
+
+    $stmt = $conn->prepare('
+        SELECT op.id, op.student_id, op.label, op.amount, op.payment_method, op.payment_status,
+               op.payment_date, op.created_at, op.or_number, op.reference_number, op.notes,
+               sr.firstname, sr.lastname, sr.student_number, sr.year AS grade_level, sr.school_year
+        FROM student_other_payments op
+        LEFT JOIN students_registration sr ON sr.id = op.student_id
+        WHERE op.id = ?
+        LIMIT 1
+    ');
+
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param('i', $otherPaymentId);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $row = $result ? $result->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        return null;
+    }
+
+    $studentName = trim(((string) ($row['firstname'] ?? '')) . ' ' . ((string) ($row['lastname'] ?? '')));
+    $paymentLabel = $row['label'] ?? 'Other Fee';
+
+    return [
+        'category'       => 'other',
+        'id'             => (int) ($row['id'] ?? 0),
+        'student_id'     => (int) ($row['student_id'] ?? 0),
+        'student_name'   => $studentName !== '' ? $studentName : 'Student',
+        'student_number' => $row['student_number'] ?? null,
+        'grade_level'    => $row['grade_level'] ?? 'N/A',
+        'school_year'    => $row['school_year'] ?? 'N/A',
+        'amount'         => (float) ($row['amount'] ?? 0),
+        'payment_type'   => 'Other Fee - ' . $paymentLabel,
+        'fee_label'      => $paymentLabel,
+        'fee_notes'      => $row['notes'] ?? '',
+        'payment_status' => $row['payment_status'] ?? 'Paid',
+        'payment_method' => $row['payment_method'] ?? 'Cash',
+        'payment_date'   => $row['payment_date'] ?? ($row['created_at'] ?? date('Y-m-d')),
+        'created_at'     => $row['created_at'] ?? '',
+        'or_number'      => $row['or_number'] ?? '',
         'reference_number' => $row['reference_number'] ?? '',
     ];
 }

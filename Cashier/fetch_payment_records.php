@@ -27,32 +27,33 @@ $conn->set_charset('utf8mb4');
 
 require_once __DIR__ . '/cashier_dashboard_logic.php';
 
-$paymentsResult = cashier_dashboard_fetch_payments($conn);
+$paymentRows = cashier_dashboard_fetch_payments($conn);
 $payments = [];
 $pendingCount = 0;
 $pendingStatuses = ['pending', 'processing', 'review'];
 
-if ($paymentsResult instanceof mysqli_result) {
-    while ($row = $paymentsResult->fetch_assoc()) {
-        $statusRaw = strtolower(trim((string) ($row['payment_status'] ?? '')));
-        if (in_array($statusRaw, $pendingStatuses, true)) {
-            $pendingCount++;
-        }
-
-        $payments[] = [
-            'id'         => (int) ($row['id'] ?? 0),
-            'student_id' => (int) ($row['student_id'] ?? 0),
-            'created_at' => isset($row['created_at']) ? date('Y-m-d', strtotime((string) $row['created_at'])) : '',
-            'student'    => trim(($row['lastname'] ?? '') . ', ' . ($row['firstname'] ?? '') . ' ' . ($row['middlename'] ?? '')),
-            'payment_type' => (string) ($row['payment_type'] ?? ''),
-            'amount'       => (float) ($row['amount'] ?? 0),
-            'status'       => (string) ($row['payment_status'] ?? 'Pending'),
-            'or_number'    => $row['or_number'] ?? null,
-            'reference_number' => $row['reference_number'] ?? null,
-            'screenshot_path'  => $row['screenshot_path'] ?? null,
-        ];
+foreach ($paymentRows as $row) {
+    $statusRaw = strtolower(trim((string) ($row['status_normalized'] ?? $row['payment_status'] ?? '')));
+    if (in_array($statusRaw, $pendingStatuses, true)) {
+        $pendingCount++;
     }
-    $paymentsResult->close();
+
+    $studentLabel = trim(($row['lastname'] ?? '') . ', ' . ($row['firstname'] ?? '') . ' ' . ($row['middlename'] ?? ''));
+    $payments[] = [
+        'record_category'  => $row['record_category'] ?? 'tuition',
+        'id'               => (int) ($row['id'] ?? 0),
+        'student_id'       => (int) ($row['student_id'] ?? 0),
+        'created_at'       => $row['created_at_display'] ?? '',
+        'student'          => $studentLabel,
+        'payment_type'     => $row['payment_type'] ?? '',
+        'display_type'     => $row['display_type'] ?? ($row['payment_type'] ?? ''),
+        'amount'           => (float) ($row['amount'] ?? 0),
+        'status'           => $row['payment_status'] ?? 'Pending',
+        'or_number'        => $row['or_number'] ?? null,
+        'reference_number' => $row['reference_number'] ?? null,
+        'screenshot_path'  => $row['screenshot_path'] ?? null,
+        'other_label'      => $row['other_label'] ?? null,
+    ];
 }
 
 $defaultLabel = 'View Payment Records' . ($pendingCount > 0 ? " ({$pendingCount} pending)" : '');

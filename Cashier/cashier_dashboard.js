@@ -559,12 +559,31 @@ const bindFinancialViewSwitchers = () => {
           const student = escapeHtml(payment.student || '');
           const amountNumeric = Number(payment.amount || 0);
           const amountDisplay = currencyFormatter.format(amountNumeric);
-          const rawStatus = (payment.status || 'Pending').toString();
+          const rawStatus = (payment.status || 'Paid').toString();
           const statusDisplay = escapeHtml(
-            rawStatus.length > 0 ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : 'Pending'
+            rawStatus.length > 0 ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : 'Paid'
           );
-          const paymentType = escapeHtml(payment.payment_type || '');
+          const paymentType = escapeHtml(payment.display_type || payment.payment_type || 'Payment');
           const refValue = payment.reference_number || payment.or_number || 'N/A';
+          const recordCategory = (payment.record_category || 'tuition').toLowerCase();
+          const isOtherRecord = recordCategory === 'other';
+          const actionHtml = isOtherRecord
+            ? '&mdash;'
+            : `<button
+                type="button"
+                class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
+                data-category="${escapeHtml(recordCategory)}"
+                data-id="${payment.id}"
+                data-student-id="${payment.student_id || ''}"
+                data-student="${student}"
+                data-type="${paymentType}"
+                data-amount="${amountNumeric}"
+                data-status="${escapeHtml(payment.status || 'Pending')}"
+                data-ref="${escapeHtml(refValue || 'N/A')}"
+                data-reference="${escapeHtml(payment.reference_number || '')}"
+                data-or="${escapeHtml(payment.or_number || '')}"
+                data-screenshot="${escapeHtml(payment.screenshot_path || '')}"
+              >View Payment</button>`;
 
           return `
             <tr>
@@ -573,24 +592,7 @@ const bindFinancialViewSwitchers = () => {
               <td>${paymentType}</td>
               <td>₱ ${amountDisplay}</td>
               <td id="status-${payment.id}">${statusDisplay}</td>
-              <td class="text-center">
-                <button
-                  type="button"
-                  class="dashboard-btn secondary dashboard-btn--small view-payment-btn"
-                  data-id="${payment.id}"
-                  data-student-id="${payment.student_id || ''}"
-                  data-student="${student}"
-                  data-type="${paymentType}"
-                  data-amount="${amountNumeric}"
-                  data-status="${escapeHtml(payment.status || 'Pending')}"
-                  data-ref="${escapeHtml(refValue || 'N/A')}"
-                  data-reference="${escapeHtml(payment.reference_number || '')}"
-                  data-or="${escapeHtml(payment.or_number || '')}"
-                  data-screenshot="${escapeHtml(payment.screenshot_path || '')}"
-                >
-                  View Payment
-                </button>
-              </td>
+              <td class="text-center">${actionHtml}</td>
             </tr>
           `;
         })
@@ -649,18 +651,31 @@ const bindFinancialViewSwitchers = () => {
         ? statusRaw.charAt(0).toUpperCase() + statusRaw.slice(1)
         : 'Paid';
 
+    const category = (data.category || 'tuition').toString().toLowerCase();
+    const feeLabel = data.fee_label || (category === 'other' ? (data.payment_type || 'Other Fee') : 'Not Applicable');
+    const feeNotesRaw = data.fee_notes || '';
+    const feeNotes = feeNotesRaw !== '' ? feeNotesRaw : (category === 'other' ? '—' : 'Not Applicable');
+    const gradeForReceipt = category === 'other' && !data.grade_level ? 'N/A' : (data.grade_level || 'N/A');
+    const schoolYearReceipt = category === 'other' && !data.school_year ? 'N/A' : (data.school_year || 'N/A');
+    const paymentTypeDisplay = category === 'other' ? (data.payment_type || 'Other Fee') : (data.payment_type || 'Cash');
+    const referenceValue = data.reference_number || (paymentTypeDisplay.toLowerCase() === 'cash' ? '' : '');
+    const orValue = data.or_number || '';
+    const referenceDisplay = referenceValue
+      ? referenceValue
+      : (paymentTypeDisplay && paymentTypeDisplay.toLowerCase().indexOf('cash') !== -1 ? 'N/A' : '');
+
     const replacements = {
-      or_number: data.or_number || 'N/A',
+      or_number: orValue || 'N/A',
       payment_date: data.payment_date || '',
       generated_at: data.generated_at || '',
       student_name: data.student_name || 'Student',
       student_number: data.student_number || 'N/A',
-      grade_level: data.grade_level || 'N/A',
-      school_year: data.school_year || 'N/A',
-      payment_type: data.payment_type || 'Cash',
-      reference_number:
-        data.reference_number ||
-        (data.payment_type && data.payment_type.toLowerCase() === 'cash' ? 'N/A' : ''),
+      grade_level: gradeForReceipt,
+      school_year: schoolYearReceipt,
+      payment_type: paymentTypeDisplay || 'Cash',
+      fee_label: feeLabel || '—',
+      fee_notes: feeNotes || '—',
+      reference_number: referenceDisplay || 'N/A',
       amount_formatted: data.amount_formatted || '0.00',
       payment_status: statusFormatted,
       cashier_name: cashierName || 'Cashier',
