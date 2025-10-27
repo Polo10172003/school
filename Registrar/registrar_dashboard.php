@@ -405,8 +405,9 @@ try {
                   $requirementsClass = $requirementsSummary['status_class'] ?? 'pending';
                   $requirementsSpanId = 'requirements-status-' . $studentId;
                   $academicStatusRaw = $row['academic_status'] ?? '';
+                  $isFailedRow = strcasecmp((string) $academicStatusRaw, 'Failed') === 0;
                 ?>
-                <tr data-student-row="<?= $studentId ?>">
+                <tr data-student-row="<?= $studentId ?>" class="<?= $isFailedRow ? 'registrar-row-flag registrar-row-flag--failed' : '' ?>">
                   <td>
                     <input type="checkbox" name="student_ids[]" value="<?= $studentId ?>">
                   </td>
@@ -418,6 +419,8 @@ try {
                   <td>
                     <?php if ($gradeLevelValue === 'Grade 12' && $academicStatusRaw === 'Passed'): ?>
                       <span class="dashboard-status-pill success">Graduated</span>
+                    <?php elseif ($isFailedRow): ?>
+                      <span class="dashboard-status-pill danger">Failed</span>
                     <?php else: ?>
                       <?= htmlspecialchars($academicStatusRaw !== '' ? $academicStatusRaw : 'Ongoing') ?>
                     <?php endif; ?>

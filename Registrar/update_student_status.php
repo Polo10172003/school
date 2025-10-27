@@ -199,7 +199,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (!in_array($failedFollowup, ['hold', 'approve'], true)) {
             $failedFollowup = 'hold';
         }
-        $enrollment_status = ($failedFollowup === 'approve') ? 'ready' : 'failed_hold';
+        $enrollment_status = ($failedFollowup === 'approve') ? 'ready' : 'waiting';
         $new_student_type = 'old';
     } elseif ($status === "Dropped") {
         $next_year = $current_year;
@@ -583,9 +583,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 $failed_followup_selection = 'hold';
                 if (($current_status ?? '') === 'Failed') {
                     $enrollment_status_normalized = strtolower(trim((string) ($current_enrollment_status ?? '')));
-                    if (in_array($enrollment_status_normalized, ['ready', 'waiting'], true)) {
+                    if ($enrollment_status_normalized === 'ready') {
                         $failed_followup_selection = 'approve';
-                    } elseif ($enrollment_status_normalized === 'failed_hold') {
+                    } else {
                         $failed_followup_selection = 'hold';
                     }
                 }

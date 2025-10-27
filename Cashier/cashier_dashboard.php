@@ -408,7 +408,8 @@ if ($receiptData) {
               <?php foreach ($search_results as $s): ?>
                 <?php
                   $statusRaw = strtolower((string) ($s['enrollment_status'] ?? ''));
-                  if ($statusRaw === 'failed_hold') {
+                  $academicRaw = strtolower((string) ($s['academic_status'] ?? ''));
+                  if ($statusRaw === 'waiting' && $academicRaw === 'failed') {
                       $statusDisplay = 'Registrar Hold';
                   } elseif ($statusRaw !== '') {
                       $statusDisplay = ucfirst($statusRaw);
@@ -434,7 +435,8 @@ if ($receiptData) {
               $snapshot = $search_financial[$s['id']] ?? null;
               $otherPayments = $otherPaymentsMap[$s['id']] ?? [];
               $statusRaw = strtolower((string) ($s['enrollment_status'] ?? ''));
-              if ($statusRaw === 'failed_hold') {
+              $academicRaw = strtolower((string) ($s['academic_status'] ?? ''));
+              if ($statusRaw === 'waiting' && $academicRaw === 'failed') {
                   $statusDisplay = 'Registrar Hold';
               } elseif ($statusRaw !== '') {
                   $statusDisplay = ucfirst($statusRaw);
