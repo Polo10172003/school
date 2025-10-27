@@ -579,19 +579,20 @@ body.dashboard-body {
 }
 
 .transaction-filter-select {
-  min-width: 180px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #cfd8e3;
-  background: #fff;
-  font-size: 0.95rem;
+  min-width: 220px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(20, 90, 50, 0.25);
+  background: var(--dash-cream);
+  font-size: 1rem;
   color: #27303b;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
 .transaction-filter-select:focus {
-  border-color: #4f6bed;
-  box-shadow: 0 0 0 3px rgba(79, 107, 237, 0.15);
+  border-color: var(--dash-green);
+  box-shadow: 0 0 0 4px rgba(20, 90, 50, 0.15);
   outline: none;
 }
 
