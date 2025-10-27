@@ -133,12 +133,13 @@ function nextYear($year) {
 }
 
 $current_student_number = '';
+$current_enrollment_status = '';
 
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
 
     // Fetch current student info
-$stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `school_year`, `student_number` FROM students_registration WHERE id = ?");
+    $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `school_year`, `student_number`, `enrollment_status` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $student = $stmt->get_result()->fetch_assoc();
@@ -150,14 +151,16 @@ $stmt = $conn->prepare("SELECT `year`, `academic_status`, `student_type`, `schoo
     $current_status = $student['academic_status'];
     $current_type = $student['student_type'];
     $current_student_number = $student['student_number'] ?? '';
+    $current_enrollment_status = $student['enrollment_status'] ?? '';
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $id     = intval($_POST['id']);
     $status = $_POST['status'];
+    $failedFollowup = isset($_POST['failed_followup']) ? strtolower(trim((string) $_POST['failed_followup'])) : 'hold';
 
     // Fetch current year again (safety)
-$stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname`, `lastname`, `student_number`, `academic_status` FROM students_registration WHERE id = ?");
+    $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname`, `lastname`, `student_number`, `academic_status`, `enrollment_status` FROM students_registration WHERE id = ?");
     $stmt->bind_param("i", $id);
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
@@ -169,6 +172,7 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
     $current_lastname = $row['lastname'] ?? '';
     $current_status = $row['academic_status'] ?? $current_status ?? 'Ongoing';
     $current_student_number = $row['student_number'] ?? $current_student_number;
+    $current_enrollment_status = $row['enrollment_status'] ?? $current_enrollment_status ?? '';
 
     // --- PROMOTION / FAIL LOGIC ---
     $enrollment_status = null;
@@ -192,7 +196,10 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
     } elseif ($status === "Failed") {
         $next_year = $current_year;     // stay same grade
         $academic_status = "Failed";    // mark Failed
-        $enrollment_status = 'waiting';
+        if (!in_array($failedFollowup, ['hold', 'approve'], true)) {
+            $failedFollowup = 'hold';
+        }
+        $enrollment_status = ($failedFollowup === 'approve') ? 'ready' : 'failed_hold';
         $new_student_type = 'old';
     } elseif ($status === "Dropped") {
         $next_year = $current_year;
@@ -287,6 +294,8 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
             'student_type_after'       => $new_student_type,
             'school_year'              => $current_school_year,
             'enrollment_status_after'  => $enrollment_status,
+            'enrollment_status_before' => $current_enrollment_status,
+            'failed_followup'          => $status === 'Failed' ? $failedFollowup : null,
             'reset_schedule'           => $resetSchedule,
             'grade12_graduate'         => $isGrade12Graduate,
             'moved_to_inactive'        => $moveToInactive,
@@ -570,6 +579,36 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
                     </select>
                 </div>
 
+                <?php
+                $failed_followup_selection = 'hold';
+                if (($current_status ?? '') === 'Failed') {
+                    $enrollment_status_normalized = strtolower(trim((string) ($current_enrollment_status ?? '')));
+                    if (in_array($enrollment_status_normalized, ['ready', 'waiting'], true)) {
+                        $failed_followup_selection = 'approve';
+                    } elseif ($enrollment_status_normalized === 'failed_hold') {
+                        $failed_followup_selection = 'hold';
+                    }
+                }
+                ?>
+
+                <div class="mb-3" id="failedFollowupGroup" style="display:none;">
+                    <label class="form-label">After marking as failed</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="failed_followup" id="failedHold" value="hold" <?= $failed_followup_selection === 'hold' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="failedHold">
+                            Place enrollment on hold (requires registrar clearance)
+                        </label>
+                        <div class="form-text text-muted">Student portal will show a hold notice and block re-enrollment until you approve it.</div>
+                    </div>
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="radio" name="failed_followup" id="failedApprove" value="approve" <?= $failed_followup_selection === 'approve' ? 'checked' : '' ?>>
+                        <label class="form-check-label" for="failedApprove">
+                            Approve for re-enrollment now
+                        </label>
+                        <div class="form-text text-muted">Student may immediately start online re-enrollment for the same grade level.</div>
+                    </div>
+                </div>
+
                 <div class="update-status-actions">
                     <button type="submit" class="btn btn-success">Update Status</button>
                     <a href="registrar_dashboard.php" class="btn btn-outline-secondary">Cancel</a>
@@ -580,5 +619,24 @@ $stmt = $conn->prepare("SELECT `year`, `student_type`, `school_year`, `firstname
             <small class="text-muted">Review carefully before confirming the student's new status.</small>
         </div>
     </div>
+    <script>
+    (function () {
+        var statusField = document.getElementById('status');
+        var followupGroup = document.getElementById('failedFollowupGroup');
+
+        function toggleFollowupGroup() {
+            if (!statusField || !followupGroup) {
+                return;
+            }
+            var show = statusField.value === 'Failed';
+            followupGroup.style.display = show ? '' : 'none';
+        }
+
+        if (statusField) {
+            statusField.addEventListener('change', toggleFollowupGroup);
+            toggleFollowupGroup();
+        }
+    })();
+</script>
 </body>
 </html>

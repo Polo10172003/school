@@ -406,11 +406,21 @@ if ($receiptData) {
             </thead>
             <tbody>
               <?php foreach ($search_results as $s): ?>
+                <?php
+                  $statusRaw = strtolower((string) ($s['enrollment_status'] ?? ''));
+                  if ($statusRaw === 'failed_hold') {
+                      $statusDisplay = 'Registrar Hold';
+                  } elseif ($statusRaw !== '') {
+                      $statusDisplay = ucfirst($statusRaw);
+                  } else {
+                      $statusDisplay = 'Pending';
+                  }
+                ?>
                 <tr>
                   <td><?= htmlspecialchars($s['lastname'] . ', ' . $s['firstname']) ?></td>
                   <td><?= htmlspecialchars(trim($s['year'] . ($s['section'] ? ' • ' . $s['section'] : ''))) ?></td>
                   <td><?= htmlspecialchars($s['student_number'] ?: '—') ?></td>
-                  <td><?= htmlspecialchars(ucfirst($s['enrollment_status'] ?? 'pending')) ?></td>
+                  <td><?= htmlspecialchars($statusDisplay) ?></td>
                   <td class="text-center"><a class="dashboard-btn secondary dashboard-btn--small" href="#student-<?= $s['id'] ?>">Details</a></td>
                 </tr>
               <?php endforeach; ?>
@@ -423,6 +433,14 @@ if ($receiptData) {
             <?php
               $snapshot = $search_financial[$s['id']] ?? null;
               $otherPayments = $otherPaymentsMap[$s['id']] ?? [];
+              $statusRaw = strtolower((string) ($s['enrollment_status'] ?? ''));
+              if ($statusRaw === 'failed_hold') {
+                  $statusDisplay = 'Registrar Hold';
+              } elseif ($statusRaw !== '') {
+                  $statusDisplay = ucfirst($statusRaw);
+              } else {
+                  $statusDisplay = 'Pending';
+              }
             ?>
             <article class="cashier-search-card" id="student-<?= $s['id'] ?>">
               <header class="cashier-search-card__header">
@@ -441,7 +459,7 @@ if ($receiptData) {
                   <?php endif; ?>
                 </p>
                 <p class="cashier-search-card__status">Enrollment status:
-                  <strong><?= htmlspecialchars(ucfirst($s['enrollment_status'] ?? 'pending')) ?></strong>
+                  <strong><?= htmlspecialchars($statusDisplay) ?></strong>
                 </p>
               </header>
 

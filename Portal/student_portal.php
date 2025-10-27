@@ -374,6 +374,7 @@ if ($failedRepeater && $studentTypeLower !== 'old') {
 
 $student_school_year = trim($student_school_year);
 $isFailedStudent = ($academicStatusLower === 'failed');
+$failedHoldActive = $isFailedStudent && $enrollmentStatusLower === 'failed_hold';
 $targetSchoolYear = $student_school_year;
 if ($isFailedStudent) {
     $computedSchoolYear = portal_next_school_year($student_school_year);
@@ -386,10 +387,16 @@ $requiresPlacementClear = !$isFailedStudent;
 $canStartPortalEnrollment = ($studentTypeLower === 'old')
     && in_array($academicStatusLower, ['passed', 'ongoing', 'failed'], true)
     && ($enrollmentStatusLower !== 'enrolled')
+    && !$failedHoldActive
     && (
         !$requiresPlacementClear
         || ($sectionEmpty && $adviserEmpty && $scheduleIsEmpty)
     );
+
+$portalEnrollmentHoldMessage = null;
+if ($failedHoldActive) {
+    $portalEnrollmentHoldMessage = 'Your enrollment is on hold after receiving a failing remark. Please visit or contact the Registrar\'s Office to receive clearance before enrolling again.';
+}
 
 $portalBasePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
 
@@ -1066,6 +1073,18 @@ unset($finance_view_ref);
         overflow: hidden;
     }
 
+    .portal-hold-card {
+        border: 1px solid rgba(220, 53, 69, 0.2);
+        background: rgba(220, 53, 69, 0.06);
+    }
+
+    .portal-hold-card .hold-icon {
+        font-size: 1.75rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     .profile-card .profile-avatar {
         width: 110px;
         height: 110px;
@@ -1300,17 +1319,31 @@ unset($finance_view_ref);
                                     </form>
                             </div>
                         </div>
-                    <?php else: ?>
-                        <div class="card portal-card">
-                            <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                                <div>
-                                    <h3 class="h5 fw-bold mb-1">Select Your Payment Plan</h3>
-                                    <p class="text-muted mb-0">Choose a plan below and proceed to online payment. Your submission will remain pending until the cashier verifies it.</p>
+                        <?php else: ?>
+                            <div class="card portal-card">
+                                <div class="card-body d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                                    <div>
+                                        <h3 class="h5 fw-bold mb-1">Select Your Payment Plan</h3>
+                                        <p class="text-muted mb-0">Choose a plan below and proceed to online payment. Your submission will remain pending until the cashier verifies it.</p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <?php if ($portalEnrollmentHoldMessage !== null): ?>
+                            <div class="card portal-card portal-hold-card">
+                                <div class="card-body d-flex flex-column gap-2">
+                                    <div class="d-flex align-items-center gap-3">
+                                        <span class="hold-icon text-danger"><i class="bi bi-exclamation-triangle-fill"></i></span>
+                                        <div>
+                                            <h3 class="h5 fw-bold mb-1 text-danger">Enrollment On Hold</h3>
+                                            <p class="text-muted mb-0"><?= htmlspecialchars($portalEnrollmentHoldMessage); ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                     <?php endif; ?>
-                <?php endif; ?>
 
                 <?php if ($has_multiple_views): ?>
                     <div class="d-flex justify-content-end">
