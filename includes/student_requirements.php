@@ -340,7 +340,7 @@ function student_requirements_calculate_summary(string $scope, array $normalized
 /**
  * Build field configuration for the modal UI.
  *
- * @return array<int,array{key:string,label:string,required:bool,value:bool}>
+ * @return array<int,array{key:string,label:string,required:bool,value:bool,locked:bool}>
  */
 function student_requirements_build_fields(string $scope, array $values): array
 {
@@ -361,11 +361,13 @@ function student_requirements_build_fields(string $scope, array $values): array
 
     $fields = [];
     foreach ($deduped as $key) {
+        $hasValue = !empty($values[$key]);
         $fields[] = [
             'key'      => $key,
             'label'    => $definitions[$key] ?? ucwords(str_replace('_', ' ', $key)),
             'required' => in_array($key, $requiredKeys, true),
-            'value'    => !empty($values[$key]),
+            'value'    => $hasValue,
+            'locked'   => $hasValue,
         ];
     }
 
@@ -379,7 +381,7 @@ function student_requirements_build_fields(string $scope, array $values): array
  *   scope:string,
  *   scope_label:string,
  *   values:array<string,bool>,
- *   fields:array<int,array{key:string,label:string,required:bool,value:bool}>,
+ *   fields:array<int,array{key:string,label:string,required:bool,value:bool,locked:bool}>,
  *   summary:array<string,mixed>,
  *   updated_at:?string,
  *   updated_by:?string

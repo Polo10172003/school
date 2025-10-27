@@ -204,16 +204,19 @@
       const key = field.key || '';
       const label = field.label || key;
       const required = !!field.required;
+      const locked = !!field.locked;
       const checked = field.value ? 'checked' : '';
+      const lockAttributes = locked ? 'disabled data-locked="true"' : '';
       const badge = required
         ? '<span class="requirement-tag requirement-tag--required">Required</span>'
         : '<span class="requirement-tag requirement-tag--optional">Optional</span>';
       return `
         <label class="requirement-toggle">
-          <input type="checkbox" data-requirement-key="${escapeHtml(key)}" ${checked}>
+          <input type="checkbox" data-requirement-key="${escapeHtml(key)}" ${checked} ${lockAttributes}>
           <span>
             ${escapeHtml(label)}
             ${badge}
+            ${locked ? '<span class="requirement-tag requirement-tag--locked">Locked</span>' : ''}
           </span>
         </label>
       `;

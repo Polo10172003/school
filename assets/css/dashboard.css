@@ -520,6 +520,11 @@ body.dashboard-body {
   color: #1a5fb4;
 }
 
+.requirement-tag--locked {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+
 .requirements-summary {
   margin-top: 16px;
   font-size: 0.9rem;

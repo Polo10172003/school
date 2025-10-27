@@ -141,10 +141,15 @@ if ($method === 'POST') {
     $keyMap = student_requirements_key_map();
     $mergedValues = [];
     foreach (array_keys($keyMap) as $key) {
+        $alreadyReceived = !empty($normalizedExisting['values'][$key]);
+        if ($alreadyReceived) {
+            // Once marked received it cannot be unchecked.
+            $mergedValues[$key] = true;
+            continue;
+        }
+
         if (array_key_exists($key, $valuesInput)) {
             $mergedValues[$key] = !empty($valuesInput[$key]);
-        } elseif (!empty($normalizedExisting['values'][$key])) {
-            $mergedValues[$key] = true;
         } else {
             $mergedValues[$key] = false;
         }
