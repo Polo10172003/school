@@ -188,7 +188,7 @@ if ($grade_filter) {
         SELECT sr.*, sa.email AS emailaddress
         FROM students_registration sr
         LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-        WHERE sr.enrollment_status IN ('enrolled', 'waiting') AND sr.year = ?
+        WHERE LOWER(sr.enrollment_status) IN ('enrolled', 'waiting') AND sr.year = ?
     ");
     $stmt->bind_param("s", $grade_filter);
     $stmt->execute();
@@ -199,7 +199,7 @@ if ($grade_filter) {
         SELECT sr.*, sa.email AS emailaddress
         FROM students_registration sr
         LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-        WHERE sr.enrollment_status IN ('enrolled', 'waiting')
+        WHERE LOWER(sr.enrollment_status) IN ('enrolled', 'waiting')
     ";
     $result = $conn->query($sql);
 }

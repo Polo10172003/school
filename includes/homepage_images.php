@@ -7,7 +7,12 @@ function homepage_images_config_path(): string
     return __DIR__ . '/../config/homepage_images.json';
 }
 
-function homepage_images_defaults(): array
+function homepage_images_default_config_path(): string
+{
+    return __DIR__ . '/../config/homepage_images.default.json';
+}
+
+function homepage_images_template(): array
 {
     return [
         'cards' => [
@@ -56,6 +61,28 @@ function homepage_images_defaults(): array
             'slide3' => '',
         ],
     ];
+}
+
+function homepage_images_defaults(): array
+{
+    $template = homepage_images_template();
+    $defaultPath = homepage_images_default_config_path();
+
+    if (!is_file($defaultPath)) {
+        return $template;
+    }
+
+    $json = file_get_contents($defaultPath);
+    if ($json === false) {
+        return $template;
+    }
+
+    $data = json_decode($json, true);
+    if (!is_array($data)) {
+        return $template;
+    }
+
+    return array_replace_recursive($template, $data);
 }
 
 function homepage_images_load(): array
@@ -174,6 +201,33 @@ function homepage_images_save(array $images): bool
     }
 
     return file_put_contents($path, $json) !== false;
+}
+
+function homepage_images_save_defaults(array $images): bool
+{
+    $path = homepage_images_default_config_path();
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        if (!mkdir($dir, 0775, true) && !is_dir($dir)) {
+            return false;
+        }
+    }
+
+    $json = json_encode($images, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+    if ($json === false) {
+        return false;
+    }
+
+    return file_put_contents($path, $json) !== false;
+}
+
+function homepage_images_seed_defaults(array $images): void
+{
+    $path = homepage_images_default_config_path();
+    if (is_file($path)) {
+        return;
+    }
+    homepage_images_save_defaults($images);
 }
 
 function homepage_images_set(array &$images, array $pathSegments, string $value): void

@@ -456,6 +456,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['homepage_images_form'
 
     if ($homeImageError === '') {
       if (homepage_images_save($images)) {
+        homepage_images_seed_defaults($images);
         $homeImageMessage = 'Homepage images updated successfully.';
         $homepageImages = $images;
         transaction_log_record($conn, [
