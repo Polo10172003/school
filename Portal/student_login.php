@@ -24,9 +24,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     if ($studentRow) {
         $enrollmentStatusRaw = strtolower(trim((string) ($studentRow['enrollment_status'] ?? '')));
-        $allowedStatuses = ['enrolled', 'ready', 'waiting', 'failed_hold'];
+        $academicStatusRaw = strtolower(trim((string) ($studentRow['academic_status'] ?? '')));
+        $blockedStatuses = ['dropped', 'archived'];
 
-        if (!in_array($enrollmentStatusRaw, $allowedStatuses, true)) {
+        if (in_array($enrollmentStatusRaw, $blockedStatuses, true)) {
             $error = "Student number not found or student not enrolled.";
         } else {
             $checkAccount = $conn->prepare("SELECT * FROM student_accounts WHERE student_number = ?");
