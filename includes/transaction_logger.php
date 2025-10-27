@@ -2,6 +2,73 @@
 
 require_once __DIR__ . '/session.php';
 
+if (!function_exists('transaction_log_ensure_schema')) {
+    /**
+     * Ensure the transaction_logs table exists and can store all staff roles.
+     */
+    function transaction_log_ensure_schema(mysqli $conn): void
+    {
+        static $ensured = false;
+        if ($ensured) {
+            return;
+        }
+
+        $tableExists = false;
+        $tableCheck = $conn->query("SHOW TABLES LIKE 'transaction_logs'");
+        if ($tableCheck instanceof mysqli_result) {
+            $tableExists = $tableCheck->num_rows > 0;
+            $tableCheck->close();
+        } elseif ($tableCheck === true) {
+            // Some MySQL drivers return true instead of a result set.
+            $tableExists = true;
+        }
+
+        if (!$tableExists) {
+            $createSql = <<<SQL
+CREATE TABLE transaction_logs (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actor_user_id INT UNSIGNED NULL,
+    actor_username VARCHAR(100) NOT NULL,
+    actor_fullname VARCHAR(150) NOT NULL,
+    actor_role VARCHAR(50) NULL,
+    category VARCHAR(50) NULL,
+    action VARCHAR(100) NOT NULL,
+    target_type VARCHAR(50) NULL,
+    target_id VARCHAR(100) NULL,
+    description VARCHAR(1000) NULL,
+    metadata LONGTEXT NULL,
+    ip_address VARCHAR(45) NULL,
+    KEY idx_transaction_logs_actor (actor_role, occurred_at),
+    KEY idx_transaction_logs_category (category, occurred_at),
+    KEY idx_transaction_logs_target (target_type, target_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+SQL;
+            if (!$conn->query($createSql)) {
+                error_log('[transaction-log] failed to create transaction_logs table: ' . $conn->error);
+                // Even if creation fails, mark as ensured to avoid repeated attempts this request.
+                $ensured = true;
+                return;
+            }
+        } else {
+            $columnResult = $conn->query("SHOW COLUMNS FROM transaction_logs LIKE 'actor_role'");
+            if ($columnResult instanceof mysqli_result) {
+                $column = $columnResult->fetch_assoc();
+                $columnResult->close();
+                $columnType = isset($column['Type']) ? strtolower((string) $column['Type']) : '';
+                if ($columnType !== '' && strpos($columnType, 'varchar') === false) {
+                    $alterSql = "ALTER TABLE transaction_logs MODIFY COLUMN actor_role VARCHAR(50) NULL";
+                    if (!$conn->query($alterSql)) {
+                        error_log('[transaction-log] failed to widen actor_role column: ' . $conn->error);
+                    }
+                }
+            }
+        }
+
+        $ensured = true;
+    }
+}
+
 /**
  * Resolve the best available actor context based on the current session.
  *
@@ -24,6 +91,11 @@ function transaction_log_resolve_actor(mysqli $conn, ?array $overrides = null): 
             'username' => $_SESSION['cashier_username'] ?? null,
             'fullname' => $_SESSION['cashier_fullname'] ?? null,
             'role'     => $_SESSION['cashier_role'] ?? 'cashier',
+        ],
+        'adviser' => [
+            'username' => $_SESSION['adviser_username'] ?? null,
+            'fullname' => $_SESSION['adviser_fullname'] ?? null,
+            'role'     => $_SESSION['adviser_role'] ?? 'adviser',
         ],
         'registrar' => [
             'username' => $_SESSION['registrar_username'] ?? null,
@@ -185,6 +257,8 @@ function transaction_log_record(mysqli $conn, array $entry): void
     if ($action === '') {
         return;
     }
+
+    transaction_log_ensure_schema($conn);
 
     $contextOverride = null;
     if (isset($entry['context']) && is_string($entry['context'])) {
