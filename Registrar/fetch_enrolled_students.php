@@ -37,7 +37,7 @@ try {
             SELECT sr.*, sa.email AS emailaddress
             FROM students_registration sr
             LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-            WHERE sr.enrollment_status = 'enrolled' AND sr.year = ?
+            WHERE LOWER(sr.enrollment_status) IN ('enrolled', 'waiting') AND sr.year = ?
             ORDER BY sr.lastname ASC, sr.firstname ASC
         ");
         if ($stmt) {
@@ -57,7 +57,7 @@ try {
             SELECT sr.*, sa.email AS emailaddress
             FROM students_registration sr
             LEFT JOIN student_accounts sa ON sr.emailaddress = sa.email
-            WHERE sr.enrollment_status = 'enrolled'
+            WHERE LOWER(sr.enrollment_status) IN ('enrolled', 'waiting')
             ORDER BY sr.lastname ASC, sr.firstname ASC
         ";
         if ($result = $conn->query($sql)) {
