@@ -739,14 +739,19 @@ if ($transactionLogTableExists) {
           <?= $transactionRoleFilter === '' ? 'No staff transactions have been logged yet.' : 'No transactions found for the selected role.' ?>
         </div>
       <?php else: ?>
-        <div class="admin-management-controls" style="margin-bottom:12px; display:flex; flex-wrap:wrap; gap:12px; align-items:center;">
-          <form method="get" action="admin_dashboard.php#transactions" style="display:flex; align-items:center; gap:8px;">
-            <label for="transaction_role_filter" class="text-muted" style="font-size:13px;">Filter by role:</label>
-            <select id="transaction_role_filter" name="transaction_role" onchange="this.form.submit();" class="dashboard-select" style="min-width:160px;">
-              <?php foreach ($transactionRoleOptions as $roleValue => $roleLabel): ?>
-                <option value="<?= htmlspecialchars($roleValue) ?>" <?= $transactionRoleFilter === $roleValue ? 'selected' : '' ?>><?= htmlspecialchars($roleLabel) ?></option>
-              <?php endforeach; ?>
-            </select>
+        <div class="transaction-filter-bar">
+          <form method="get" action="admin_dashboard.php#transactions" class="transaction-filter-form">
+            <label for="transaction_role_filter" class="transaction-filter-field">
+              <span class="transaction-filter-label">Staff Role</span>
+              <select id="transaction_role_filter"
+                      name="transaction_role"
+                      onchange="this.form.submit();"
+                      class="transaction-filter-select">
+                <?php foreach ($transactionRoleOptions as $roleValue => $roleLabel): ?>
+                  <option value="<?= htmlspecialchars($roleValue) ?>" <?= $transactionRoleFilter === $roleValue ? 'selected' : '' ?>><?= htmlspecialchars($roleLabel) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </label>
             <?php foreach ($_GET as $queryKey => $queryValue):
               if ($queryKey === 'transaction_role') {
                 continue;
@@ -759,7 +764,7 @@ if ($transactionLogTableExists) {
             <?php endforeach; ?>
           </form>
           <button type="button"
-                  class="dashboard-btn secondary dashboard-btn--small"
+                  class="dashboard-btn secondary dashboard-btn--small transaction-filter-toggle"
                   data-toggle-label="View Transaction Log"
                   data-toggle-active-label="Hide Transaction Log"
                   data-toggle-target="transactionLogList"
