@@ -73,18 +73,13 @@
       academicStatusDisplay = escapeHtml(academicStatusDisplay);
     }
 
-    const actions = [];
-    if (academicStatusRaw === 'Graduated') {
-      actions.push(`<a href="edit_student.php?id=${id}">Edit</a>`);
-      actions.push(`<a href="archive_student.php?id=${id}" onclick="return confirm('Archive this student?')">Archive</a>`);
-      actions.push(`<a href="update_section.php?id=${id}">Change Section</a>`);
-    } else {
-      actions.push(`<a href="edit_student.php?id=${id}">Edit</a>`);
-      actions.push(`<a href="archive_student.php?id=${id}" onclick="return confirm('Archive this student?')">Archive</a>`);
-      actions.push(`<a href="update_section.php?id=${id}">Change Section</a>`);
-      actions.push(`<a href="update_student_status.php?id=${id}">Update Status</a>`);
+    const primaryActions = [];
+    primaryActions.push(`<a class="registrar-action-btn" href="edit_student.php?id=${id}">Edit</a>`);
+    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--danger" href="archive_student.php?id=${id}" onclick="return confirm('Archive this student?')">Archive</a>`);
+    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--outline" href="update_section.php?id=${id}">Change Section</a>`);
+    if (academicStatusRaw !== 'Graduated') {
+      primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--primary" href="update_student_status.php?id=${id}">Update Status</a>`);
     }
-    actions.push(`<a href="registration_assessment.php?student_id=${id}" target="_blank">View RAF</a>`);
 
     const portalClass = portalActive ? 'success' : 'pending';
     const portalLabel = portalActive ? 'Activated' : 'Pending';
@@ -119,8 +114,13 @@
           </div>
         </td>
         <td class="dashboard-table-actions">
-          ${actions.join(' ')}
-          <span id="portal-status-${id}" class="dashboard-status-pill ${portalClass}">${portalLabel}</span>
+          <div class="registrar-actions">
+            ${primaryActions.join('')}
+          </div>
+          <div class="registrar-actions registrar-actions--meta">
+            <a class="registrar-action-link" href="registration_assessment.php?student_id=${id}" target="_blank">View RAF</a>
+            <span id="portal-status-${id}" class="dashboard-status-pill ${portalClass}">${portalLabel}</span>
+          </div>
         </td>
       </tr>
     `;

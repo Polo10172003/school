@@ -443,24 +443,20 @@ try {
                     </div>
                   </td>
                   <td class="dashboard-table-actions">
-                    <?php
-                      $actionLinks = [
-                        sprintf('<a href="edit_student.php?id=%d">Edit</a>', (int) $row['id']),
-                        sprintf('<a href="archive_student.php?id=%d" onclick="return confirm(\'Archive this student?\')">Archive</a>', (int) $row['id']),
-                        sprintf('<a href="update_section.php?id=%d">Change Section</a>', (int) $row['id']),
-                      ];
-
-                      if (($row['academic_status'] ?? '') !== 'Graduated') {
-                          $actionLinks[] = sprintf('<a href="update_student_status.php?id=%d">Update Status</a>', (int) $row['id']);
-                      }
-
-                      echo implode(' | ', $actionLinks);
-                    ?>
-                    <br>
-                    <a href="registration_assessment.php?student_id=<?= (int) $row['id'] ?>" target="_blank">View RAF</a>
-                    <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
-                      <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Pending' ?>
-                    </span>
+                    <div class="registrar-actions">
+                      <a class="registrar-action-btn" href="edit_student.php?id=<?= (int) $row['id'] ?>">Edit</a>
+                      <a class="registrar-action-btn registrar-action-btn--danger" href="archive_student.php?id=<?= (int) $row['id'] ?>" onclick="return confirm('Archive this student?')">Archive</a>
+                      <a class="registrar-action-btn registrar-action-btn--outline" href="update_section.php?id=<?= (int) $row['id'] ?>">Change Section</a>
+                      <?php if (($row['academic_status'] ?? '') !== 'Graduated'): ?>
+                        <a class="registrar-action-btn registrar-action-btn--primary" href="update_student_status.php?id=<?= (int) $row['id'] ?>">Update Status</a>
+                      <?php endif; ?>
+                    </div>
+                    <div class="registrar-actions registrar-actions--meta">
+                      <a class="registrar-action-link" href="registration_assessment.php?student_id=<?= (int) $row['id'] ?>" target="_blank">View RAF</a>
+                      <span id="portal-status-<?= (int) $row['id'] ?>" class="dashboard-status-pill <?= ($row['portal_status'] === 'activated') ? 'success' : 'pending' ?>">
+                        <?= ($row['portal_status'] === 'activated') ? 'Activated' : 'Pending' ?>
+                      </span>
+                    </div>
                   </td>
                 </tr>
               <?php endforeach; ?>

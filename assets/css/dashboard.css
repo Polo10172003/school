@@ -1095,6 +1095,93 @@ body.modal-open {
   box-shadow: inset 4px 0 0 rgba(220, 53, 69, 0.6);
 }
 
+.registrar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.registrar-actions--meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.registrar-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--dash-green);
+  color: var(--dash-green);
+  background: #ffffff;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.88rem;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.registrar-actions .registrar-action-btn,
+.registrar-actions--meta .registrar-action-link {
+  margin-right: 0;
+}
+
+.registrar-action-btn:hover,
+.registrar-action-btn:focus {
+  background: rgba(20, 90, 50, 0.08);
+  color: var(--dash-green);
+  box-shadow: 0 4px 10px rgba(20, 90, 50, 0.12);
+}
+
+.registrar-action-btn--primary {
+  background: var(--dash-green);
+  color: #ffffff;
+}
+
+.registrar-action-btn--primary:hover,
+.registrar-action-btn--primary:focus {
+  background: #13482f;
+  color: #ffffff;
+}
+
+.registrar-action-btn--outline {
+  border-color: rgba(15, 48, 87, 0.35);
+  color: rgba(15, 48, 87, 0.95);
+}
+
+.registrar-action-btn--outline:hover,
+.registrar-action-btn--outline:focus {
+  background: rgba(15, 48, 87, 0.08);
+  color: rgba(15, 48, 87, 0.95);
+}
+
+.registrar-action-btn--danger {
+  border-color: rgba(220, 53, 69, 0.65);
+  color: #a61c28;
+  background: rgba(220, 53, 69, 0.08);
+}
+
+.registrar-action-btn--danger:hover,
+.registrar-action-btn--danger:focus {
+  background: rgba(220, 53, 69, 0.18);
+  color: #7f1520;
+}
+
+.registrar-action-link {
+  color: var(--dash-green);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.registrar-action-link:hover,
+.registrar-action-link:focus {
+  text-decoration: underline;
+}
+
 .dashboard-table-actions a,
 .dashboard-table-actions button {
   color: var(--dash-green);
