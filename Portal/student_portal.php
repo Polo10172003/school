@@ -374,7 +374,6 @@ if ($failedRepeater && $studentTypeLower !== 'old') {
 
 $student_school_year = trim($student_school_year);
 $isFailedStudent = ($academicStatusLower === 'failed');
-$failedHoldActive = $isFailedStudent && $enrollmentStatusLower === 'failed_hold';
 $targetSchoolYear = $student_school_year;
 if ($isFailedStudent) {
     $computedSchoolYear = portal_next_school_year($student_school_year);
@@ -387,15 +386,19 @@ $requiresPlacementClear = !$isFailedStudent;
 $canStartPortalEnrollment = ($studentTypeLower === 'old')
     && in_array($academicStatusLower, ['passed', 'ongoing', 'failed'], true)
     && ($enrollmentStatusLower !== 'enrolled')
-    && !$failedHoldActive
     && (
         !$requiresPlacementClear
         || ($sectionEmpty && $adviserEmpty && $scheduleIsEmpty)
     );
 
 $portalEnrollmentHoldMessage = null;
-if ($failedHoldActive) {
-    $portalEnrollmentHoldMessage = 'Your enrollment is on hold after receiving a failing remark. Please visit or contact the Registrar\'s Office to receive clearance before enrolling again.';
+if ($isFailedStudent) {
+    if ($enrollmentStatusLower === 'waiting') {
+        $portalEnrollmentHoldMessage = 'Your enrollment is on hold after receiving a failing remark. Please visit or contact the Registrar\'s Office to receive clearance before enrolling again.';
+    } else {
+        $portalEnrollmentHoldMessage = 'Your previous grade has been marked as failed. This portal is read-only until the registrar finalizes your next steps.';
+    }
+    $canStartPortalEnrollment = false;
 }
 
 $portalBasePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
