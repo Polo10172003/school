@@ -399,6 +399,9 @@ if ($isFailedStudent) {
         $portalEnrollmentHoldMessage = 'Your previous grade has been marked as failed. This portal is read-only until the registrar finalizes your next steps.';
     }
     $canStartPortalEnrollment = false;
+    $portalEnrollmentReady = false;
+    $portalSelectedPlan = null;
+    $portalSelectedPricing = null;
 }
 
 $portalBasePath = rtrim(dirname($_SERVER['PHP_SELF']), '/') . '/';
@@ -988,6 +991,16 @@ unset($finance_view_ref);
 $has_multiple_views = count($finance_views) > 1;
 $student_type_lower = strtolower($student_type);
 
+if ($isFailedStudent) {
+    foreach ($finance_views as &$finance_view_ref) {
+        $finance_view_ref['pending_total'] = 0.0;
+        $finance_view_ref['pending_rows'] = [];
+        if (($finance_view_ref['key'] ?? '') === 'current') {
+            $finance_view_ref['pending_message'] = 'Payments are locked while your record is under registrar review.';
+        }
+    }
+    unset($finance_view_ref);
+}
 
 foreach ($finance_views as &$finance_view_ref) {
     if (($finance_view_ref['key'] ?? '') !== 'previous') {
@@ -1433,7 +1446,12 @@ unset($finance_view_ref);
                                         <?php endif; ?>
                                     </p>
                                 </div>
-                                <?php if ($view_alert): ?>
+                                <?php if ($isFailedStudent && $view_key === 'current'): ?>
+                                    <span class="status-pill warning">
+                                        <i class="bi bi-pause-circle"></i>
+                                        Enrollment on hold pending registrar review
+                                    </span>
+                                <?php elseif ($view_alert): ?>
                                     <span class="status-pill warning">
                                         <i class="bi bi-exclamation-triangle"></i>
                                         Past due from <?php echo htmlspecialchars($view_alert['grade']); ?>: ₱<?php echo number_format($view_alert['amount'], 2); ?>
@@ -1475,12 +1493,14 @@ unset($finance_view_ref);
                                         <h4>₱<?php echo number_format($view_total_paid, 2); ?></h4>
                                     </div>
                                 </div>
-                                <div class="col-sm-6 col-lg-3">
-                                    <div class="summary-tile h-100">
-                                        <span class="label">Pending Review</span>
-                                        <h4>₱<?php echo number_format($view_pending_total, 2); ?></h4>
+                                <?php if (!$isFailedStudent): ?>
+                                    <div class="col-sm-6 col-lg-3">
+                                        <div class="summary-tile h-100">
+                                            <span class="label">Pending Review</span>
+                                            <h4>₱<?php echo number_format($view_pending_total, 2); ?></h4>
+                                        </div>
                                     </div>
-                                </div>
+                                <?php endif; ?>
                             </div>
                     </div>
                 </div>
