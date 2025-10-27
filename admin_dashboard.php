@@ -715,7 +715,7 @@ if ($transactionLogTableExists) {
                   <td>
                     <form action="admin_delete_user.php" method="POST" onsubmit="return confirm('Remove this user?');" style="display:inline;">
                       <input type="hidden" name="user_id" value="<?= (int) ($user['id'] ?? 0) ?>">
-                      <button type="submit" class="dashboard-btn secondary" style="padding:6px 12px;">Delete</button>
+                      <button type="submit" class="dashboard-btn secondary" style="padding:6px 12px;">Archive</button>
                     </form>
                   </td>
                 </tr>
