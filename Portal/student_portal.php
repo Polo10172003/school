@@ -1407,6 +1407,23 @@ unset($finance_view_ref);
                     $view_plan_tabs = $view['plan_tabs'] ?? [];
                     $view_plan_context = $view['plan_context'] ?? null;
                     $view_active_plan = $view['active_plan'] ?? null;
+                    if (($isFailedStudent || $suppressPastDueNotices) && $view_key === 'current') {
+                        $view_alert = null;
+                        $view_pending_total = 0.0;
+                        $view_pending_rows = [];
+                        $view_pending_message = $isFailedStudent
+                            ? 'Payments are locked while your record is under registrar review.'
+                            : 'Payments are locked until your enrollment status is finalized.';
+                        $view_schedule_rows = [];
+                        $view_schedule_message = $isFailedStudent
+                            ? 'Schedule details are temporarily unavailable while you are on hold.'
+                            : 'Schedule will be available once your enrollment is finalized.';
+                        $view_next_due = null;
+                        if (is_numeric($view_year_total) && $view_year_total > 0) {
+                            $view_total_paid = max((float) $view_total_paid, (float) $view_year_total);
+                            $view_remaining = 0.0;
+                        }
+                    }
                     if ($portalEnrollmentReady && $view_key === 'current' && $portalSelectedPlan) {
                         $view_active_plan = strtolower($portalSelectedPlan);
                     }
