@@ -13,88 +13,102 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $student_number = trim($_POST['student_number']);
     $password = $_POST['password'];
 
-    $checkStudent = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? AND enrollment_status IN ('enrolled', 'ready', 'waiting', 'failed_hold')");
+    $checkStudent = $conn->prepare("SELECT * FROM students_registration WHERE student_number = ? LIMIT 1");
     if (!$checkStudent) {
         die("Prepare failed (checkStudent): " . $conn->error);
     }
     $checkStudent->bind_param("s", $student_number);
     $checkStudent->execute();
     $studentResult = $checkStudent->get_result();
+    $studentRow = $studentResult ? $studentResult->fetch_assoc() : null;
 
-    if ($studentResult->num_rows > 0) {
-        $checkAccount = $conn->prepare("SELECT * FROM student_accounts WHERE student_number = ?");
-        if (!$checkAccount) {
-            die("Prepare failed (checkAccount): " . $conn->error);
-        }
-        $checkAccount->bind_param("s", $student_number);
-        $checkAccount->execute();
-        $accountResult = $checkAccount->get_result();
+    if ($studentRow) {
+        $enrollmentStatusRaw = strtolower(trim((string) ($studentRow['enrollment_status'] ?? '')));
+        $allowedStatuses = ['enrolled', 'ready', 'waiting', 'failed_hold'];
 
-        if ($accountResult->num_rows == 0) {
-            $insertAccount = $conn->prepare("INSERT INTO student_accounts (student_number) VALUES (?)");
-            if (!$insertAccount) {
-                die("Prepare failed (insertAccount): " . $conn->error);
+        if (!in_array($enrollmentStatusRaw, $allowedStatuses, true)) {
+            $error = "Student number not found or student not enrolled.";
+        } else {
+            $checkAccount = $conn->prepare("SELECT * FROM student_accounts WHERE student_number = ?");
+            if (!$checkAccount) {
+                die("Prepare failed (checkAccount): " . $conn->error);
             }
-            $insertAccount->bind_param("s", $student_number);
-            $insertAccount->execute();
-        }
+            $checkAccount->bind_param("s", $student_number);
+            $checkAccount->execute();
+            $accountResult = $checkAccount->get_result();
 
-        $getAccount = $conn->prepare("SELECT * FROM student_accounts WHERE student_number = ?");
-        if (!$getAccount) {
-            die("Prepare failed (getAccount): " . $conn->error);
-        }
-        $getAccount->bind_param("s", $student_number);
-        $getAccount->execute();
-        $accountResult = $getAccount->get_result();
-        $account = $accountResult->fetch_assoc();
+            if ($accountResult->num_rows == 0) {
+                $insertAccount = $conn->prepare("INSERT INTO student_accounts (student_number) VALUES (?)");
+                if (!$insertAccount) {
+                    die("Prepare failed (insertAccount): " . $conn->error);
+                }
+                $insertAccount->bind_param("s", $student_number);
+                $insertAccount->execute();
+            }
 
-        if ($account['is_first_login']) {
-            session_regenerate_id(true);
-            $_SESSION['student_number'] = $student_number;
-            session_guard_store($conn, 'student', $student_number);
-            header("Location: set_student_password.php");
-            exit();
-        }
+            $getAccount = $conn->prepare("SELECT * FROM student_accounts WHERE student_number = ?");
+            if (!$getAccount) {
+                die("Prepare failed (getAccount): " . $conn->error);
+            }
+            $getAccount->bind_param("s", $student_number);
+            $getAccount->execute();
+            $accountResult = $getAccount->get_result();
+            $account = $accountResult->fetch_assoc();
 
-        $storedPassword = $account['password'] ?? '';
-        $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
-        $authenticated = false;
+            if ($account['is_first_login']) {
+                session_regenerate_id(true);
+                $_SESSION['student_number'] = $student_number;
+                session_guard_store($conn, 'student', $student_number);
+                header("Location: set_student_password.php");
+                exit();
+            }
 
-        if ($isHashed && password_verify($password, $storedPassword)) {
-            $authenticated = true;
+            $storedPassword = $account['password'] ?? '';
+            $isHashed = password_get_info((string) $storedPassword)['algo'] !== 0;
+            $authenticated = false;
 
-            if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+            if ($isHashed && password_verify($password, $storedPassword)) {
+                $authenticated = true;
+
+                if (password_needs_rehash($storedPassword, PASSWORD_DEFAULT)) {
+                    $rehash = password_hash($password, PASSWORD_DEFAULT);
+                    $update = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
+                    if ($update) {
+                        $update->bind_param('ss', $rehash, $student_number);
+                        $update->execute();
+                        $update->close();
+                    }
+                }
+            } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
+                $authenticated = true;
+
                 $rehash = password_hash($password, PASSWORD_DEFAULT);
-                $update = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
-                if ($update) {
-                    $update->bind_param('ss', $rehash, $student_number);
-                    $update->execute();
-                    $update->close();
+                $updateLegacy = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
+                if ($updateLegacy) {
+                    $updateLegacy->bind_param('ss', $rehash, $student_number);
+                    $updateLegacy->execute();
+                    $updateLegacy->close();
                 }
             }
-        } elseif (!$isHashed && hash_equals((string) $storedPassword, $password)) {
-            $authenticated = true;
 
-            $rehash = password_hash($password, PASSWORD_DEFAULT);
-            $updateLegacy = $conn->prepare('UPDATE student_accounts SET password = ? WHERE student_number = ?');
-            if ($updateLegacy) {
-                $updateLegacy->bind_param('ss', $rehash, $student_number);
-                $updateLegacy->execute();
-                $updateLegacy->close();
+            if ($authenticated) {
+                session_regenerate_id(true);
+                $_SESSION['student_number'] = $student_number;
+                session_guard_store($conn, 'student', $student_number);
+                header('Location: student_portal.php');
+                exit();
             }
-        }
 
-        if ($authenticated) {
-            session_regenerate_id(true);
-            $_SESSION['student_number'] = $student_number;
-            session_guard_store($conn, 'student', $student_number);
-            header('Location: student_portal.php');
-            exit();
+            $error = "Incorrect password.";
         }
-
-        $error = "Incorrect password.";
     } else {
         $error = "Student number not found or student not enrolled.";
+    }
+    if ($studentResult instanceof mysqli_result) {
+        $studentResult->free();
+    }
+    if ($checkStudent instanceof mysqli_stmt) {
+        $checkStudent->close();
     }
 }
 ?>
