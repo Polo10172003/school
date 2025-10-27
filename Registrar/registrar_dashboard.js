@@ -53,6 +53,7 @@
     const studentNumber =
       studentNumberSource !== '' ? studentNumberSource.toUpperCase() : 'Pending';
     const academicStatusRaw = student.academic_status || '';
+    const isFailed = typeof academicStatusRaw === 'string' && academicStatusRaw.toLowerCase() === 'failed';
     const portalStatusRaw = String(student.portal_status || '').toLowerCase();
     const portalActive = portalStatusRaw === 'activated';
     const requirementsSummary = student.requirements_summary || {};
@@ -66,6 +67,8 @@
       academicStatusDisplay = '<span class="dashboard-status-pill success">Graduated</span>';
     } else if (academicStatusRaw === 'Graduated') {
       academicStatusDisplay = '<span class="dashboard-status-pill success">Graduated</span>';
+    } else if (isFailed) {
+      academicStatusDisplay = '<span class="dashboard-status-pill danger">Failed</span>';
     } else {
       academicStatusDisplay = escapeHtml(academicStatusDisplay);
     }
@@ -86,6 +89,8 @@
     const portalClass = portalActive ? 'success' : 'pending';
     const portalLabel = portalActive ? 'Activated' : 'Pending';
 
+    const rowClass = isFailed ? 'registrar-row-flag registrar-row-flag--failed' : '';
+
     const requirementsButton = `
       <button
         type="button"
@@ -99,7 +104,7 @@
       >Files</button>`;
 
     return `
-      <tr data-student-row="${id}">
+      <tr data-student-row="${id}" class="${rowClass}">
         <td><input type="checkbox" name="student_ids[]" value="${id}"></td>
         <td>${escapeHtml(studentNumber)}</td>
         <td>${escapeHtml(name)}</td>
