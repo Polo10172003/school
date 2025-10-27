@@ -360,6 +360,7 @@ $student_school_year = (string) ($student_school_year ?? '');
 $studentTypeLower = strtolower(trim((string) $student_type));
 $academicStatusLower = strtolower(trim($academicStatus));
 $enrollmentStatusLower = strtolower(trim($enrollmentStatus));
+$suppressPastDueNotices = in_array($enrollmentStatusLower, ['pending', 'pendingx'], true);
 $sectionTrimmed = trim((string) ($section ?? ''));
 $adviserTrimmed = trim((string) ($adviser ?? ''));
 $sectionEmpty = ($sectionTrimmed === '' || strcasecmp($sectionTrimmed, 'To be assigned') === 0 || strcasecmp($sectionTrimmed, 'TBA') === 0);
@@ -991,12 +992,14 @@ unset($finance_view_ref);
 $has_multiple_views = count($finance_views) > 1;
 $student_type_lower = strtolower($student_type);
 
-if ($isFailedStudent) {
+if ($isFailedStudent || $suppressPastDueNotices) {
     foreach ($finance_views as &$finance_view_ref) {
         $finance_view_ref['pending_total'] = 0.0;
         $finance_view_ref['pending_rows'] = [];
         if (($finance_view_ref['key'] ?? '') === 'current') {
-            $finance_view_ref['pending_message'] = 'Payments are locked while your record is under registrar review.';
+            $finance_view_ref['pending_message'] = $isFailedStudent
+                ? 'Payments are locked while your record is under registrar review.'
+                : 'Payments are locked until your enrollment status is finalized.';
         }
     }
     unset($finance_view_ref);
@@ -1451,12 +1454,12 @@ unset($finance_view_ref);
                                         <i class="bi bi-pause-circle"></i>
                                         Enrollment on hold pending registrar review
                                     </span>
-                                <?php elseif ($view_alert): ?>
+                                <?php elseif ($view_alert && !$suppressPastDueNotices): ?>
                                     <span class="status-pill warning">
                                         <i class="bi bi-exclamation-triangle"></i>
                                         Past due from <?php echo htmlspecialchars($view_alert['grade']); ?>: ₱<?php echo number_format($view_alert['amount'], 2); ?>
                                     </span>
-                                <?php elseif ($view_key === 'current' && isset($previous_outstanding) && $previous_outstanding > 0 && isset($previous_grade_label)): ?>
+                                <?php elseif ($view_key === 'current' && !$suppressPastDueNotices && isset($previous_outstanding) && $previous_outstanding > 0 && isset($previous_grade_label)): ?>
                                     <span class="status-pill warning">
                                         <i class="bi bi-exclamation-triangle"></i>
                                         Pending balance from <?php echo htmlspecialchars($previous_grade_label); ?>: ₱<?php echo number_format($previous_outstanding, 2); ?>
@@ -1493,7 +1496,7 @@ unset($finance_view_ref);
                                         <h4>₱<?php echo number_format($view_total_paid, 2); ?></h4>
                                     </div>
                                 </div>
-                                <?php if (!$isFailedStudent): ?>
+                                <?php if (!$isFailedStudent && !$suppressPastDueNotices): ?>
                                     <div class="col-sm-6 col-lg-3">
                                         <div class="summary-tile h-100">
                                             <span class="label">Pending Review</span>
