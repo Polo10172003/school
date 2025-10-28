@@ -832,11 +832,10 @@ foreach ($paid_chronological as $entry) {
     } elseif ($normalizedPaymentGrade === '' && $remaining_unassigned_current > 0) {
         $apply_current = min($amount_remaining, $remaining_unassigned_current, $remaining_current_allocation);
         $remaining_unassigned_current -= $apply_current;
-    } elseif ($normalizedPaymentGrade !== '' && !$matchesPreviousGrade) {
-        $applied_to_label = $entry['grade_level'] ?? $year;
+    } elseif ($normalizedPaymentGrade === '' && $remaining_current_allocation > 0) {
         $apply_current = min($amount_remaining, $remaining_current_allocation);
-    } elseif ($remaining_current_allocation > 0) {
-        $apply_current = min($amount_remaining, $remaining_current_allocation);
+    } else {
+        $apply_current = 0.0;
     }
 
     if ($apply_current > 0) {
