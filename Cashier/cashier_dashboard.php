@@ -1,11 +1,26 @@
 <?php
 require_once __DIR__ . '/../includes/session.php';
 
+// Auto logout cashier after 15 minutes of inactivity (matching other portals)
+$cashierTimeoutDuration = 900; // 15 minutes
+if (isset($_SESSION['cashier_last_activity']) && (time() - $_SESSION['cashier_last_activity']) > $cashierTimeoutDuration) {
+    session_unset();
+    session_destroy();
+    header("Location: cashier_login.php?timeout=1");
+    exit();
+}
+$_SESSION['cashier_last_activity'] = time();
+
 require __DIR__ . '/../vendor/autoload.php';
 
 include __DIR__ . '/../db_connection.php';
 if ($conn->connect_error) {
     die('Connection failed: ' . $conn->connect_error);
+}
+
+if (empty($_SESSION['cashier_username'])) {
+    header('Location: cashier_login.php');
+    exit();
 }
 
 require_once __DIR__ . '/cashier_dashboard_logic.php';

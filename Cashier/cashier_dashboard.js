@@ -364,11 +364,16 @@ document.getElementById('modalAmount').textContent = rawAmount.toLocaleString('e
       channel.bind(eventName, (payload) => {
         console.debug('[cashier] Realtime event received:', payload);
         const silent = document.hidden;
-        try {
-          refreshPaymentRecords({ silent });
-        } catch (refreshError) {
-          console.error('[cashier] Failed to refresh payments after realtime event.', refreshError);
-        }
+        const attemptRefresh = (options) =>
+          Promise.resolve()
+            .then(() => refreshPaymentRecords(options))
+            .catch((refreshError) => {
+              console.error('[cashier] Failed to refresh payments after realtime event.', refreshError);
+            });
+
+        attemptRefresh({ silent });
+        setTimeout(() => attemptRefresh({ silent: false }), 1200);
+
         if (!silent && payload && payload.student) {
           console.info(`[cashier] New payment received from ${payload.student}.`);
         }
