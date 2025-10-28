@@ -3526,7 +3526,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $previous_grade_synonyms = array_values(array_unique($previousGradeSynonymSet));
     $schedule_rows = [];
     $next_due_row = null;
-    $remaining_balance = $previous_outstanding;
+    $remaining_balance = 0.0;
     $current_year_total = 0.0;
     $plan_label_display = '';
     $schedule_message = 'Cashier will assign a payment plan once one is confirmed.';
@@ -3534,7 +3534,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     if ($fee) {
         $plansData = cashier_dashboard_fetch_student_plans($conn, (int)$fee['id']);
         if (!empty($plansData)) {
-            $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, $previous_outstanding);
+            $plan_options = cashier_dashboard_build_plan_summaries($fee, $current_paid_amount, 0.0);
 
             $planOptionMap = [];
             foreach ($plan_options as $summary) {
@@ -3646,7 +3646,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
             if ($active_plan_key && isset($planOptionMap[$active_plan_key])) {
                 $summary = $planOptionMap[$active_plan_key];
                 $plan_label_display = $summary['label'] ?? '';
-                $remaining_balance  = $summary['remaining_with_previous'] ?? $previous_outstanding;
+                $remaining_balance  = $summary['remaining_current'] ?? 0.0;
                 $current_year_total = $summary['plan_total'] ?? 0.0;
                 $schedule_rows      = $summary['schedule_rows'] ?? [];
                 $next_due_row       = $summary['next_due_row'] ?? null;
@@ -3753,28 +3753,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         }
     }
 
-    if ($previous_outstanding > 0) {
-        $hasPlaceholder = false;
-        foreach ($pending_display as $pending_row_check) {
-            if (!empty($pending_row_check['is_placeholder']) && $pending_row_check['is_placeholder'] === true) {
-                $hasPlaceholder = true;
-                break;
-            }
-        }
-        if (!$hasPlaceholder) {
-            $pending_display[] = [
-                'payment_type_display' => 'Past Due for ' . ($previous_label ?: 'Previous School Year'),
-                'amount' => $previous_outstanding,
-                'payment_status' => 'Past Due',
-                'payment_date' => $previous_label ?: 'Previous School Year',
-                'reference_number' => null,
-                'or_number' => null,
-                'is_placeholder' => true,
-                'row_class' => 'row-outstanding',
-                'notes' => 'Balance carried over from the previous grade.',
-            ];
-        }
-    }
+    // Past-due tracking is disabled; do not append placeholder reminders.
 
     foreach ($paid_chronological as $entry) {
         $amount_remaining = (float) ($entry['amount'] ?? 0);
@@ -3947,7 +3926,10 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         ];
     }
 
-    if ($previous_outstanding > 0 && !$previous_label) {
+    $previous_outstanding = 0.0;
+    $previous_pending_entries = [];
+
+    if ($previous_label === null && $previous_fee) {
         $previous_label = 'Previous School Year';
     }
 
@@ -3956,26 +3938,13 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     }
     if ($previous_schedule_message === null) {
         if ($previous_fee) {
-            $previous_schedule_message = $previous_outstanding > 0
-                ? 'Outstanding balance carried over from ' . $previous_label . '.'
-                : 'No outstanding balance for this grade.';
+            $previous_schedule_message = 'No outstanding balance for this grade.';
         } else {
             $previous_schedule_message = 'No tuition fee record saved for ' . $previous_label . ', but payments are retained below.';
         }
     }
 
-    $previous_pending_rows = $previous_pending_entries;
-    if ($previous_outstanding > 0) {
-        $previous_pending_rows[] = [
-            'payment_type_display' => 'Past Due for ' . $previous_label,
-            'amount' => $previous_outstanding,
-            'payment_status' => 'Past Due',
-            'payment_date' => 'Previous School Year',
-            'reference_number' => null,
-            'or_number' => null,
-            'is_placeholder' => true,
-        ];
-    }
+    $previous_pending_rows = [];
 
     $student_school_year = (string) ($studentRow['school_year'] ?? '');
     $student_grade_level = (string) ($studentRow['year'] ?? '');
@@ -3989,10 +3958,7 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'plan_label' => $plan_label_display,
         'pricing_variant' => $selectedPricing,
         'next_due_row' => $next_due_row,
-        'alert' => $previous_outstanding > 0 ? [
-            'grade' => $previous_label ?: 'Previous School Year',
-            'amount' => $previous_outstanding,
-        ] : null,
+        'alert' => null,
         'schedule_rows' => $schedule_rows,
         'schedule_message' => $schedule_message,
         'pending_rows' => $pending_display,
@@ -4000,9 +3966,9 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
         'history_rows' => $paid_history_current,
         'history_message' => 'No payments recorded yet for this grade.',
         'current_year_total' => $current_year_total,
-        'has_previous_outstanding' => $previous_outstanding > 0,
+        'has_previous_outstanding' => false,
         'previous_grade_label' => $previous_label,
-        'previous_outstanding' => $previous_outstanding,
+        'previous_outstanding' => 0.0,
         'is_default' => true,
         'grade_key' => $current_grade_key,
         'plan_options' => $plan_options,
@@ -4024,25 +3990,25 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
 
     $views = ['current' => $current_view];
 
-    if ($previous_label && ($previous_fee || $previous_outstanding > 0 || !empty($paid_history_previous))) {
+    if ($previous_label && ($previous_fee || !empty($paid_history_previous))) {
         $views['previous'] = [
             'key' => 'previous',
             'label' => 'Previous - ' . $previous_label,
-            'remaining_balance' => $previous_outstanding,
+            'remaining_balance' => 0.0,
             'total_paid' => $previous_paid_applied,
-            'pending_total' => $previous_outstanding,
+            'pending_total' => 0.0,
             'plan_label' => $previous_plan_label,
             'pricing_variant' => $previous_pricing_variant_display,
             'next_due_row' => null,
             'alert' => null,
             'schedule_rows' => $previous_schedule_rows,
             'schedule_message' => $previous_schedule_message,
-            'pending_rows' => $previous_pending_rows,
-            'pending_message' => $previous_outstanding > 0 ? 'Pending balance remains from ' . $previous_label . '.' : 'No pending payments for this grade.',
+            'pending_rows' => [],
+            'pending_message' => 'No pending payments for this grade.',
             'history_rows' => $paid_history_previous,
             'history_message' => 'No payments recorded yet for ' . $previous_label . '.',
             'current_year_total' => $previous_grade_total,
-            'has_previous_outstanding' => $previous_outstanding > 0,
+            'has_previous_outstanding' => false,
             'is_default' => false,
             'grade_key' => $previous_grade_key,
             'stored_pricing' => $previous_pricing_variant_display,
