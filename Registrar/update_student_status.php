@@ -200,7 +200,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
         $isApprovedForReenrollment = $failedFollowup === 'approve';
         $academic_status = $isApprovedForReenrollment ? 'Ongoing' : 'Failed';
-        $enrollment_status = $isApprovedForReenrollment ? 'ready' : 'waiting';
+        $enrollment_status = 'waiting';
         $new_student_type = 'old';
     } elseif ($status === "Dropped") {
         $next_year = $current_year;

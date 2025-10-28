@@ -382,7 +382,7 @@ if ($isFailedStudent) {
         $targetSchoolYear = $computedSchoolYear;
     }
 }
-$requiresPlacementClear = !$isFailedStudent;
+$requiresPlacementClear = !$isFailedStudent && !in_array($enrollmentStatusLower, ['ready', 'waiting', 'pending', 'pendingx'], true);
 
 $canStartPortalEnrollment = ($studentTypeLower === 'old')
     && in_array($academicStatusLower, ['passed', 'ongoing', 'failed'], true)
@@ -1445,10 +1445,51 @@ unset($finance_view_ref);
                         && $view_year_total <= 0.009
                         && in_array($view_grade_key_raw, $escSubsidyEligibleGrades, true)
                     );
+                    $view_fully_paid = false;
                     if ($view_is_esc_subsidy) {
                         $view_schedule_rows = [];
                         $view_schedule_message = 'Tuition is fully covered by the ESC government subsidy for this grade.';
                         $view_next_due = null;
+                        $view_fully_paid = true;
+                    }
+
+                    $history_applied_total = 0.0;
+                    if (!empty($view_history_rows)) {
+                        foreach ($view_history_rows as $history_row) {
+                            $history_applied_total += (float) ($history_row['applied_amount'] ?? $history_row['amount'] ?? 0);
+                        }
+                    }
+
+                    $grade_due_total = max(0.0, (float) $view_year_total);
+                    if (!$view_fully_paid) {
+                        if ($grade_due_total <= 0.009) {
+                            $view_fully_paid = true;
+                        } elseif ($history_applied_total >= $grade_due_total - 0.009) {
+                            $view_fully_paid = true;
+                        } elseif ($view_remaining <= 0.009 && $grade_due_total > 0.0) {
+                            $view_fully_paid = true;
+                        } elseif (empty($view_schedule_rows) && $view_next_due === null && $grade_due_total > 0.0) {
+                            $view_fully_paid = true;
+                        }
+                    }
+
+                    if ($view_fully_paid && !empty($view_pending_rows)) {
+                        $view_fully_paid = false;
+                    }
+
+                    if ($view_fully_paid) {
+                        $view_remaining = 0.0;
+                        $view_next_due = null;
+                        $view_schedule_rows = [];
+                        if (!$view_is_esc_subsidy) {
+                            $view_schedule_message = 'No upcoming payments. This grade is fully paid.';
+                        }
+                        $view_pending_total = 0.0;
+                        $view_pending_rows = [];
+                        $view_pending_message = 'No pending payments right now.';
+                        if ($grade_due_total > 0.0) {
+                            $view_total_paid = max((float) $view_total_paid, $grade_due_total);
+                        }
                     }
                 ?>
                 <div class="finance-view" data-view="<?php echo htmlspecialchars($view_key); ?>" style="<?php echo $is_default ? '' : 'display:none;'; ?>">
@@ -1659,13 +1700,15 @@ unset($finance_view_ref);
                                             <div class="text-muted small">
                                                 Plan: <strong class="text-success text-uppercase"><?php echo htmlspecialchars($view_plan_label); ?></strong>
                                                 <?php if ($view_pricing_label): ?>· Pricing: <strong><?php echo htmlspecialchars($view_pricing_label); ?></strong><?php endif; ?>
-                                                <?php if ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['label'] ?? $view_next_due['due_date'] ?? ''); ?></strong><?php endif; ?>
+                                                <?php if ($view_fully_paid): ?>· <strong class="text-success">Fully paid</strong>
+                                                <?php elseif ($view_next_due): ?>· Next due on <strong><?php echo htmlspecialchars($view_next_due['label'] ?? $view_next_due['due_date'] ?? ''); ?></strong>
+                                                <?php endif; ?>
                                             </div>
                                         <?php else: ?>
                                             <p class="text-muted small mb-0">No tuition fee configuration is available yet.</p>
                                         <?php endif; ?>
                                     </div>
-                                    <?php if (!($portalEnrollmentReady && $view_key === 'current')): ?>
+                                    <?php if (!$view_fully_paid && !($portalEnrollmentReady && $view_key === 'current')): ?>
                                         <form action="<?= htmlspecialchars($assetBase . 'Portal/choose_payment.php', ENT_QUOTES, 'UTF-8'); ?>" method="GET" class="ms-lg-auto">
                                             <input type="hidden" name="student_id" value="<?php echo (int) $student_id; ?>">
                                             <input type="hidden" name="pricing_variant" value="<?php echo htmlspecialchars($selected_pricing_key); ?>">
