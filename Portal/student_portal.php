@@ -765,23 +765,17 @@ foreach ($paid_chronological as $entry) {
     $matchesCurrentGrade = $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $current_synonyms, true);
     $matchesPreviousGrade = $previous_grade_key && $normalizedPaymentGrade !== '' && in_array($normalizedPaymentGrade, $previous_synonyms, true) && !$matchesCurrentGrade;
 
-    if (
-        $previous_grade_key &&
-        $matchesPreviousGrade &&
-        $remaining_prev_allocation > 0
-    ) {
-        $apply_prev = min($amount_remaining, $remaining_prev_allocation);
-        if ($apply_prev > 0) {
-            $record = $entry;
-            $record['applied_amount'] = $apply_prev;
-            $record['source_amount'] = $original_amount;
-            $record['applied_to'] = $previous_grade_label;
-            $record['is_partial'] = $apply_prev < $original_amount;
-            $paid_history_previous[] = $record;
-            $remaining_prev_allocation -= $apply_prev;
-            $remaining_prev_from_previous = max($remaining_prev_from_previous - $apply_prev, 0.0);
-            $amount_remaining -= $apply_prev;
-        }
+    if ($previous_grade_key && $matchesPreviousGrade) {
+        $apply_prev = $amount_remaining;
+        $record = $entry;
+        $record['applied_amount'] = $apply_prev;
+        $record['source_amount'] = $original_amount;
+        $record['applied_to'] = $previous_grade_label;
+        $record['is_partial'] = false;
+        $paid_history_previous[] = $record;
+        $remaining_prev_allocation = max($remaining_prev_allocation - $apply_prev, 0.0);
+        $remaining_prev_from_previous = max($remaining_prev_from_previous - $apply_prev, 0.0);
+        $amount_remaining = 0.0;
     } elseif (
         $previous_grade_key &&
         $normalizedPaymentGrade === '' &&
@@ -820,7 +814,7 @@ foreach ($paid_chronological as $entry) {
         }
     }
 
-    if ($amount_remaining <= 0) {
+    if ($amount_remaining <= 0.00001) {
         continue;
     }
 
@@ -828,7 +822,7 @@ foreach ($paid_chronological as $entry) {
     $applied_to_label = $year;
 
     if ($matchesCurrentGrade) {
-        $apply_current = min($amount_remaining, $remaining_current_allocation);
+        $apply_current = $amount_remaining;
     } elseif ($normalizedPaymentGrade === '' && $remaining_unassigned_current > 0) {
         $apply_current = min($amount_remaining, $remaining_unassigned_current, $remaining_current_allocation);
         $remaining_unassigned_current -= $apply_current;
@@ -845,7 +839,7 @@ foreach ($paid_chronological as $entry) {
         $record['applied_to'] = $applied_to_label;
         $record['is_partial'] = $apply_current < $original_amount;
         $paid_history_current[] = $record;
-        $remaining_current_allocation = max($remaining_current_allocation - $apply_current, 0);
+        $remaining_current_allocation = max($remaining_current_allocation - $apply_current, 0.0);
     }
 }
 
