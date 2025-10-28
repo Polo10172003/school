@@ -2,6 +2,60 @@
 include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
 
+if (!function_exists('registrar_normalize_grade_label')) {
+    /**
+     * Normalize grade labels so promotion logic maps consistently.
+     */
+    function registrar_normalize_grade_label(?string $label): string
+    {
+        if ($label === null) {
+            return '';
+        }
+        $collapsed = strtolower(trim($label));
+        if ($collapsed === '') {
+            return '';
+        }
+        $sanitized = preg_replace('/[^a-z0-9]+/', '', $collapsed);
+        if (!is_string($sanitized)) {
+            $sanitized = $collapsed;
+        }
+        $map = [
+            'preschool' => 'Preschool',
+            'preprime1' => 'Pre-Prime 1',
+            'preprime2' => 'Pre-Prime 2',
+            'preprime12' => 'Pre-Prime 1 & 2',
+            'preprime1and2' => 'Pre-Prime 1 & 2',
+            'preprime1amp2' => 'Pre-Prime 1 & 2',
+            'kindergarten' => 'Kindergarten',
+            'kinder' => 'Kindergarten',
+            'kinder1' => 'Kinder 1',
+            'kinder2' => 'Kinder 2',
+            'kindern' => 'Kindergarten',
+            'grade1' => 'Grade 1',
+            'grade2' => 'Grade 2',
+            'grade3' => 'Grade 3',
+            'grade4' => 'Grade 4',
+            'grade5' => 'Grade 5',
+            'grade6' => 'Grade 6',
+            'grade7' => 'Grade 7',
+            'grade8' => 'Grade 8',
+            'grade9' => 'Grade 9',
+            'grade10' => 'Grade 10',
+            'grade11' => 'Grade 11',
+            'grade12' => 'Grade 12',
+            'seniorhigh11' => 'Grade 11',
+            'seniorhigh12' => 'Grade 12',
+            'shs11' => 'Grade 11',
+            'shs12' => 'Grade 12',
+            'graduated' => 'Graduated',
+        ];
+        if (isset($map[$sanitized])) {
+            return $map[$sanitized];
+        }
+        return ucwords(preg_replace('/\s+/', ' ', $collapsed));
+    }
+}
+
 /**
  * Move a student record into the archived_students table and remove related portal access.
  *
@@ -108,6 +162,7 @@ function registrar_auto_archive_student(mysqli $conn, int $id): void
 
 // Promotion map
 function nextYear($year) {
+    $normalizedYear = registrar_normalize_grade_label($year);
     $map = [
         "Preschool" => "Pre-Prime 1",
         "Pre-Prime 1" => "Pre-Prime 2",
@@ -129,7 +184,10 @@ function nextYear($year) {
         "Grade 11"  => "Grade 12",
         "Grade 12"  => "Graduated"
     ];
-    return $map[$year] ?? $year;
+    if ($normalizedYear !== '' && isset($map[$normalizedYear])) {
+        return $map[$normalizedYear];
+    }
+    return $normalizedYear !== '' ? $normalizedYear : (is_string($year) ? trim($year) : $year);
 }
 
 $current_student_number = '';
@@ -147,7 +205,11 @@ if (isset($_GET['id'])) {
 
     if (!$student) die("Student not found!");
 
-    $current_year = $student['year'];
+    $current_year_raw = $student['year'] ?? '';
+    $current_year = registrar_normalize_grade_label($current_year_raw);
+    if ($current_year === '' && is_string($current_year_raw)) {
+        $current_year = trim($current_year_raw);
+    }
     $current_status = $student['academic_status'];
     $current_type = $student['student_type'];
     $current_student_number = $student['student_number'] ?? '';
@@ -165,7 +227,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $stmt->execute();
     $row = $stmt->get_result()->fetch_assoc();
     $stmt->close();
-    $current_year = $row['year'];
+    $current_year_raw = $row['year'] ?? '';
+    $current_year = registrar_normalize_grade_label($current_year_raw);
+    if ($current_year === '' && is_string($current_year_raw)) {
+        $current_year = trim($current_year_raw);
+    }
     $current_type = $row['student_type'];
     $current_school_year = $row['school_year'] ?? '';
     $current_firstname = $row['firstname'] ?? '';
