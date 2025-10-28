@@ -194,12 +194,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $enrollment_status = 'ready';
         }
     } elseif ($status === "Failed") {
-        $next_year = $current_year;     // stay same grade
-        $academic_status = "Failed";    // mark Failed
+        $next_year = $current_year; // stay same grade
         if (!in_array($failedFollowup, ['hold', 'approve'], true)) {
             $failedFollowup = 'hold';
         }
-        $enrollment_status = ($failedFollowup === 'approve') ? 'ready' : 'waiting';
+        $isApprovedForReenrollment = $failedFollowup === 'approve';
+        $academic_status = $isApprovedForReenrollment ? 'Ongoing' : 'Failed';
+        $enrollment_status = $isApprovedForReenrollment ? 'ready' : 'waiting';
         $new_student_type = 'old';
     } elseif ($status === "Dropped") {
         $next_year = $current_year;

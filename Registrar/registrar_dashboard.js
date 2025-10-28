@@ -74,11 +74,11 @@
     }
 
     const primaryActions = [];
-    primaryActions.push(`<a class="registrar-action-btn" href="edit_student.php?id=${id}">Edit</a>`);
-    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--danger" href="archive_student.php?id=${id}" onclick="return confirm('Archive this student?')">Archive</a>`);
-    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--outline" href="update_section.php?id=${id}">Change Section</a>`);
+    primaryActions.push(`<a class="registrar-action-btn" href="edit_student.php?id=${id}" title="Edit student record"><i class="bi bi-pencil-square" aria-hidden="true"></i><span>Edit</span></a>`);
+    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--danger" href="archive_student.php?id=${id}" title="Archive this student" onclick="return confirm('Archive this student?')"><i class="bi bi-archive" aria-hidden="true"></i><span>Archive</span></a>`);
+    primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--outline" href="update_section.php?id=${id}" title="Assign a different section"><i class="bi bi-diagram-3" aria-hidden="true"></i><span>Change Section</span></a>`);
     if (academicStatusRaw !== 'Graduated') {
-      primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--primary" href="update_student_status.php?id=${id}">Update Status</a>`);
+      primaryActions.push(`<a class="registrar-action-btn registrar-action-btn--primary" href="update_student_status.php?id=${id}" title="Refresh academic status"><i class="bi bi-arrow-repeat" aria-hidden="true"></i><span>Update Status</span></a>`);
     }
 
     const portalClass = portalActive ? 'success' : 'pending';
@@ -114,10 +114,10 @@
           </div>
         </td>
         <td class="dashboard-table-actions">
-          <div class="registrar-actions">
+          <div class="registrar-actions dashboard-inline-actions">
             ${primaryActions.join('')}
           </div>
-          <div class="registrar-actions registrar-actions--meta">
+          <div class="registrar-actions registrar-actions--meta dashboard-inline-actions">
             <a class="registrar-action-link" href="registration_assessment.php?student_id=${id}" target="_blank">View RAF</a>
             <span id="portal-status-${id}" class="dashboard-status-pill ${portalClass}">${portalLabel}</span>
           </div>
