@@ -412,7 +412,7 @@ if ($scriptName !== '') {
     $marker = '/Portal/student_portal.php';
     $markerPos = stripos($scriptName, $marker);
     if ($markerPos !== false) {
-        $assetBase = substr($scriptName, 0, $markerPos + 1);
+        $assetBase = substr($scriptName, 0, $markerPos);
     } else {
         $assetBase = rtrim(dirname($scriptName), '/') . '/';
     }
