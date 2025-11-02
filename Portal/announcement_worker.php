@@ -296,7 +296,7 @@ if (!function_exists('portal_dispatch_announcement')) {
 
         $batchSize = 40;
         $batches = array_chunk($recipients, $batchSize);
-        $successfulBatches = 0;
+        $successfulRecipients = 0;
 
         foreach ($batches as $batchIndex => $batchRecipients) {
             $mail = new PHPMailer(true);
@@ -310,6 +310,7 @@ if (!function_exists('portal_dispatch_announcement')) {
                 $mail->Subject = $subject;
                 $mail->Body = $mailBody;
                 $mail->AltBody = $absoluteImagePath !== '' ? ($body . "\n\n[See attached image]") : $body;
+                $mail->SMTPKeepAlive = true;
 
                 if ($hasEmbeddedImage && $embeddedCid !== null && $absoluteImagePath !== '') {
                     $mail->addEmbeddedImage($absoluteImagePath, $embeddedCid, basename($absoluteImagePath));
@@ -317,22 +318,6 @@ if (!function_exists('portal_dispatch_announcement')) {
 
                 if ($absoluteImagePath !== '') {
                     $mail->addAttachment($absoluteImagePath);
-                }
-
-                $first = array_shift($batchRecipients);
-                if ($first !== null) {
-                    $mail->addAddress($first['email'], $first['name']);
-                }
-                foreach ($batchRecipients as $recipient) {
-                    $mail->addBCC($recipient['email'], $recipient['name']);
-                }
-
-                if ($appendDebugLog) {
-                    @file_put_contents(
-                        $traceLog,
-                        sprintf("[%s] sending batch %d with %d recipients\n", date('c'), $batchIndex + 1, count($batchRecipients) + 1),
-                        FILE_APPEND
-                    );
                 }
 
                 $logger = static function (string $line) use ($announcementId, $traceLog): void {
@@ -343,16 +328,52 @@ if (!function_exists('portal_dispatch_announcement')) {
                     );
                 };
 
-                mailer_send_with_fallback(
-                    $mail,
-                    [],
-                    $logger,
-                    (bool) ($mailerConfig['fallback_to_mail'] ?? false)
-                );
-                $successfulBatches++;
+                $recipientTotal = count($batchRecipients);
+                foreach ($batchRecipients as $recipientIndex => $recipient) {
+                    try {
+                        $mail->clearAllRecipients();
+                        $mail->addAddress($recipient['email'], $recipient['name']);
+                        $mail->isSMTP();
+
+                        if ($appendDebugLog) {
+                            @file_put_contents(
+                                $traceLog,
+                                sprintf(
+                                    "[%s] sending batch %d recipient %d/%d to=%s\n",
+                                    date('c'),
+                                    $batchIndex + 1,
+                                    $recipientIndex + 1,
+                                    $recipientTotal,
+                                    $recipient['email']
+                                ),
+                                FILE_APPEND
+                            );
+                        }
+
+                        mailer_send_with_fallback(
+                            $mail,
+                            [],
+                            $logger,
+                            (bool) ($mailerConfig['fallback_to_mail'] ?? false)
+                        );
+                        $successfulRecipients++;
+                    } catch (Exception $exception) {
+                        $errorMessage = sprintf(
+                            '[announcement] recipient send failed (%s): %s',
+                            $recipient['email'],
+                            $exception->getMessage()
+                        );
+                        error_log($errorMessage);
+                        @file_put_contents(
+                            $tempDir . '/email_worker_errors.log',
+                            sprintf("[%s] %s\n", date('c'), $errorMessage),
+                            FILE_APPEND
+                        );
+                    }
+                }
             } catch (Exception $exception) {
                 $errorMessage = sprintf(
-                    '[announcement] batch %d failed: %s',
+                    '[announcement] batch %d setup failed: %s',
                     $batchIndex + 1,
                     $exception->getMessage()
                 );
@@ -362,6 +383,8 @@ if (!function_exists('portal_dispatch_announcement')) {
                     sprintf("[%s] %s\n", date('c'), $errorMessage),
                     FILE_APPEND
                 );
+            } finally {
+                $mail->smtpClose();
             }
         }
 
@@ -369,7 +392,7 @@ if (!function_exists('portal_dispatch_announcement')) {
             $conn->close();
         }
 
-        return $successfulBatches > 0;
+        return $successfulRecipients > 0;
     }
 }
 
