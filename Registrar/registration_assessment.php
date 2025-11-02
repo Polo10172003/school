@@ -398,7 +398,7 @@ $feeBreakdown = [
 ];
 
 $paymentsRows = [];
-$paymentStmt = $conn->prepare('SELECT payment_date, created_at, payment_type, payment_status, amount, reference_number, or_number FROM student_payments WHERE student_id = ? ORDER BY created_at ASC');
+$paymentStmt = $conn->prepare('SELECT payment_date, created_at, payment_type, payment_status, amount, reference_number, or_number, grade_level, school_year FROM student_payments WHERE student_id = ? ORDER BY created_at ASC');
 if ($paymentStmt) {
     $paymentStmt->bind_param('i', $studentRow['id']);
     if ($paymentStmt->execute()) {
@@ -407,10 +407,56 @@ if ($paymentStmt) {
     $paymentStmt->close();
 }
 
+$gradeScope = [];
+if ($normalizedGradeKey !== '') {
+    $gradeScope = cashier_grade_synonyms($normalizedGradeKey);
+    if (!in_array($normalizedGradeKey, $gradeScope, true)) {
+        $gradeScope[] = $normalizedGradeKey;
+    }
+}
+$normalizedGradeLevel = cashier_normalize_grade_key($gradeLevel);
+if ($normalizedGradeLevel !== '' && !in_array($normalizedGradeLevel, $gradeScope, true)) {
+    $gradeScope[] = $normalizedGradeLevel;
+}
+$gradeScope = array_values(array_unique(array_filter($gradeScope, static function ($value): bool {
+    return $value !== '';
+})));
+
+$paymentsFiltered = [];
 $paymentsTotal = 0.0;
 foreach ($paymentsRows as $paymentRow) {
-    $paymentsTotal += (float) ($paymentRow['amount'] ?? 0.0);
+    $paymentAmount = (float) ($paymentRow['amount'] ?? 0.0);
+    if ($paymentAmount <= 0.0) {
+        continue;
+    }
+
+    $paymentGradeRaw = (string) ($paymentRow['grade_level'] ?? '');
+    $paymentGradeNormalized = cashier_normalize_grade_key($paymentGradeRaw);
+    $paymentSchoolYear = trim((string) ($paymentRow['school_year'] ?? ''));
+    $matchesScope = false;
+
+    if (!empty($gradeScope) && $paymentGradeNormalized !== '') {
+        $matchesScope = in_array($paymentGradeNormalized, $gradeScope, true);
+    } elseif ($paymentGradeNormalized === '' && $paymentGradeRaw !== '') {
+        $matchesScope = strcasecmp($paymentGradeRaw, (string) $gradeLevel) === 0;
+    }
+
+    if (!$matchesScope && $paymentGradeNormalized === '' && $paymentGradeRaw === '') {
+        if ($studentSchoolYear !== '' && $paymentSchoolYear !== '') {
+            $matchesScope = strcasecmp($paymentSchoolYear, $studentSchoolYear) === 0;
+        } elseif ($studentSchoolYear === '') {
+            $matchesScope = true;
+        }
+    }
+
+    if (!$matchesScope) {
+        continue;
+    }
+
+    $paymentsFiltered[] = $paymentRow;
+    $paymentsTotal += $paymentAmount;
 }
+$paymentsRows = $paymentsFiltered;
 
 $netAssessment = max($overallAssessment - $paymentsTotal, 0.0);
 $netAssessment = $remainingBalance > 0 ? $remainingBalance : $netAssessment;

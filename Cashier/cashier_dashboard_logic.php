@@ -3670,6 +3670,14 @@ function cashier_dashboard_build_student_financial(mysqli $conn, int $studentId,
     $pending_total = max($remaining_balance, 0.0);
     $pending_display = [];
 
+    if ($suppressPendingForHold) {
+        $remaining_balance = 0.0;
+        $pending_total = 0.0;
+        $schedule_rows = [];
+        $next_due_row = null;
+        $schedule_message = 'Enrollment hold in effect. Pending balances are paused until registrar clearance.';
+    }
+
     $paid_chronological = $paid;
     usort($paid_chronological, function (array $a, array $b) {
         $timeA = $a['created_at'] ?? $a['payment_date'] ?? '';
