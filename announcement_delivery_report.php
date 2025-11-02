@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../includes/session.php';
+require_once __DIR__ . '/includes/session.php';
 
 if (empty($_SESSION['admin_username'])) {
-    header('Location: ' . (APP_BASE_PATH ?? '/') . 'admin_login.php');
+    header('Location: admin_login.php');
     exit();
 }
 
-$logPath = __DIR__ . '/../temp/announcement_delivery.log';
+$logPath = __DIR__ . '/temp/announcement_delivery.log';
 $filterId = isset($_GET['announcement_id']) ? (int) $_GET['announcement_id'] : null;
 $entries = [];
 
@@ -17,7 +17,7 @@ if (is_file($logPath) && is_readable($logPath)) {
     if ($lines !== false) {
         $lines = array_reverse($lines);
         foreach ($lines as $line) {
-            if (!preg_match('/^\\[(?<timestamp>[^\\]]+)\\]\\s+announcement_id=(?<id>\\d+)\\s+to=(?<email>\\S+)\\s+name=(?<name>.*)$/', $line, $matches)) {
+            if (!preg_match('/^\[(?<timestamp>[^\]]+)\]\s+announcement_id=(?<id>\d+)\s+to=(?<email>\S+)\s+name=(?<name>.*)$/', $line, $matches)) {
                 continue;
             }
             $announcementId = (int) $matches['id'];
@@ -86,7 +86,7 @@ if (is_file($logPath) && is_readable($logPath)) {
     </style>
 </head>
 <body>
-    <a class="back-link" href="../admin_dashboard.php#announcements">&larr; Back to Admin Dashboard</a>
+    <a class="back-link" href="admin_dashboard.php#announcements">&larr; Back to Admin Dashboard</a>
     <h1>Announcement Delivery Report</h1>
 
     <form class="filters" method="get">
@@ -95,7 +95,7 @@ if (is_file($logPath) && is_readable($logPath)) {
             <input type="number" name="announcement_id" value="<?= htmlspecialchars((string) ($filterId ?? ''), ENT_QUOTES) ?>" placeholder="e.g. 42" min="1">
         </label>
         <button type="submit">Filter</button>
-        <a href="<?= htmlspecialchars(basename(__FILE__), ENT_QUOTES) ?>">Clear</a>
+        <a href="announcement_delivery_report.php">Clear</a>
     </form>
 
     <?php if (empty($entries)): ?>
