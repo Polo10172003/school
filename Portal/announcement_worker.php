@@ -298,6 +298,8 @@ if (!function_exists('portal_dispatch_announcement')) {
         $batches = array_chunk($recipients, $batchSize);
         $successfulRecipients = 0;
 
+        $deliveryLogPath = $tempDir . '/announcement_delivery.log';
+
         foreach ($batches as $batchIndex => $batchRecipients) {
             $mail = new PHPMailer(true);
             try {
@@ -357,6 +359,17 @@ if (!function_exists('portal_dispatch_announcement')) {
                             (bool) ($mailerConfig['fallback_to_mail'] ?? false)
                         );
                         $successfulRecipients++;
+                        @file_put_contents(
+                            $deliveryLogPath,
+                            sprintf(
+                                "[%s] announcement_id=%d to=%s name=%s\n",
+                                date('c'),
+                                $announcementId,
+                                $recipient['email'],
+                                $recipient['name']
+                            ),
+                            FILE_APPEND
+                        );
                     } catch (Exception $exception) {
                         $errorMessage = sprintf(
                             '[announcement] recipient send failed (%s): %s',
