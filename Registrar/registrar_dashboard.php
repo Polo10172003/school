@@ -146,6 +146,13 @@ if (!function_exists('registrar_format_bytes')) {
         </div>
 <?php endif; ?>
 
+    <?php if (!empty($_SESSION['update_status_error'])): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <?= htmlspecialchars($_SESSION['update_status_error']) ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        <?php unset($_SESSION['update_status_error']); ?>
+    <?php endif; ?>
 
 <?php
 $gradeLevels = [

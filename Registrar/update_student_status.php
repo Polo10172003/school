@@ -1,6 +1,7 @@
 <?php
 include __DIR__ . '/../db_connection.php';
 require_once __DIR__ . '/../includes/transaction_logger.php';
+require_once __DIR__ . '/../Cashier/cashier_dashboard_logic.php';
 
 if (!function_exists('registrar_normalize_grade_label')) {
     /**
@@ -249,6 +250,37 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $isGrade12Graduate = false;
 
     if ($status === "Passed") {
+        $studentIdInt = (int) $id;
+        if ($studentIdInt > 0) {
+            try {
+                $financialSnapshot = cashier_dashboard_build_student_financial($conn, $studentIdInt, [
+                    'student_row' => $row,
+                    'require_explicit_plan' => false,
+                ]);
+            } catch (Throwable $snapshotError) {
+                $financialSnapshot = null;
+                error_log('[registrar] unable to build financial snapshot for student ' . $studentIdInt . ': ' . $snapshotError->getMessage());
+            }
+
+            $hasOutstanding = false;
+            if (is_array($financialSnapshot) && !empty($financialSnapshot['views'])) {
+                foreach ($financialSnapshot['views'] as $viewData) {
+                    if (($viewData['key'] ?? '') === 'current') {
+                        $remainingCurrent = (float) ($viewData['remaining_balance'] ?? 0.0);
+                        if ($remainingCurrent > 0.009) {
+                            $hasOutstanding = true;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if ($hasOutstanding) {
+                $_SESSION['update_status_error'] = 'Cannot promote student while current plan still has unpaid balance. Please ensure all dues are settled.';
+                header('Location: registrar_dashboard.php?student=' . urlencode((string) $studentIdInt));
+                exit();
+            }
+        }
         if ($current_year === "Grade 12") {
             $next_year = "Graduated";
             $academic_status = "Graduated";
